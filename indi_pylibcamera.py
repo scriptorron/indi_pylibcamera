@@ -341,32 +341,32 @@ class indi_pylibcamera(indidevice):
         )
         self.CameraVectorNames.append("CCD_GAIN")
         #
-        self.checkin(
-            ISwitchVector(
-                device=self.device, name="CCD_ABORT_EXPOSURE",
-                elements=[
-                    ISwitch(name="ABORT", label="Abort", value=ISwitchState.OFF),
-                ],
-                label="Expose Abort", group="Main Control",
-                rule=ISwitchRule.ONEOFMANY,
-            ),
-            send_defVector=True,
-        )
-        self.CameraVectorNames.append("CCD_ABORT_EXPOSURE")
+        # self.checkin(
+        #     ISwitchVector(
+        #         device=self.device, name="CCD_ABORT_EXPOSURE",
+        #         elements=[
+        #             ISwitch(name="ABORT", label="Abort", value=ISwitchState.OFF),
+        #         ],
+        #         label="Expose Abort", group="Main Control",
+        #         rule=ISwitchRule.ONEOFMANY,
+        #     ),
+        #     send_defVector=True,
+        # )
+        # self.CameraVectorNames.append("CCD_ABORT_EXPOSURE")
         #
-        self.checkin(
-            INumberVector(
-                device=self.device, name="CCD_BINNING",
-                elements=[
-                    INumber(name="HOR_BIN", label="X", min=1, max=1, step=1, value=1, format="%2.0f"),
-                    INumber(name="VER_BIN", label="Y", min=1, max=1, step=1, value=1, format="%2.0f"),
-                ],
-                label="Binning", group="Image Settings",
-                state=IVectorState.IDLE, perm=IPermission.RO,
-            ),
-            send_defVector=True,
-        )
-        self.CameraVectorNames.append("CCD_BINNING")
+        # self.checkin(
+        #     INumberVector(
+        #         device=self.device, name="CCD_BINNING",
+        #         elements=[
+        #             INumber(name="HOR_BIN", label="X", min=1, max=1, step=1, value=1, format="%2.0f"),
+        #             INumber(name="VER_BIN", label="Y", min=1, max=1, step=1, value=1, format="%2.0f"),
+        #         ],
+        #         label="Binning", group="Image Settings",
+        #         state=IVectorState.IDLE, perm=IPermission.RO,
+        #     ),
+        #     send_defVector=True,
+        # )
+        # self.CameraVectorNames.append("CCD_BINNING")
         #
         self.checkin(
             ITextVector(
@@ -394,24 +394,6 @@ class indi_pylibcamera(indidevice):
             send_defVector=True,
         )
         self.CameraVectorNames.append("CCD_TEMPERATURE")
-        #
-        self.checkin(
-            INumberVector(
-                device=self.device, name="CCD_INFO",
-                elements=[
-                    INumber(name="CCD_MAX_X", label="Max. Width", min=1, max=1000000, step=0, value=1, format="%.f"),
-                    INumber(name="CCD_MAX_Y", label="Max. Height", min=1, max=1000000, step=0, value=1, format="%.f"),
-                    INumber(name="CCD_PIXEL_SIZE", label="Pixel size (um)", min=0, max=1000, step=0, value=1, format="%.2f"),
-                    INumber(name="CCD_PIXEL_SIZE_X", label="Pixel size X", min=0, max=1000, step=0, value=1, format="%.2f"),
-                    INumber(name="CCD_PIXEL_SIZE_Y", label="Pixel size Y", min=0, max=1000, step=0, value=1, format="%.2f"),
-                    INumber(name="CCD_BITSPERPIXEL", label="Bits per pixel", min=0, max=1000, step=0, value=1, format="%.f"),
-                ],
-                label="CCD Information", group="Image Info",
-                state=IVectorState.IDLE, perm=IPermission.RO,
-            ),
-            send_defVector=True,
-        )
-        self.CameraVectorNames.append("CCD_INFO")
         #
         self.checkin(
             ISwitchVector(
@@ -456,18 +438,18 @@ class indi_pylibcamera(indidevice):
         )
         self.CameraVectorNames.append("CCD_FRAME_TYPE")
         #
-        self.checkin(
-            ISwitchVector(
-                device=self.device, name="CCD_FRAME_RESET",
-                elements=[
-                    ISwitch(name="RESET", label="Reset", value=ISwitchState.OFF),
-                ],
-                label="Frame Values", group="Image Settings",
-                rule=ISwitchRule.ONEOFMANY,
-            ),
-            send_defVector=True,
-        )
-        self.CameraVectorNames.append("CCD_FRAME_RESET")
+        # self.checkin(
+        #     ISwitchVector(
+        #         device=self.device, name="CCD_FRAME_RESET",
+        #         elements=[
+        #             ISwitch(name="RESET", label="Reset", value=ISwitchState.OFF),
+        #         ],
+        #         label="Frame Values", group="Image Settings",
+        #         rule=ISwitchRule.ONEOFMANY,
+        #     ),
+        #     send_defVector=True,
+        # )
+        # self.CameraVectorNames.append("CCD_FRAME_RESET")
         #
         self.checkin(
             ISwitchVector(
@@ -511,19 +493,19 @@ class indi_pylibcamera(indidevice):
         )
         self.CameraVectorNames.append("CCD_FAST_TOGGLE")
         #
-        self.checkin(
-            ISwitchVector(
-                device=self.device, name="CCD_COOLER",
-                elements=[
-                    ISwitch(name="COOLER_ON", label="ON", value=ISwitchState.OFF),
-                    ISwitch(name="COOLER_OFF", label="OFF", value=ISwitchState.ON),
-                ],
-                label="Cooler", group="Main Control",
-                rule=ISwitchRule.ONEOFMANY,
-            ),
-            send_defVector=True,
-        )
-        self.CameraVectorNames.append("CCD_COOLER")
+        # self.checkin(
+        #     ISwitchVector(
+        #         device=self.device, name="CCD_COOLER",
+        #         elements=[
+        #             ISwitch(name="COOLER_ON", label="ON", value=ISwitchState.OFF),
+        #             ISwitch(name="COOLER_OFF", label="OFF", value=ISwitchState.ON),
+        #         ],
+        #         label="Cooler", group="Main Control",
+        #         rule=ISwitchRule.ONEOFMANY,
+        #     ),
+        #     send_defVector=True,
+        # )
+        # self.CameraVectorNames.append("CCD_COOLER")
         # finish
         return True
 
