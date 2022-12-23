@@ -580,23 +580,10 @@ class indi_pylibcamera(indidevice):
         else:
             bitpix = 8
             array_raw = array_raw * (2 ** (bitpix - self.raw_mode["bit_depth"]))
-
+        # at least HQ camera reports CCD temperature in meta data
+        nv = self.knownVectors["CCD_TEMPERATURE"]["CCD_TEMPERATURE_VALUE"] = metadata.get('SensorTemperature', 0)
+        nv.send_setVector()
         #
-        if False:
-            with open("Light_001.fits", "rb") as fh:
-                f = fh.read()
-            size = len(f)
-            # make BLOB
-            logging.info(f"sending frame as BLOB: {size}")
-            bv = self.knownVectors["CCD1"]
-            logging.info(f"setting data")
-            bv["CCD1"].set_data(data=f, format=".fits", compress=False)
-            logging.info(f"sending BLOB")
-            bv.send_setVector()
-            return True
-
-        #array_raw = np.ones((100, 200), dtype=np.uint16)
-
         # determine frame type
         FrameType = self.knownVectors["CCD_FRAME_TYPE"].get_OnSwitches()[0]
         # convert to FITS
@@ -652,7 +639,8 @@ class indi_pylibcamera(indidevice):
         logging.info(f"sending frame as BLOB: {size}")
         bv = self.knownVectors["CCD1"]
         logging.info(f"setting data")
-        bv["CCD1"].set_data(data=bstream.read(), format=".fits", compress=False)
+        compress = self.knownVectors["COMPRESSION"].get_OnSwitches()[0] == "CCD_COMPRESS"
+        bv["CCD1"].set_data(data=bstream.read(), format=".fits", compress=compress)
         logging.info(f"sending BLOB")
         bv.send_setVector()
         #
