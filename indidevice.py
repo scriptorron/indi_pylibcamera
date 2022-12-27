@@ -543,13 +543,12 @@ class indidevice:
         inp = b""
         while self.running:
             inp += await reader.readline()
-            #logging.error(f'DBG: empfangen "{inp}"')
             # maybe XML is complete
             try:
                 xml = etree.fromstring(inp.decode())
                 inp = b""
             except etree.XMLSyntaxError as error:
-                logging.debug(f"Could not parse xml {error} {inp}")
+                logging.debug(f"XML not complete ({error}): {inp}")
                 continue
 
             logging.info("Parsed data from client")
@@ -566,7 +565,7 @@ class indidevice:
                 values = {ele.attrib["name"]: ele.text.strip() for ele in xml}
                 device = xml.attrib.get('device', None)
                 vector = self.knownVectors[vectorName]
-                logging.error(f"DBG: rufe {vector} set_byClinet")
+                logging.debug(f"calling {vector} set_byClinet")
                 if (device is None) or (vector.device == device):
                     vector.set_byClient(values)
             else:

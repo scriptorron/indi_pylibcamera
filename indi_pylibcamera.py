@@ -54,7 +54,7 @@ class ConnectionVector(ISwitchVector):
         Args:
             values: dict(propertyName: value) of values to set
         """
-        logging.error(f"DBG set_byClient: {values}")
+        logging.debug(f"connect/disconnect action: {values}")
         self.message = self.update_SwitchStates(values=values)
         # send updated property values
         if len(self.message) > 0:
@@ -64,17 +64,14 @@ class ConnectionVector(ISwitchVector):
             return
         else:
             self.state = IVectorState.OK
-        logging.error(f"DBG set_byClient: vor send_setVector")
         self.state = IVectorState.BUSY
         self.send_setVector()
         if self.get_OnSwitches()[0] == "CONNECT":
-            logging.error(f"DBG set_byClient: Connect Action")
             if self.parent.open_Camera():
                 self.state = IVectorState.OK
             else:
                 self.state = IVectorState.ALERT
         else:
-            logging.error(f"DBG set_byClient: Disconnect Action")
             self.parent.close_Camera()
             self.state = IVectorState.OK
         self.send_setVector()
@@ -183,6 +180,7 @@ class indi_pylibcamera(indidevice):
 
     def close_Camera(self):
         if self.picam2 is not None:
+            logging.info('disconnecting camera')
             for n in self.CameraVectorNames:
                 self.checkout(n)
             self.CameraVectorNames = []
