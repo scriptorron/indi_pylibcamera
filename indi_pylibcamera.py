@@ -34,6 +34,51 @@ config.read(str(configpath))
 __version__ = "1.0.0"
 
 
+class LoggingVector(ISwitchVector):
+    def __init__(self, parent):
+        self.parent=parent
+        super().__init__(
+            device=self.parent.device, name="LOGGING_LEVEL",
+            elements=[
+                ISwitch(name="LOGGING_DEBUG", label="Debug", value=ISwitchState.OFF),
+                ISwitch(name="LOGGING_INFO", label="Info", value=ISwitchState.ON),
+                ISwitch(name="LOGGING_WARN", label="Warning", value=ISwitchState.OFF),
+                ISwitch(name="LOGGING_ERROR", label="Error", value=ISwitchState.OFF),
+            ],
+            label="Logging", group="Options",
+            rule=ISwitchRule.ONEOFMANY,
+        )
+
+    def set_byClient(self, values: dict):
+        """called when vector gets set by client
+        special version for changing logging level
+
+        Args:
+            values: dict(propertyName: value) of values to set
+        """
+        logging.debug(f"logging level action: {values}")
+        self.message = self.update_SwitchStates(values=values)
+        # send updated property values
+        if len(self.message) > 0:
+            self.state = IVectorState.ALERT
+            self.send_setVector()
+            self.message = ""
+            return
+        selectedLogLevel = self.get_OnSwitches()[0]
+        logging.error(f'selected logging level: {selectedLogLevel}')
+        if selectedLogLevel == "LOGGING_DEBUG":
+            logging.getLogger().setLevel(logging.DEBUG)
+        elif selectedLogLevel == "LOGGING_INFO":
+            logging.getLogger().setLevel(logging.INFO)
+        elif selectedLogLevel == "LOGGING_WARN":
+            logging.getLogger().setLevel(logging.WARN)
+        else:
+            logging.getLogger().setLevel(logging.ERROR)
+            logging.error(f'logging level geaendert')
+        self.state = IVectorState.OK
+        self.send_setVector()
+
+
 class ConnectionVector(ISwitchVector):
     def __init__(self, parent):
         self.parent=parent
@@ -62,8 +107,6 @@ class ConnectionVector(ISwitchVector):
             self.send_setVector()
             self.message = ""
             return
-        else:
-            self.state = IVectorState.OK
         self.state = IVectorState.BUSY
         self.send_setVector()
         if self.get_OnSwitches()[0] == "CONNECT":
@@ -175,6 +218,9 @@ class indi_pylibcamera(indidevice):
                 label="Driver Info", group="General Info",
                 perm=IPermission.RO,
             )
+        )
+        self.checkin(
+            LoggingVector(parent=self),
         )
 
 
