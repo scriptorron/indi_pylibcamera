@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 from astropy.io import fits
 import io
+import re
 import logging
 
 from picamera2 import Picamera2
@@ -164,6 +165,44 @@ class ExposureVector(INumberVector):
 
 
 
+class CameraSettings:
+    def __init__(self, ExposureTime=None, AGain=None, DoFastExposure=None, DoRaw=None, ProcSize=None, RawMode=None):
+        self.ExposureTime = ExposureTime
+        self.AGain = AGain
+        self.DoFastExposure = DoFastExposure
+        self.DoRaw = DoRaw
+        self.ProcSize = ProcSize
+        self.RawMode = RawMode
+
+    def is_RestartNeeded(self, NewCameraSettings):
+        is_RestartNeeded = (
+            (self.DoFastExposure != NewCameraSettings.DoFastExposure)
+            or (self.ExposureTime != NewCameraSettings.ExposureTime)
+            or (self.AGain != NewCameraSettings.AGain)
+            or (self.DoRaw != NewCameraSettings.DoRaw)
+            or (self.ProcSize != NewCameraSettings.ProcSize)
+            or (self.RawMode != NewCameraSettings.RawMode)
+        )
+        return is_RestartNeeded
+
+    def is_ReconfigurationNeeded(self, NewCameraSettings):
+        is_ReconfigurationNeeded = (
+            (self.DoFastExposure != NewCameraSettings.DoFastExposure)
+            or (self.DoRaw != NewCameraSettings.DoRaw)
+            or (self.ProcSize != NewCameraSettings.ProcSize)
+            or (self.RawMode != NewCameraSettings.RawMode)
+        )
+        return is_ReconfigurationNeeded
+
+    def __str__(self):
+        return f'CameraSettings ExposureTime={self.ExposureTime}s, AGain={self.AGain}, ' + \
+            f'FastExposure={self.DoFastExposure}, DoRaw={self.DoRaw}, ProcSize={self.ProcSize}, RawMode={self.RawMode}'
+
+    def __repr__(self):
+        return str(self)
+
+
+
 
 
 class indi_pylibcamera(indidevice):
@@ -180,11 +219,9 @@ class indi_pylibcamera(indidevice):
         self.Cameras = [c["Id"] for c in cameras]
         # libcamera
         self.picam2 = None
-        self.present_ExposureTime = None
-        self.present_AGain = None
-        self.present_DoFastExposure = None
+        self.present_CameraSettings = CameraSettings()
         self.CamProps = dict()
-        self.raw_mode = dict()
+        self.RawModes = []
         # INDI vector names only available with connected camera
         self.CameraVectorNames = []
         # INDI general vectors
@@ -233,29 +270,59 @@ class indi_pylibcamera(indidevice):
             if self.picam2.started:
                 self.picam2.stop()
             self.picam2 = None
-        self.present_ExposureTime = None
-        self.present_AGain = None
-        self.present_DoFastExposure = None
+        self.present_CameraSettings = CameraSettings()
         self.CamProps = dict()
-        self.raw_mode = dict()
+        self.RawModes = []
+
+
+    def get_RawCameraModes(self):
+        """ get list of useful raw camera modes
+        """
+        sensor_modes = self.picam2.sensor_modes
+        raw_modes = []
+        for sensor_mode in sensor_modes:
+            # sensor_mode is dict
+            # it must have key "format" (usually a packed data format) and can have
+            # "unpacked" (unpacked data format)
+            if "unpacked" not in sensor_mode.keys():
+                sensor_format = sensor_mode["format"]
+            else:
+                sensor_format = sensor_mode["unpacked"]
+            # packed data formats are not supported
+            if sensor_format.endswith("_CSI2P"):
+                logging.warning(f'raw mode not supported: {sensor_mode}')
+                continue
+            # only Bayer pattern formats are supported
+            if not re.match("S[RGB]{4}[0-9]+", sensor_format):
+                logging.warning(f'raw mode not supported: {sensor_mode}')
+                continue
+            # add to list of raw formats
+            raw_mode = {
+                "size": sensor_mode["size"],
+                "camera_format": sensor_format,
+                "bit_depth": sensor_mode["bit_depth"],
+                # strange: we get BGGR when configuring HQ camera as RGGB
+                # Has that something to do with self.CamProps["Rotation"] == 180 ?
+                "FITS_format": sensor_format[4:0:-1],  # revert order of Bye pattern for HQ camera
+            }
+            raw_mode["label"] = f'{raw_mode["size"][0]}x{raw_mode["size"][1]} {raw_mode["FITS_format"]} {raw_mode["bit_depth"]}bit'
+            raw_modes.append(raw_mode)
+        # sort list of raw formats by size in descending order
+        raw_modes.sort(key=lambda k: k["size"][0] * k["size"][1], reverse=True)
+        return raw_modes
 
 
     def open_Camera(self):
         """ opens camera, reads camera properties and still configurations, updates INDI properties
         """
         #
-        sv = self.knownVectors["CAMERA_SELECTION"]
-        CameraId = None
-        for sp in self.knownVectors["CAMERA_SELECTION"].elements:
-            if sp.value == ISwitchState.ON:
-                CameraId = sp.label
-                break
-        logging.info(f'connecting to camera {CameraId}')
-        if CameraId is None:
+        CameraSel = self.knownVectors["CAMERA_SELECTION"].get_OnSwitchesIdxs()
+        if len(CameraSel) < 1:
             return False
+        CameraIdx = CameraSel[0]
         self.close_Camera()
-        CamIdx = self.Cameras.index(CameraId)
-        self.picam2 = Picamera2(CamIdx)
+        logging.info(f'connecting to camera {self.Cameras[CameraIdx]}')
+        self.picam2 = Picamera2(CameraIdx)
         # read camera properties
         self.CamProps = self.picam2.camera_properties
         logging.info(f'camera properties: {self.CamProps}')
@@ -276,50 +343,53 @@ class indi_pylibcamera(indidevice):
             send_defVector=True,
         )
         self.CameraVectorNames.append("CAMERA_INFO")
-        # find the best raw camera mode:
-        #   * must be unpacked,
-        #   * largest number of pixel,
-        #   * highest number of bits per pixel 
-        n_pixel = -1
-        n_bits = -1
-        self.raw_mode = None
-        for raw_mode in self.picam2.sensor_modes:
-            logging.info(f'raw camera mode: {raw_mode}')
-            if "unpacked" not in raw_mode.keys():
-                raw_mode["unpacked"] = raw_mode[format]
-            if raw_mode["unpacked"].endswith("_CSI2P"):
-                # CSI2P is  not supported!
-                continue
-            _n_pixel = raw_mode["size"][0] * raw_mode["size"][1]
-            if (_n_pixel > n_pixel) or ((_n_pixel == n_pixel) and (raw_mode["bit_depth"] > n_bits)):
-                self.raw_mode = {
-                    "size": raw_mode["size"],
-                    "format": raw_mode["unpacked"],
-                    "bit_depth": raw_mode["bit_depth"],
-                }
-                n_bits = raw_mode["bit_depth"]
-        # some cameras may not have a useful raw mode
-        if self.raw_mode is None:
-            send_Message(
-                device=self.device,
-                message="camera does not has a useful raw mode", severity="WARN",
+        # raw camera modes
+        self.RawModes = self.get_RawCameraModes()
+        if len(self.RawModes) < 1:
+            logging.warning("camera does not has a useful raw mode")
+        else:
+            # allow to select raw or processed frame
+            self.checkin(
+                ISwitchVector(
+                    device=self.device, name="FRAME_TYPE",
+                    elements=[
+                        ISwitch(name="FRAMETYPE_RAW", label="Raw", value=ISwitchState.ON),
+                        ISwitch(name="FRAMETYPE_PROC", label="Processed", value=ISwitchState.OFF),
+                    ],
+                    label="Frame type", group="Image Settings",
+                    rule=ISwitchRule.ONEOFMANY,
+                ),
+                send_defVector=True,
             )
-            self.close_Camera()
-            return False
+            self.CameraVectorNames.append("FRAME_TYPE")
+            # raw frame types
+            self.checkin(
+                ISwitchVector(
+                    device=self.device, name="RAW_FORMAT",
+                    elements=[
+                        ISwitch(name=f'RAWFORMAT{i}', label=rm["label"], value=ISwitchState.ON if i == 0 else ISwitchState.OFF)
+                        for i, rm in enumerate(self.RawModes)
+                    ],
+                    label="Raw format", group="Image Settings",
+                    rule=ISwitchRule.ONEOFMANY,
+                ),
+                send_defVector=True,
+            )
+            self.CameraVectorNames.append("RAW_FORMAT")
         #
         self.checkin(
             INumberVector(
                 device=self.device, name="CCD_FRAME",
                 elements=[
-                    INumber(name="X", label="Left", min=0, max=0, step=0, value=0, format="%4.0f"),
-                    INumber(name="Y", label="Top", min=0, max=0, step=0, value=0, format="%4.0f"),
-                    INumber(name="WIDTH", label="Width", min=self.raw_mode["size"][0], max=self.raw_mode["size"][0],
-                            step=0, value=self.raw_mode["size"][0], format="%4.0f"),
-                    INumber(name="HEIGHT", label="Height", min=self.raw_mode["size"][1], max=self.raw_mode["size"][1],
-                            step=0, value=self.raw_mode["size"][1], format="%4.0f"),
+                    #INumber(name="X", label="Left", min=0, max=0, step=0, value=0, format="%4.0f"),
+                    #INumber(name="Y", label="Top", min=0, max=0, step=0, value=0, format="%4.0f"),
+                    INumber(name="WIDTH", label="Width", min=1, max=self.CamProps["PixelArraySize"][0],
+                            step=0, value=self.CamProps["PixelArraySize"][0], format="%4.0f"),
+                    INumber(name="HEIGHT", label="Height", min=1, max=self.CamProps["PixelArraySize"][1],
+                            step=0, value=self.CamProps["PixelArraySize"][1], format="%4.0f"),
                 ],
-                label="Frame", group="Image Settings",
-                state=IVectorState.IDLE, perm=IPermission.RO,
+                label="Processed frame", group="Image Settings",
+                state=IVectorState.IDLE, perm=IPermission.RW,
             ),
             send_defVector=True,
         )
@@ -330,9 +400,9 @@ class indi_pylibcamera(indidevice):
                 device=self.device, name="CCD_INFO",
                 elements=[
                     INumber(name="CCD_MAX_X", label="Max. Width", min=1, max=1000000, step=0,
-                            value=self.raw_mode["size"][0], format="%.f"),
+                            value=self.CamProps["PixelArraySize"][0], format="%.f"),
                     INumber(name="CCD_MAX_Y", label="Max. Height", min=1, max=1000000, step=0,
-                            value=self.raw_mode["size"][1], format="%.f"),
+                            value=self.CamProps["PixelArraySize"][1], format="%.f"),
                     INumber(name="CCD_PIXEL_SIZE", label="Pixel size (um)", min=0, max=1000, step=0,
                             value=max(self.CamProps["UnitCellSize"]) / 1e3, format="%.2f"),
                     INumber(name="CCD_PIXEL_SIZE_X", label="Pixel size X", min=0, max=1000, step=0,
@@ -340,7 +410,8 @@ class indi_pylibcamera(indidevice):
                     INumber(name="CCD_PIXEL_SIZE_Y", label="Pixel size Y", min=0, max=1000, step=0,
                             value=self.CamProps["UnitCellSize"][1] / 1e3, format="%.2f"),
                     INumber(name="CCD_BITSPERPIXEL", label="Bits per pixel", min=0, max=1000, step=0,
-                            value=self.raw_mode["bit_depth"], format="%.f"),
+                            # using value of first raw mode or 8 if no raw mode available, TODO: is that right?
+                            value=8 if len(self.RawModes) < 1 else self.RawModes[0]["bit_depth"], format="%.f"),
                 ],
                 label="CCD Information", group="Image Info",
                 state=IVectorState.IDLE, perm=IPermission.RO,
@@ -349,20 +420,20 @@ class indi_pylibcamera(indidevice):
         )
         self.CameraVectorNames.append("CCD_INFO")
         #
-        self.checkin(
-            ITextVector(
-                device=self.device, name="CCD_CFA",
-                elements=[
-                    IText(name="CFA_OFFSET_X", label="Offset X", value="0"),
-                    IText(name="CFA_OFFSET_Y", label="Offset Y", value="0"),
-                    IText(name="CFA_TYPE", label="Type", value=self.raw_mode["format"][1:].rstrip("0123456789")),
-                ],
-                label="Color filter array", group="Image Info",
-                state=IVectorState.IDLE, perm=IPermission.RO,
-            ),
-            send_defVector=True,
-        )
-        self.CameraVectorNames.append("CCD_CFA")
+        # self.checkin(
+        #     ITextVector(
+        #         device=self.device, name="CCD_CFA",
+        #         elements=[
+        #             IText(name="CFA_OFFSET_X", label="Offset X", value="0"),
+        #             IText(name="CFA_OFFSET_Y", label="Offset Y", value="0"),
+        #             IText(name="CFA_TYPE", label="Type", value=self.raw_mode["format"][1:].rstrip("0123456789")),
+        #         ],
+        #         label="Color filter array", group="Image Info",
+        #         state=IVectorState.IDLE, perm=IPermission.RO,
+        #     ),
+        #     send_defVector=True,
+        # )
+        # self.CameraVectorNames.append("CCD_CFA")
         #
         min_exp, max_exp, default_exp = self.picam2.camera_controls["ExposureTime"]
         self.checkin(
@@ -443,10 +514,10 @@ class indi_pylibcamera(indidevice):
             ISwitchVector(
                 device=self.device, name="CCD_COMPRESSION",
                 elements=[
-                    ISwitch(name="CCD_COMPRESS", label="Compress", value=ISwitchState.OFF),
-                    ISwitch(name="CCD_RAW", label="Raw", value=ISwitchState.ON),
+                    ISwitch(name="CCD_COMPRESS", label="Compressed", value=ISwitchState.OFF),
+                    ISwitch(name="CCD_RAW", label="Uncompressed", value=ISwitchState.ON),
                 ],
-                label="Image", group="Image Settings",
+                label="Image compression", group="Image Settings",
                 rule=ISwitchRule.ONEOFMANY,
             ),
             send_defVector=True,
@@ -553,102 +624,29 @@ class indi_pylibcamera(indidevice):
         # finish
         return True
 
-
-    def do_Exposure(self):
-        if self.picam2 is None:
-            logging.error("trying to make an exposure without camera opened")
-            return False
-        # get exposure time, analogue gain, DoFastExposure
-        ExposureTime = self.knownVectors["CCD_EXPOSURE"]["CCD_EXPOSURE_VALUE"].value
-        AGain = self.knownVectors["CCD_GAIN"]["GAIN"].value
-        DoFastExposure = False  # FIXME: implement this!
-        # need a camera stop/start when something has changed on exposure controls
-        IsRestartNeeded = (
-                (DoFastExposure != self.present_DoFastExposure)
-                or (ExposureTime != self.present_ExposureTime)
-                or (AGain != self.present_AGain)
-        )
-        if self.picam2.started and IsRestartNeeded:
-            logging.info(f'stopping camera for reconfiguration: ExposureTime={ExposureTime} sec, AGain={AGain}, DoFastExposure={DoFastExposure}')
-            self.picam2.stop()
-        # Fast Exposure needs a configuration change
-        if DoFastExposure != self.present_DoFastExposure:
-            # need a new camera configuration
-            config = self.picam2.create_still_configuration(
-                queue=DoFastExposure,
-                buffer_count=2 if DoFastExposure else 1  # need at least 2 buffer for queueing
-            )
-            # we do not need the main stream and configure it to smaller size to save memory
-            config["main"]["size"] = (480, 380)
-            # configure raw stream
-            config["raw"] = {"size": self.raw_mode["size"], "format": self.raw_mode["format"]}
-            # optimize (align) configuration: small changes to some main stream configurations
-            # (for instance: size) will fit better to hardware
-            self.picam2.align_configuration(config)
-            # set still configuration
-            self.picam2.configure(config)
-        # exposure time and analog gain are controls
-        if (DoFastExposure != self.present_DoFastExposure) or (ExposureTime != self.present_ExposureTime) or (AGain != self.present_AGain):
-            self.picam2.set_controls(
-                {
-                    # controls for main frame: disable all regulations
-                    "AeEnable": False,  # AEC/AGC algorithm
-                    "NoiseReductionMode": controls.draft.NoiseReductionModeEnum.Off,
-                    # disable noise reduction in main frame because it eats stars
-                    "AwbEnable": False,  # disable automatic white balance algorithm
-                    # controls for raw and main frames
-                    "AnalogueGain": AGain,  # max AnalogGain
-                    "ExposureTime": int(ExposureTime * 1e6),  # exposure time in us; needs to be integer!
-                }
-            )
-        # restart if needed
-        if IsRestartNeeded:
-            self.picam2.start()
-            logging.info(f'camera restarted')
-        # camera runs now with new parameter
-        self.present_ExposureTime = ExposureTime
-        self.present_AGain = AGain
-        self.present_DoFastExposure = DoFastExposure
-        # get (blocking) raw frame and meta data
-        (array_raw, ), metadata = self.picam2.capture_arrays(["raw"])
-        logging.info("got exposed frame")
-        # inform client about progress
-        nv = self.knownVectors["CCD_EXPOSURE"]
-        nv.state = IVectorState.BUSY
-        nv["CCD_EXPOSURE_VALUE"] = 0
-        nv.send_setVector()
+    def create_BayerFits(self, array, metadata):
+        """creates FITS image from raw frame
+        """
         # rescale
-        if self.raw_mode["bit_depth"] > 8:
-            bitpix = 16
-            array_raw = array_raw.view(np.uint16) * (2 ** (bitpix - self.raw_mode["bit_depth"]))
+        bit_depth = self.present_CameraSettings.RawMode["bit_depth"]
+        if bit_depth > 8:
+            bit_pix = 16
+            array = array.view(np.uint16) * (2 ** (bit_pix - bit_depth))
         else:
-            bitpix = 8
-            array_raw = array_raw * (2 ** (bitpix - self.raw_mode["bit_depth"]))
-        # at least HQ camera reports CCD temperature in meta data
-        nv = self.knownVectors["CCD_TEMPERATURE"]
-        nv["CCD_TEMPERATURE_VALUE"] = metadata.get('SensorTemperature', 0)
-        nv.send_setVector()
-        #
+            bit_pix = 8
+            array = array.view(np.uint8) * (2 ** (bit_pix - bit_depth))
         # determine frame type
         FrameType = self.knownVectors["CCD_FRAME_TYPE"].get_OnSwitches()[0]
         # convert to FITS
-        hdu = fits.PrimaryHDU(array_raw)
+        hdu = fits.PrimaryHDU(array)
         FitsHeader = [
-            ("SIMPLE", True, "file does conform to FITS standard"),
-            ("BITPIX", bitpix, "number of bits per data pixel"),
-            ("NAXIS", 2, "number of data axes"),
-            ("NAXIS1", array_raw.shape[1], "length of data axis 1"),
-            ("NAXIS2", array_raw.shape[0], "length of data axis 2"),
-            ("EXTEND", True, "FITS dataset may contain extensions"),
-            #("COMMENT", RecodeUnicode(FileInfo.get("comment", ""))),
-            ("BZERO", 2 ** (bitpix - 1), "offset data range to that of unsigned short"),
+            ("BZERO", 2 ** (bit_pix - 1), "offset data range"),
             ("BSCALE", 1, "default scaling factor"),
-            ("ROWORDER", "TOP-DOWN", "Row Order"),
-            #("FILENAME", FileName, "Original filename"),
+            ("ROWORDER", "TOP-DOWN", "Row order"),
             ("INSTRUME", self.device, "CCD Name"),
-            ("TELESCOP", "Unknown", "Telescope name"),
-            ("OBSERVER", "Unknown", "Observer name"),
-            ("OBJECT", "Unknown", "Object name"),
+            ("TELESCOP", "Unknown", "Telescope name"),  # TODO
+            ("OBSERVER", self.knownVectors["FITS_HEADER"]["FITS_OBSERVER"].value, "Observer name"),
+            ("OBJECT", self.knownVectors["FITS_HEADER"]["FITS_OBJECT"].value, "Object name"),
             ("EXPTIME", metadata["ExposureTime"]/1e6, "Total Exposure Time (s)"),
             ("CCD-TEMP", metadata.get('SensorTemperature', 0), "CCD Temperature (Celsius)"),
             ("PIXSIZE1", self.CamProps["UnitCellSize"][0] / 1e3, "Pixel Size 1 (microns)"),
@@ -659,16 +657,13 @@ class indi_pylibcamera(indidevice):
             ("YPIXSZ", self.CamProps["UnitCellSize"][1] / 1e3, "Y binned pixel size in microns"),
             ("FRAME", FrameType, "Frame Type"),
             ("IMAGETYP", FrameType+" Frame", "Frame Type"),
-            #("FILTER", "Red", "Filter"),
-            #("FOCALLEN", 900, "Focal Length (mm)"),
-            #("APTDIA", 120, "Telescope diameter (mm)"),
             ("XBAYROFF", 0, "X offset of Bayer array"),
             ("YBAYROFF", 0, "Y offset of Bayer array"),
-            ("BAYERPAT", self.raw_mode["format"][1:].rstrip("0123456789"), "Bayer color pattern"),
+            ("BAYERPAT", self.present_CameraSettings.RawMode["FITS_format"], "Bayer color pattern"),
+            #("FOCALLEN", 900, "Focal Length (mm)"),  # TODO
+            #("APTDIA", 120, "Telescope diameter (mm)"),  # TODO
             #("DATE-OBS", time.strftime("%Y-%m-%dT%H:%M:%S.000", time.gmtime(FileInfo.get("TimeStamp", 0.0))), "UTC start date of observation"),
-            # more info from camera
-            ("AnaGain", metadata.get("AnalogueGain", 0.0), "analog sensor gain"),
-            #("CamType", FileInfo.get("CameraType", "unknown"), "camera sensor type"),
+            ("Gain", metadata.get("AnalogueGain", 0.0), "Gain"),
         ]
         for FHdr in FitsHeader:
             if len(FHdr) > 2:
@@ -676,6 +671,130 @@ class indi_pylibcamera(indidevice):
             else:
                 hdu.header[FHdr[0]] = FHdr[1]
         hdul = fits.HDUList([hdu])
+        return hdul
+
+
+    def create_RgbFits(self, array, metadata):
+        """creates FITS image from RGB frame
+        """
+        # determine frame type
+        FrameType = self.knownVectors["CCD_FRAME_TYPE"].get_OnSwitches()[0]
+        # convert to FITS
+        hdu = fits.PrimaryHDU(array.transpose([2, 0, 1]))
+        FitsHeader = [
+            # ("CTYPE3", 'RGB'),  # Is that needed to make it a RGB image?
+            ("BZERO", 0, "offset data range"),
+            ("BSCALE", 1, "default scaling factor"),
+            ("DATAMAX", 255),
+            ("DATAMIN", 0),
+            #("ROWORDER", "TOP-DOWN", "Row Order"),
+            ("INSTRUME", self.device, "CCD Name"),
+            ("TELESCOP", "Unknown", "Telescope name"),  # TODO
+            ("OBSERVER", self.knownVectors["FITS_HEADER"]["FITS_OBSERVER"].value, "Observer name"),
+            ("OBJECT", self.knownVectors["FITS_HEADER"]["FITS_OBJECT"].value, "Object name"),
+            ("EXPTIME", metadata["ExposureTime"]/1e6, "Total Exposure Time (s)"),
+            ("CCD-TEMP", metadata.get('SensorTemperature', 0), "CCD Temperature (Celsius)"),
+            ("PIXSIZE1", self.CamProps["UnitCellSize"][0] / 1e3, "Pixel Size 1 (microns)"),
+            ("PIXSIZE2", self.CamProps["UnitCellSize"][1] / 1e3, "Pixel Size 2 (microns)"),
+            ("XBINNING", 1, "Binning factor in width"),
+            ("YBINNING", 1, "Binning factor in height"),
+            ("XPIXSZ", self.CamProps["UnitCellSize"][0] / 1e3, "X binned pixel size in microns"),
+            ("YPIXSZ", self.CamProps["UnitCellSize"][1] / 1e3, "Y binned pixel size in microns"),
+            ("FRAME", FrameType, "Frame Type"),
+            ("IMAGETYP", FrameType+" Frame", "Frame Type"),
+            #("FOCALLEN", 900, "Focal Length (mm)"),  # TODO
+            #("APTDIA", 120, "Telescope diameter (mm)"),  # TODO
+            #("DATE-OBS", time.strftime("%Y-%m-%dT%H:%M:%S.000", time.gmtime(FileInfo.get("TimeStamp", 0.0))), "UTC start date of observation"),
+            # more info from camera
+            ("Gain", metadata.get("AnalogueGain", 0.0), "Gain"),
+        ]
+        for FHdr in FitsHeader:
+            if len(FHdr) > 2:
+                hdu.header[FHdr[0]] = (FHdr[1], FHdr[2])
+            else:
+                hdu.header[FHdr[0]] = FHdr[1]
+        hdul = fits.HDUList([hdu])
+        return hdul
+
+
+    def do_Exposure(self):
+        if self.picam2 is None:
+            logging.error("trying to make an exposure without camera opened")
+            return False
+        # get exposure time, analogue gain, DoFastExposure
+        has_RawModes = len(self.RawModes) > 0
+        NewCameraSettings = CameraSettings(
+            ExposureTime=self.knownVectors["CCD_EXPOSURE"]["CCD_EXPOSURE_VALUE"].value,
+            AGain=self.knownVectors["CCD_GAIN"]["GAIN"].value,
+            DoFastExposure=self.knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON,
+            DoRaw=self.knownVectors["FRAME_TYPE"]["FRAMETYPE_RAW"].value == ISwitchState.ON if has_RawModes else False,
+            ProcSize=(int(self.knownVectors["CCD_FRAME"]["WIDTH"].value), int(self.knownVectors["CCD_FRAME"]["HEIGHT"].value)),
+            RawMode=self.RawModes[self.knownVectors["RAW_FORMAT"].get_OnSwitchesIdxs()[0]] if has_RawModes else None,
+        )
+        logging.info(f'new camera settings: {NewCameraSettings}')
+        # need a camera stop/start when something has changed on exposure controls
+        IsRestartNeeded = self.present_CameraSettings.is_RestartNeeded(NewCameraSettings)
+        if self.picam2.started and IsRestartNeeded:
+            logging.info(f'stopping camera for reconfiguration: {NewCameraSettings}')
+            self.picam2.stop()
+        # change of DoFastExposure needs a configuration change
+        if self.present_CameraSettings.is_ReconfigurationNeeded(NewCameraSettings):
+            # need a new camera configuration
+            config = self.picam2.create_still_configuration(
+                queue=NewCameraSettings.DoFastExposure,
+                buffer_count=2 if NewCameraSettings.DoFastExposure else 1  # need at least 2 buffer for queueing
+            )
+            if NewCameraSettings.DoRaw:
+                # we do not need the main stream and configure it to smaller size to save memory
+                config["main"]["size"] = (240, 190)
+                # configure raw stream
+                config["raw"] = {"size": NewCameraSettings.RawMode["size"], "format": NewCameraSettings.RawMode["camera_format"]}
+            else:
+                config["main"]["size"] = NewCameraSettings.ProcSize
+                config["main"]["format"] = "BGR888"  # strange: we get RBG when configuring HQ camera as BGR
+            # optimize (align) configuration: small changes to some main stream configurations
+            # (for instance: size) will fit better to hardware
+            self.picam2.align_configuration(config)
+            # set still configuration
+            self.picam2.configure(config)
+        # exposure time and analog gain are controls
+        self.picam2.set_controls(
+            {
+                # controls for main frame: disable all regulations
+                "AeEnable": False,  # AEC/AGC algorithm
+                # disable noise reduction in main frame because it eats stars
+                "NoiseReductionMode": controls.draft.NoiseReductionModeEnum.Off,
+                # disable automatic white balance algorithm and set colour gains manually
+                "AwbEnable": False,
+                "ColourGains": (2.0, 2.0),  # to compensate the 2 G pixel in Bayer pattern
+                # controls for raw and main frames
+                "AnalogueGain": NewCameraSettings.AGain,
+                "ExposureTime": int(NewCameraSettings.ExposureTime * 1e6),  # exposure time in us; needs to be integer!
+            }
+        )
+        # restart if needed
+        if IsRestartNeeded:
+            self.picam2.start()
+            logging.info(f'camera restarted')
+        # camera runs now with new parameter
+        self.present_CameraSettings = NewCameraSettings
+        # get (blocking!) frame and meta data
+        (array, ), metadata = self.picam2.capture_arrays(["raw" if self.present_CameraSettings.DoRaw else "main"])
+        logging.info("got exposed frame")
+        # inform client about progress
+        nv = self.knownVectors["CCD_EXPOSURE"]
+        nv.state = IVectorState.BUSY
+        nv["CCD_EXPOSURE_VALUE"] = 0
+        nv.send_setVector()
+        # at least HQ camera reports CCD temperature in meta data
+        nv = self.knownVectors["CCD_TEMPERATURE"]
+        nv["CCD_TEMPERATURE_VALUE"] = metadata.get('SensorTemperature', 0)
+        nv.send_setVector()
+        # create FITS images
+        if self.present_CameraSettings.DoRaw:
+            hdul = self.create_BayerFits(array=array, metadata=metadata)
+        else:
+            hdul = self.create_RgbFits(array=array, metadata=metadata)
         bstream = io.BytesIO()
         hdul.writeto(bstream)
         size = bstream.tell()
@@ -683,7 +802,6 @@ class indi_pylibcamera(indidevice):
         # make BLOB
         logging.info(f"sending frame as BLOB: {size}")
         bv = self.knownVectors["CCD1"]
-        logging.info(f"setting data")
         compress = self.knownVectors["CCD_COMPRESSION"].get_OnSwitches()[0] == "CCD_COMPRESS"
         bv["CCD1"].set_data(data=bstream.read(), format=".fits", compress=compress)
         logging.info(f"sending BLOB")
