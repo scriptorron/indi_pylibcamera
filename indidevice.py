@@ -351,6 +351,15 @@ class ISwitchVector(IVector):
                 OnSwitches.append(element.name)
         return OnSwitches
 
+    def get_OnSwitchesIdxs(self) -> list:
+        """return list of element names which are On
+        """
+        OnSwitchesIdxs = []
+        for Idx, element in enumerate(self.elements):
+            if element.value == ISwitchState.ON:
+                OnSwitchesIdxs.append(Idx)
+        return OnSwitchesIdxs
+
     def update_SwitchStates(self, values: dict) -> str:
         """update switch states according to values and switch rules
 
