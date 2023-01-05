@@ -296,14 +296,28 @@ class indi_pylibcamera(indidevice):
             if not re.match("S[RGB]{4}[0-9]+", sensor_format):
                 logging.warning(f'raw mode not supported: {sensor_mode}')
                 continue
+            # it seems that self.CamProps["Rotation"] determines the orientation of the Bayer pattern
+            if self.CamProps["Rotation"] == 0:
+                # at least V1 camera has this
+                FITS_format = sensor_format[4:0:-1]
+            elif self.CamProps["Rotation"] == 180:
+                # at least HQ camera has this
+                FITS_format = sensor_format[1:5]
+            elif self.CamProps["Rotation"] == 90:
+                # don't know if there is such a camera and if the following rotation is right
+                FITS_format = "".join([sensor_format[2], sensor_format[4], sensor_format[1], sensor_format[3]])
+            elif self.CamProps["Rotation"] in [270, -90]:
+                # don't know if there is such a camera and if the following rotation is right
+                FITS_format = "".join([sensor_format[3], sensor_format[1], sensor_format[4], sensor_format[2]])
+            else:
+                logging.warning(f'Sensor rotation {self.CamProps["Rotation"]} not supported!')
+                FITS_format = sensor_format[4:0:-1]
             # add to list of raw formats
             raw_mode = {
                 "size": sensor_mode["size"],
                 "camera_format": sensor_format,
                 "bit_depth": sensor_mode["bit_depth"],
-                # strange: we get BGGR when configuring HQ camera as RGGB
-                # Has that something to do with self.CamProps["Rotation"] == 180 ?
-                "FITS_format": sensor_format[4:0:-1],  # revert order of Bye pattern for HQ camera
+                "FITS_format": FITS_format,
             }
             raw_mode["label"] = f'{raw_mode["size"][0]}x{raw_mode["size"][1]} {raw_mode["FITS_format"]} {raw_mode["bit_depth"]}bit'
             raw_modes.append(raw_mode)
