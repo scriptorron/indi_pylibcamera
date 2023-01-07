@@ -17,6 +17,11 @@ import base64
 import zlib
 import asyncio
 import fcntl
+import datetime
+
+
+def get_TimeStamp():
+    return datetime.datetime.utcnow().isoformat(timespec="seconds")
 
 
 class IVectorState:
@@ -125,7 +130,7 @@ class IVector:
             device: str, name: str, elements: list = [],
             label: str =None, group: str ="",
             state: str = IVectorState.IDLE, perm: str = IPermission.RW,
-            timeout: int = 60, timestamp: str = None, message: str = None
+            timeout: int = 60, timestamp: bool = False, message: str = None
     ):
         self._vectorType = "NotSet"
         self.device = device
@@ -181,7 +186,7 @@ class IVector:
         #if self.timeout:
         #    xml += f' timeout="{self.timeout}"'
         if self.timestamp:
-            xml += f' timestamp="{self.timestamp}"'
+            xml += f' timestamp="{get_TimeStamp()}"'
         if self.message:
             xml += f' message="{self.message}"'
         xml += '>'
@@ -224,7 +229,7 @@ class IVector:
         if self.timeout:
             xml += f' timeout="{self.timeout}"'
         if self.timestamp:
-            xml += f' timestamp="{self.timestamp}"'
+            xml += f' timestamp="{get_TimeStamp()}"'
         if self.message:
             xml += f' message="{self.message}"'
         xml += '>'
@@ -275,7 +280,7 @@ class ITextVector(IVector):
             device: str, name: str, elements: list = [],
             label: str = None, group: str = "",
             state: str = IVectorState.IDLE, perm: str =IPermission.RW,
-            timeout: int = 60, timestamp: str = None, message: str = None
+            timeout: int = 60, timestamp: bool = False, message: str = None
     ):
         super().__init__(
             device=device, name=name, elements=elements, label=label, group=group,
@@ -308,7 +313,7 @@ class INumberVector(IVector):
             device: str, name: str, elements: list = [],
             label: str = None, group: str = "",
             state: str = IVectorState.IDLE, perm: str = IPermission.RW,
-            timeout: int = 60, timestamp: str = None, message: str = None
+            timeout: int = 60, timestamp: bool = False, message: str = None
     ):
         super().__init__(
             device=device, name=name, elements=elements, label=label, group=group,
@@ -333,7 +338,7 @@ class ISwitchVector(IVector):
             label: str = None, group: str = "",
             state: str = IVectorState.IDLE, perm: str = IPermission.RW,
             rule: str = ISwitchRule.ONEOFMANY,
-            timeout: int = 60, timestamp: str = None, message: str = None
+            timeout: int = 60, timestamp: bool = False, message: str = None
     ):
         super().__init__(
             device=device, name=name, elements=elements, label=label, group=group,
@@ -446,7 +451,7 @@ class IBlobVector(IVector):
             device: str, name: str, elements: list = [],
             label: str = None, group: str = "",
             state: str = IVectorState.IDLE, perm: str = IPermission.RO,
-            timeout: int = 60, timestamp: str = None, message: str = None
+            timeout: int = 60, timestamp: bool = False, message: str = None
     ):
         super().__init__(
             device=device, name=name, elements=elements, label=label, group=group,
@@ -509,18 +514,18 @@ class IVectorList:
         self.pop(name).send_delVector()
 
 
-def send_Message(device: str, message: str, severity: str = "INFO", timestamp: str = None):
+def send_Message(device: str, message: str, severity: str = "INFO", timestamp: bool = False):
     """send message to client
 
     Args:
         device: device name
         message: message text
         severity: message type, one of "DEBUG", "INFO", "WARN", "INFO"
-        timestamp: timestamp
+        timestamp: send timestamp
     """
     xml = f'<message device="{device}" message="[{severity}] {message}"'
     if timestamp:
-        xml += f' timestamp="{timestamp}"'
+        xml += f' timestamp="{get_TimeStamp()}"'
     xml += f'/>'
     logging.info(f'send_Message: {xml}')
     to_server(xml)

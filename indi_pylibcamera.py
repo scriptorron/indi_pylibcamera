@@ -20,8 +20,8 @@ from indidevice import *
 logging.basicConfig(filename=None, level=logging.INFO, format='%(name)s-%(levelname)s- %(message)s')
 
 
-if "PYINDI_CONFIG_PATH" in os.environ:
-    configpath = Path(os.environ["PYINDI_CONFIG_PATH"]) / Path("indi_pylibcamera.ini")
+if "INDI_PYLIBCAMERA_CONFIG_PATH" in os.environ:
+    configpath = Path(os.environ["INDI_PYLIBCAMERA_CONFIG_PATH"]) / Path("indi_pylibcamera.ini")
 else:
     configpath = Path(os.environ["HOME"]) / Path(".indi_pylibcamera") / Path("indi_pylibcamera.ini")
 config = ConfigParser()
@@ -35,7 +35,7 @@ class LoggingVector(ISwitchVector):
     def __init__(self, parent):
         self.parent=parent
         super().__init__(
-            device=self.parent.device, name="LOGGING_LEVEL",
+            device=self.parent.device, timestamp=self.parent.timestamp, name="LOGGING_LEVEL",
             elements=[
                 ISwitch(name="LOGGING_DEBUG", label="Debug", value=ISwitchState.OFF),
                 ISwitch(name="LOGGING_INFO", label="Info", value=ISwitchState.ON),
@@ -80,7 +80,7 @@ class ConnectionVector(ISwitchVector):
     def __init__(self, parent):
         self.parent=parent
         super().__init__(
-            device=self.parent.device, name="CONNECTION",
+            device=self.parent.device, timestamp=self.parent.timestamp, name="CONNECTION",
             elements=[
                 ISwitch(name="CONNECT", label="Connect", value=ISwitchState.OFF),
                 ISwitch(name="DISCONNECT", label="Disonnect", value=ISwitchState.ON),
@@ -121,7 +121,7 @@ class ExposureVector(INumberVector):
     def __init__(self, parent, min_exp, max_exp, default_exp):
         self.parent = parent
         super().__init__(
-            device=self.parent.device, name="CCD_EXPOSURE",
+            device=self.parent.device, timestamp=self.parent.timestamp, name="CCD_EXPOSURE",
             elements=[
                 INumber(name="CCD_EXPOSURE_VALUE", label="Duration (s)", min=min_exp / 1e6, max=max_exp / 1e6,
                         step=0.001, value=1.0, format="%.3f"),
@@ -208,6 +208,7 @@ class indi_pylibcamera(indidevice):
 
     def __init__(self, config=None):
         super().__init__(device=config.get("driver", "DeviceName", fallback="indi_pylibcamera"))
+        self.timestamp = config.getboolean("driver", "SendTimeStamps", fallback=False)
         # get connected cameras
         cameras = Picamera2.global_camera_info()
         logging.info(f'found cameras: {cameras}')
@@ -223,7 +224,7 @@ class indi_pylibcamera(indidevice):
         # INDI general vectors
         self.checkin(
             ISwitchVector(
-                device=self.device, name="CAMERA_SELECTION",
+                device=self.device, timestamp=self.timestamp, name="CAMERA_SELECTION",
                 elements=[
                     ISwitch(
                         name=f'CAM{i}',
@@ -240,7 +241,7 @@ class indi_pylibcamera(indidevice):
         )
         self.checkin(
             ITextVector(
-                device=self.device, name="DRIVER_INFO",
+                device=self.device, timestamp=self.timestamp, name="DRIVER_INFO",
                 elements=[
                     # TODO: make driver name editable to allow multiple cameras of same type
                     IText(name="DRIVER_NAME", label="Name", value=self.device),
@@ -340,7 +341,7 @@ class indi_pylibcamera(indidevice):
         self.CameraVectorNames = []
         self.checkin(
             ITextVector(
-                device=self.device, name="CAMERA_INFO",
+                device=self.device, timestamp=self.timestamp, name="CAMERA_INFO",
                 elements=[
                     IText(name="CAMERA_MODEL", label="Model", value=self.CamProps["Model"]),
                     IText(name="CAMERA_PIXELARRAYSIZE", label="Pixel array size", value=str(self.CamProps["PixelArraySize"])),
@@ -361,7 +362,7 @@ class indi_pylibcamera(indidevice):
             # allow to select raw or processed frame
             self.checkin(
                 ISwitchVector(
-                    device=self.device, name="FRAME_TYPE",
+                    device=self.device, timestamp=self.timestamp, name="FRAME_TYPE",
                     elements=[
                         ISwitch(name="FRAMETYPE_RAW", label="Raw", value=ISwitchState.ON),
                         ISwitch(name="FRAMETYPE_PROC", label="Processed", value=ISwitchState.OFF),
@@ -375,7 +376,7 @@ class indi_pylibcamera(indidevice):
             # raw frame types
             self.checkin(
                 ISwitchVector(
-                    device=self.device, name="RAW_FORMAT",
+                    device=self.device, timestamp=self.timestamp, name="RAW_FORMAT",
                     elements=[
                         ISwitch(name=f'RAWFORMAT{i}', label=rm["label"], value=ISwitchState.ON if i == 0 else ISwitchState.OFF)
                         for i, rm in enumerate(self.RawModes)
@@ -389,7 +390,7 @@ class indi_pylibcamera(indidevice):
         #
         self.checkin(
             INumberVector(
-                device=self.device, name="CCD_PROCFRAME",
+                device=self.device, timestamp=self.timestamp, name="CCD_PROCFRAME",
                 elements=[
                     INumber(name="WIDTH", label="Width", min=1, max=self.CamProps["PixelArraySize"][0],
                             step=0, value=self.CamProps["PixelArraySize"][0], format="%4.0f"),
@@ -405,7 +406,7 @@ class indi_pylibcamera(indidevice):
         #
         self.checkin(
             INumberVector(
-                device=self.device, name="CCD_INFO",
+                device=self.device, timestamp=self.timestamp, name="CCD_INFO",
                 elements=[
                     INumber(name="CCD_MAX_X", label="Max. Width", min=1, max=1000000, step=0,
                             value=self.CamProps["PixelArraySize"][0], format="%.f"),
@@ -430,7 +431,7 @@ class indi_pylibcamera(indidevice):
         # This is needed for field solver!
         self.checkin(
             INumberVector(
-                device=self.device, name="CCD_FRAME",
+                device=self.device, timestamp=self.timestamp, name="CCD_FRAME",
                 elements=[
                     INumber(name="X", label="Left", min=0, max=0, step=0, value=0, format="%4.0f"),
                     INumber(name="Y", label="Top", min=0, max=0, step=0, value=0, format="%4.0f"),
@@ -448,7 +449,7 @@ class indi_pylibcamera(indidevice):
         #
         # self.checkin(
         #     ITextVector(
-        #         device=self.device, name="CCD_CFA",
+        #         device=self.device, timestamp=self.timestamp, name="CCD_CFA",
         #         elements=[
         #             IText(name="CFA_OFFSET_X", label="Offset X", value="0"),
         #             IText(name="CFA_OFFSET_Y", label="Offset Y", value="0"),
@@ -471,7 +472,7 @@ class indi_pylibcamera(indidevice):
         min_again, max_again, default_again = self.picam2.camera_controls["AnalogueGain"]
         self.checkin(
             INumberVector(
-                device=self.device, name="CCD_GAIN",
+                device=self.device, timestamp=self.timestamp, name="CCD_GAIN",
                 elements=[
                     INumber(name="GAIN", label="Analog Gain", min=min_again, max=max_again, step=0.1,
                             value=max_again, format="%.1f"),
@@ -484,7 +485,7 @@ class indi_pylibcamera(indidevice):
         #
         # self.checkin(
         #     ISwitchVector(
-        #         device=self.device, name="CCD_ABORT_EXPOSURE",
+        #         device=self.device, timestamp=self.timestamp, name="CCD_ABORT_EXPOSURE",
         #         elements=[
         #             ISwitch(name="ABORT", label="Abort", value=ISwitchState.OFF),
         #         ],
@@ -511,7 +512,7 @@ class indi_pylibcamera(indidevice):
         #
         self.checkin(
             ITextVector(
-                device=self.device, name="FITS_HEADER",
+                device=self.device, timestamp=self.timestamp, name="FITS_HEADER",
                 elements=[
                     IText(name="FITS_OBSERVER", label="Observer", value="Unknown"),
                     IText(name="FITS_OBJECT", label="Object", value="Unknown"),
@@ -525,7 +526,7 @@ class indi_pylibcamera(indidevice):
         #
         self.checkin(
             INumberVector(
-                device=self.device, name="CCD_TEMPERATURE",
+                device=self.device, timestamp=self.timestamp, name="CCD_TEMPERATURE",
                 elements=[
                     INumber(name="CCD_TEMPERATURE_VALUE", label="Temperature (C)", min=-50, max=50, step=0, value=0, format="%5.2f"),
                 ],
@@ -538,7 +539,7 @@ class indi_pylibcamera(indidevice):
         #
         self.checkin(
             ISwitchVector(
-                device=self.device, name="CCD_COMPRESSION",
+                device=self.device, timestamp=self.timestamp, name="CCD_COMPRESSION",
                 elements=[
                     ISwitch(name="CCD_COMPRESS", label="Compressed", value=ISwitchState.OFF),
                     ISwitch(name="CCD_RAW", label="Uncompressed", value=ISwitchState.ON),
@@ -552,7 +553,7 @@ class indi_pylibcamera(indidevice):
         # the image BLOB
         self.checkin(
             IBlobVector(
-                device=self.device, name="CCD1",
+                device=self.device, timestamp=self.timestamp, name="CCD1",
                 elements=[
                     IBlob(name="CCD1", label="Image"),
                 ],
@@ -565,7 +566,7 @@ class indi_pylibcamera(indidevice):
         #
         self.checkin(
             ISwitchVector(
-                device=self.device, name="CCD_FRAME_TYPE",
+                device=self.device, timestamp=self.timestamp, name="CCD_FRAME_TYPE",
                 elements=[
                     ISwitch(name="FRAME_LIGHT", label="Light", value=ISwitchState.ON),
                     ISwitch(name="FRAME_BIAS", label="Bias", value=ISwitchState.OFF),
@@ -581,7 +582,7 @@ class indi_pylibcamera(indidevice):
         #
         # self.checkin(
         #     ISwitchVector(
-        #         device=self.device, name="CCD_FRAME_RESET",
+        #         device=self.device, timestamp=self.timestamp, name="CCD_FRAME_RESET",
         #         elements=[
         #             ISwitch(name="RESET", label="Reset", value=ISwitchState.OFF),
         #         ],
@@ -595,7 +596,7 @@ class indi_pylibcamera(indidevice):
         # needed for field solver?
         # self.checkin(
         #     ITextVector(
-        #         device=self.device, name="ACTIVE_DEVICES",
+        #         device=self.device, timestamp=self.timestamp, name="ACTIVE_DEVICES",
         #         elements=[
         #             IText(name="ACTIVE_TELESCOPE", label="Telescope", value="Telescope Simulator"),
         #             IText(name="ACTIVE_ROTATOR", label="Rotator", value="Rotator Simulator"),
@@ -612,7 +613,7 @@ class indi_pylibcamera(indidevice):
         # needed for field solver?
         # self.checkin(
         #     ISwitchVector(
-        #         device=self.device, name="TELESCOPE_TYPE",
+        #         device=self.device, timestamp=self.timestamp, name="TELESCOPE_TYPE",
         #         elements=[
         #             ISwitch(name="TELESCOPE_PRIMARY", label="Primary", value=ISwitchState.ON),
         #             ISwitch(name="TELESCOPE_GUIDE", label="Guide", value=ISwitchState.OFF),
@@ -626,7 +627,7 @@ class indi_pylibcamera(indidevice):
         #
         self.checkin(
             ISwitchVector(
-                device=self.device, name="UPLOAD_MODE",
+                device=self.device, timestamp=self.timestamp, name="UPLOAD_MODE",
                 elements=[
                     ISwitch(name="UPLOAD_CLIENT", label="Client", value=ISwitchState.ON),
                     ISwitch(name="UPLOAD_LOCAL", label="Local", value=ISwitchState.OFF),
@@ -641,7 +642,7 @@ class indi_pylibcamera(indidevice):
         #
         self.checkin(
             ITextVector(
-                device=self.device, name="UPLOAD_SETTINGS",
+                device=self.device, timestamp=self.timestamp, name="UPLOAD_SETTINGS",
                 elements=[
                     IText(name="UPLOAD_DIR", label="Dir", value=str(Path.home())),
                     IText(name="UPLOAD_PREFIX", label="Prefix", value="IMAGE_XXX"),
@@ -654,7 +655,7 @@ class indi_pylibcamera(indidevice):
         #
         self.checkin(
             ISwitchVector(
-                device=self.device, name="CCD_FAST_TOGGLE",
+                device=self.device, timestamp=self.timestamp, name="CCD_FAST_TOGGLE",
                 elements=[
                     ISwitch(name="INDI_ENABLED", label="Enabled", value=ISwitchState.OFF),
                     ISwitch(name="INDI_DISABLED", label="Disabled", value=ISwitchState.ON),
@@ -668,7 +669,7 @@ class indi_pylibcamera(indidevice):
         #
         # self.checkin(
         #     ISwitchVector(
-        #         device=self.device, name="CCD_COOLER",
+        #         device=self.device, timestamp=self.timestamp, name="CCD_COOLER",
         #         elements=[
         #             ISwitch(name="COOLER_ON", label="ON", value=ISwitchState.OFF),
         #             ISwitch(name="COOLER_OFF", label="OFF", value=ISwitchState.ON),
