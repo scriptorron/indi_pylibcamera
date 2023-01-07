@@ -19,11 +19,9 @@ from indidevice import *
 
 
 if "PYINDI_CONFIG_PATH" in os.environ:
-    configpath = Path(os.environ["PYINDI_CONFIG_PATH"]) /\
-            Path("pyindi.ini")
+    configpath = Path(os.environ["PYINDI_CONFIG_PATH"]) / Path("pyindi.ini")
 else:
-    configpath = Path(os.environ["HOME"]) / Path(".pyindi") /\
-            Path("pyindi.ini")
+    configpath = Path(os.environ["HOME"]) / Path(".pyindi") / Path("pyindi.ini")
 
 
 logging.basicConfig(filename=None, level=logging.INFO, format='%(name)s-%(levelname)s- %(message)s')
@@ -393,10 +391,8 @@ class indi_pylibcamera(indidevice):
         #
         self.checkin(
             INumberVector(
-                device=self.device, name="CCD_FRAME",
+                device=self.device, name="CCD_PROCFRAME",
                 elements=[
-                    #INumber(name="X", label="Left", min=0, max=0, step=0, value=0, format="%4.0f"),
-                    #INumber(name="Y", label="Top", min=0, max=0, step=0, value=0, format="%4.0f"),
                     INumber(name="WIDTH", label="Width", min=1, max=self.CamProps["PixelArraySize"][0],
                             step=0, value=self.CamProps["PixelArraySize"][0], format="%4.0f"),
                     INumber(name="HEIGHT", label="Height", min=1, max=self.CamProps["PixelArraySize"][1],
@@ -407,7 +403,7 @@ class indi_pylibcamera(indidevice):
             ),
             send_defVector=True,
         )
-        self.CameraVectorNames.append("CCD_FRAME")
+        self.CameraVectorNames.append("CCD_PROCFRAME")
         #
         self.checkin(
             INumberVector(
@@ -433,6 +429,24 @@ class indi_pylibcamera(indidevice):
             send_defVector=True,
         )
         self.CameraVectorNames.append("CCD_INFO")
+        # This is needed for field solver!
+        self.checkin(
+            INumberVector(
+                device=self.device, name="CCD_FRAME",
+                elements=[
+                    INumber(name="X", label="Left", min=0, max=0, step=0, value=0, format="%4.0f"),
+                    INumber(name="Y", label="Top", min=0, max=0, step=0, value=0, format="%4.0f"),
+                    INumber(name="WIDTH", label="Width", min=1, max=self.CamProps["PixelArraySize"][0],
+                            step=0, value=self.CamProps["PixelArraySize"][0], format="%4.0f"),
+                    INumber(name="HEIGHT", label="Height", min=1, max=self.CamProps["PixelArraySize"][1],
+                            step=0, value=self.CamProps["PixelArraySize"][1], format="%4.0f"),
+                ],
+                label="Frame", group="Image Info",
+                state=IVectorState.IDLE, perm=IPermission.RO,
+            ),
+            send_defVector=True,
+        )
+        self.CameraVectorNames.append("CCD_FRAME")
         #
         # self.checkin(
         #     ITextVector(
@@ -579,6 +593,38 @@ class indi_pylibcamera(indidevice):
         #     send_defVector=True,
         # )
         # self.CameraVectorNames.append("CCD_FRAME_RESET")
+        #  TODO: snooping
+        # needed for field solver?
+        # self.checkin(
+        #     ITextVector(
+        #         device=self.device, name="ACTIVE_DEVICES",
+        #         elements=[
+        #             IText(name="ACTIVE_TELESCOPE", label="Telescope", value="Telescope Simulator"),
+        #             IText(name="ACTIVE_ROTATOR", label="Rotator", value="Rotator Simulator"),
+        #             IText(name="ACTIVE_FOCUSER", label="Focuser", value="Focuser Simulator"),
+        #             IText(name="ACTIVE_FILTER", label="Filter", value="CCD Simulator"),
+        #             IText(name="ACTIVE_SKYQUALITY", label="Sky Quality", value="SQM"),
+        #
+        #         ],
+        #         label="Snoop devices", group="Options",
+        #     ),
+        #     send_defVector=True,
+        # )
+        # self.CameraVectorNames.append("ACTIVE_DEVICES")
+        # needed for field solver?
+        # self.checkin(
+        #     ISwitchVector(
+        #         device=self.device, name="TELESCOPE_TYPE",
+        #         elements=[
+        #             ISwitch(name="TELESCOPE_PRIMARY", label="Primary", value=ISwitchState.ON),
+        #             ISwitch(name="TELESCOPE_GUIDE", label="Guide", value=ISwitchState.OFF),
+        #         ],
+        #         label="Telescope", group="Options",
+        #         rule=ISwitchRule.ONEOFMANY,
+        #     ),
+        #     send_defVector=True,
+        # )
+        # self.CameraVectorNames.append("TELESCOPE_TYPE")
         #
         self.checkin(
             ISwitchVector(
@@ -742,7 +788,7 @@ class indi_pylibcamera(indidevice):
             AGain=self.knownVectors["CCD_GAIN"]["GAIN"].value,
             DoFastExposure=self.knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON,
             DoRaw=self.knownVectors["FRAME_TYPE"]["FRAMETYPE_RAW"].value == ISwitchState.ON if has_RawModes else False,
-            ProcSize=(int(self.knownVectors["CCD_FRAME"]["WIDTH"].value), int(self.knownVectors["CCD_FRAME"]["HEIGHT"].value)),
+            ProcSize=(int(self.knownVectors["CCD_PROCFRAME"]["WIDTH"].value), int(self.knownVectors["CCD_PROCFRAME"]["HEIGHT"].value)),
             RawMode=self.RawModes[self.knownVectors["RAW_FORMAT"].get_OnSwitchesIdxs()[0]] if has_RawModes else None,
         )
         logging.info(f'new camera settings: {NewCameraSettings}')
@@ -763,9 +809,19 @@ class indi_pylibcamera(indidevice):
                 config["main"]["size"] = (240, 190)
                 # configure raw stream
                 config["raw"] = {"size": NewCameraSettings.RawMode["size"], "format": NewCameraSettings.RawMode["camera_format"]}
+                # binning does not change sensor array mechanical dimensions!
+                #nv = self.knownVectors["CCD_FRAME"]
+                #nv["WIDTH"] = NewCameraSettings.RawMode["size"][0]
+                #nv["HEIGHT"] = NewCameraSettings.RawMode["size"][1]
+                #nv.send_setVector()
             else:
                 config["main"]["size"] = NewCameraSettings.ProcSize
                 config["main"]["format"] = "BGR888"  # strange: we get RBG when configuring HQ camera as BGR
+                # software image scaling does not change sensor array mechanical dimensions!
+                #nv = self.knownVectors["CCD_FRAME"]
+                #nv["WIDTH"] = NewCameraSettings.ProcSize[0]
+                #nv["HEIGHT"] = NewCameraSettings.ProcSize[1]
+                #nv.send_setVector()
             # optimize (align) configuration: small changes to some main stream configurations
             # (for instance: size) will fit better to hardware
             self.picam2.align_configuration(config)
