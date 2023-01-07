@@ -17,18 +17,16 @@ import os
 from indidevice import *
 
 
-
-if "PYINDI_CONFIG_PATH" in os.environ:
-    configpath = Path(os.environ["PYINDI_CONFIG_PATH"]) / Path("pyindi.ini")
-else:
-    configpath = Path(os.environ["HOME"]) / Path(".pyindi") / Path("pyindi.ini")
-
-
 logging.basicConfig(filename=None, level=logging.INFO, format='%(name)s-%(levelname)s- %(message)s')
 
 
+if "PYINDI_CONFIG_PATH" in os.environ:
+    configpath = Path(os.environ["PYINDI_CONFIG_PATH"]) / Path("indi_pylibcamera.ini")
+else:
+    configpath = Path(os.environ["HOME"]) / Path(".indi_pylibcamera") / Path("indi_pylibcamera.ini")
 config = ConfigParser()
 config.read(str(configpath))
+logging.error(f"DBG ConfigParser: {configpath}, {config}")
 
 __version__ = "1.0.0"
 
@@ -208,8 +206,8 @@ class indi_pylibcamera(indidevice):
     Python driver for libcamera
     """
 
-    def __init__(self, config=None, device="indi_pylibcamera"):
-        super().__init__(device=device)
+    def __init__(self, config=None):
+        super().__init__(device=config.get("driver", "DeviceName", fallback="indi_pylibcamera"))
         # get connected cameras
         cameras = Picamera2.global_camera_info()
         logging.info(f'found cameras: {cameras}')
@@ -883,6 +881,6 @@ class indi_pylibcamera(indidevice):
 
 
 if __name__ == "__main__":
-    device = indi_pylibcamera(config=config, device="indi_pylibcamera")
+    device = indi_pylibcamera(config=config)
     loop = asyncio.get_event_loop()
     loop.run_until_complete(device.run())
