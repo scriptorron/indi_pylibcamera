@@ -928,5 +928,4 @@ class indi_pylibcamera(indidevice):
 
 if __name__ == "__main__":
     device = indi_pylibcamera(config=config)
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(device.run())
+    device.run()
