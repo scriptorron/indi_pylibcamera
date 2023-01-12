@@ -15,7 +15,7 @@ import os
 import logging
 import base64
 import zlib
-import asyncio
+import threading
 import fcntl
 import datetime
 
@@ -531,36 +531,28 @@ def send_Message(device: str, message: str, severity: str = "INFO", timestamp: b
     to_server(xml)
 
 
-async def get_steam_reader(pipe) -> asyncio.StreamReader:
-    loop = asyncio.get_event_loop()
-    reader = asyncio.StreamReader(loop=loop)
-    protocol = asyncio.StreamReaderProtocol(reader)
-    await loop.connect_read_pipe(lambda: protocol, pipe)
-    return reader
-
-
 class indidevice:
     def __init__(self, device: str):
         self.device = device
         self.running = True
         self.knownVectors = IVectorList(name="knownVectors")
+        self.message_loop_thread = None
 
     def on_getProperties(self, device=None):
         # FIXME: remove after debug!
         #send_Message(device=self.device, message="Hallo Nachricht", severity="ERROR")
         self.knownVectors.send_defVectors(device=device)
 
-    async def message_loop(self):
+    def message_loop(self):
         """message loop: read stdin, parse as xml, update vectors and send response to stdout
         """
-        reader = await get_steam_reader(sys.stdin)
-        inp = b""
+        inp = ""
         while self.running:
-            inp += await reader.readline()
+            inp += sys.stdin.readline()
             # maybe XML is complete
             try:
-                xml = etree.fromstring(inp.decode())
-                inp = b""
+                xml = etree.fromstring(inp)
+                inp = ""
             except etree.XMLSyntaxError as error:
                 logging.debug(f"XML not complete ({error}): {inp}")
                 continue
@@ -591,12 +583,6 @@ class indidevice:
     def checkout(self, name: str):
         self.knownVectors.checkout(name)
 
-    async def background_loop(self):
-        await asyncio.sleep(1)
-
-    async def run(self):
-        await asyncio.gather(
-            self.message_loop(),
-            self.background_loop()
-        )
-
+    def run(self):
+        self.message_loop_thread = threading.Thread(target=self.message_loop)
+        self.message_loop_thread.start()
