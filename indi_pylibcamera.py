@@ -666,6 +666,51 @@ class indi_pylibcamera(indidevice):
             send_defVector=True,
         )
         self.CameraVectorNames.append("CCD_FAST_TOGGLE")
+        # need also CCD_FAST_COUNT for fast exposure
+        self.checkin(
+            INumberVector(
+                device=self.device, timestamp=self.timestamp, name="CCD_FAST_COUNT",
+                elements=[
+                    INumber(name="FRAMES", label="Frames", min=0, max=100000, step=1, value=1, format="%.f"),
+                ],
+                label="Fast Count", group="Main Control",
+                state=IVectorState.IDLE, perm=IPermission.RO,
+            ),
+            send_defVector=True,
+        )
+        self.CameraVectorNames.append("CCD_FAST_COUNT")
+        self.checkin(
+            ISwitchVector(
+                device=self.device, timestamp=self.timestamp, name="CCD_ABORT_EXPOSURE",
+                elements=[
+                    ISwitch(name="ABORT", label="Abort", value=ISwitchState.OFF),
+                ],
+                label="Expose Abort", group="Main Control",
+                rule=ISwitchRule.ATMOST1,
+            ),
+            send_defVector=True,
+        )
+        self.CameraVectorNames.append("CCD_ABORT_EXPOSURE")
+        # Fast Exposure:
+        #  new CCD_FAST_COUNT 100000
+        #  set CCD_FAST_COUNT 100000 Ok
+        #  new CCD_EXPOSURE 1
+        #  set CCD_EXPOSURE 1 Busy
+        #  set CCD_EXPOSURE 0.1 Busy
+        #  set CCD_EXPOSURE 0 Busy
+        #  set CCD_FAST_COUNT 99999 Busy
+        #  set CCD_EXPOSURE 0 Busy
+        #  set CCD1 blob
+        #  set CCD_EXPOSURE 0 Ok
+        #  set CCD_EXPOSURE 0 Busy
+        #  set CCD_FAST_COUNT 99998 Busy
+        #  set CCD_EXPOSURE 0 Busy
+        #  set CCD1 blob
+        # abort:
+        #  new CCD_ABORT_EXPOSURE On
+        #  set CCD_FAST_COUNT 1
+        #  set CCD_ABORT_EXPOSURE Off, Ok
+
         #
         # self.checkin(
         #     ISwitchVector(
