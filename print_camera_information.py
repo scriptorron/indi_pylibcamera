@@ -18,13 +18,13 @@ for c, camera in enumerate(cameras):
     pprint.pprint(picam2.sensor_modes)
     print('Camera controls:')
     print(picam2.camera_controls)
-    if "ExposureTime" in picam2.camera_controls["ExposureTime"]:
+    if "ExposureTime" in picam2.camera_controls:
         print('Exposure time:')
         min_exp, max_exp, default_exp = picam2.camera_controls["ExposureTime"]
         print(f'  min: {min_exp}, max: {max_exp}, default: {default_exp}')
     else:
         print("ERROR: ExposureTime not in camera controls!")
-    if "AnalogueGain" in picam2.camera_controls["AnalogueGain"]:
+    if "AnalogueGain" in picam2.camera_controls:
         print('AnalogGain:')
         min_again, max_again, default_again = picam2.camera_controls["AnalogueGain"]
         print(f'  min: {min_again}, max: {max_again}, default: {default_again}')
