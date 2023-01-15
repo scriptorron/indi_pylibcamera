@@ -20,9 +20,15 @@ import fcntl
 import datetime
 
 
+# helping functions
+
 def get_TimeStamp():
+    """return present system time formated as INDI timestamp
+    """
     return datetime.datetime.utcnow().isoformat(timespec="seconds")
 
+
+# enumerations
 
 class IVectorState:
     """INDI property states
@@ -56,15 +62,11 @@ class ISwitchState:
     ON = "On"
 
 
-def obsolete_to_server(msg: str):
-    chunksize = 512
-    while len(msg) > 0:
-        sys.stdout.write(msg[:chunksize])
-        sys.stdout.flush()
-        msg = msg[chunksize:]
-
+# sending messages to client is done by writing stdout
 
 class UnblockTTY:
+    """configure stdout for unblocking write
+    """
     # shameless copy from https://stackoverflow.com/questions/67351928/getting-a-blockingioerror-when-printing-or-writting-to-stdout
     def __enter__(self):
         self.fd = sys.stdout.fileno()
@@ -76,14 +78,32 @@ class UnblockTTY:
         fcntl.fcntl(self.fd, fcntl.F_SETFL, self.flags_save)
 
 
+ToServerLock = threading.Lock()  # need serialized output of the different threads!
+
+
 def to_server(msg: str):
-    with UnblockTTY():
-        sys.stdout.write(msg)
-        sys.stdout.flush()
+    """send message to client
+    """
+    with ToServerLock:
+        with UnblockTTY():
+            sys.stdout.write(msg)
+            sys.stdout.flush()
 
 
 class IProperty:
-    def __init__(self, name: str, label: str = None, value = None):
+    """INDI property
+
+    Base class for Text, Number, Switch and Blob properties.
+    """
+
+    def __init__(self, name: str, label: str = None, value=None):
+        """constructor
+
+        Args:
+            name: property name
+            label: label shown in client GUI
+            value: property value
+        """
         self._propertyType = "NotSet"
         self.name = name
         if label:
@@ -92,13 +112,15 @@ class IProperty:
             self.label = name
         self.value = value
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"<Property {self._propertyType} name={self.name}>"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
     def get_oneProperty(self) -> str:
+        """return XML for "oneNumber", "one"Text", "oneSwitch", "oneBLOB" messages
+        """
         return f'<one{self._propertyType} name="{self.name}">{self.value}</one{self._propertyType}>'
 
     def set_byClient(self, value: str) -> str:
@@ -125,6 +147,11 @@ class IProperty:
 
 
 class IVector:
+    """INDI vector
+
+    Base class for Text, Number, Switch and Blob vectors.
+    """
+
     def __init__(
             self,
             device: str, name: str, elements: list = [],
@@ -132,6 +159,20 @@ class IVector:
             state: str = IVectorState.IDLE, perm: str = IPermission.RW,
             timeout: int = 60, timestamp: bool = False, message: str = None
     ):
+        """constructor
+
+        Args:
+            device: device name
+            name: vector name
+            elements: list of INDI elements which build the vector
+            label: label shown in client GUI
+            group: group shown in client GUI
+            state: vector state
+            perm: vector permission
+            timeout: timeout
+            timestamp: send messages with (True) or without (False) timestamp
+            message: message send to client
+        """
         self._vectorType = "NotSet"
         self.device = device
         self.name = name
@@ -147,26 +188,46 @@ class IVector:
         self.timestamp = timestamp
         self.message = message
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"<Vector {self._vectorType} name={self.name}, device={self.device}>"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
     def __len__(self) -> int:
+        """returns number of elements
+        """
         return len(self.elements)
 
     def __add__(self, val: IProperty) -> list:
+        """add an element
+
+        Args:
+            val: element (INDI property) to add
+        """
         self.elements.append(val)
         return self.elements
 
     def __getitem__(self, name: str) -> IProperty:
+        """get named element
+
+        Args:
+            name: name of element to get
+        """
         for element in self.elements:
             if element.name == name:
                 return element
         raise KeyError(f"{name} not in {self.__str__()}")
 
     def __setitem__(self, name, val):
+        """set value of named element
+
+        This does NOT inform the client about a value change!
+
+        Args:
+            name: name of element to set
+            val: value to set
+        """
         for element in self.elements:
             if element.name == name:
                 element.value = val
@@ -174,10 +235,14 @@ class IVector:
         raise KeyError(f"{name} not in {self.__str__()}")
 
     def __iter__(self):
+        """element iterator
+        """
         for element in self.elements:
             yield element
 
     def get_defVector(self) -> str:
+        """return XML message for "defTextVector", "defNumberVector", "defSwitchVector" or "defBLOBVector"
+        """
         xml = f'<def{self._vectorType} device="{self.device}"'
         if hasattr(self, "rule"):  # only for ISwitchVector
             xml += f' rule="{self.rule}"'
@@ -202,7 +267,7 @@ class IVector:
             device: device name
         """
         if (device is None) or (device == self.device):
-            logging.info(f'send_defVector: {self.get_defVector()}')
+            logging.debug(f'send_defVector: {self.get_defVector()}')
             to_server(self.get_defVector())
 
     def get_delVector(self, msg: str = None) -> str:
@@ -218,11 +283,13 @@ class IVector:
         return xml
 
     def send_delVector(self):
-        logging.info(f'send_delVector: {self.get_delVector()}')
+        """tell client to remove this vector
+        """
+        logging.debug(f'send_delVector: {self.get_delVector()}')
         to_server(self.get_delVector())
 
     def get_setVector(self) -> str:
-        """tell client about new vector data
+        """return XML for "set" message (to tell client about new vector data)
         """
         xml = f'<set{self._vectorType} device="{self.device}" name="{self.name}"'
         xml += f' state="{self.state}"'
@@ -239,7 +306,9 @@ class IVector:
         return xml
 
     def send_setVector(self):
-        logging.info(f'send_setVector: {self.get_setVector()[:100]}')
+        """tell client about vector data
+        """
+        logging.debug(f'send_setVector: {self.get_setVector()[:100]}')
         to_server(self.get_setVector())
 
     def set_byClient(self, values: dict):
@@ -266,15 +335,23 @@ class IVector:
 
 
 class IText(IProperty):
+    """INDI Text property
+    """
+
     def __init__(self, name: str, label: str = None, value: str = ""):
         super().__init__(name=name, label=label, value=value)
         self._propertyType = "Text"
 
     def get_defProperty(self) -> str:
+        """return XML for defText message
+        """
         return f'<defText name="{self.name}" label="{self.label}">{self.value}</defText>'
 
 
 class ITextVector(IVector):
+    """INDI Text vector
+    """
+
     def __init__(
             self,
             device: str, name: str, elements: list = [],
@@ -290,6 +367,9 @@ class ITextVector(IVector):
 
 
 class INumber(IProperty):
+    """INDI Number property
+    """
+
     def __init__(
             self, name: str, value: float, min: float, max: float, step: float = 0,
             label: str = None, format: str = "%f"
@@ -302,12 +382,17 @@ class INumber(IProperty):
         self.format = format
 
     def get_defProperty(self) -> str:
+        """return XML for defNumber message
+        """
         xml = f'<defNumber name="{self.name}" label="{self.label}" format="{self.format}"'
         xml += f' min="{self.min}" max="{self.max}" step="{self.step}">{self.value}</defNumber>'
         return xml
 
 
 class INumberVector(IVector):
+    """INDI Number vector
+    """
+
     def __init__(
             self,
             device: str, name: str, elements: list = [],
@@ -323,15 +408,23 @@ class INumberVector(IVector):
 
 
 class ISwitch(IProperty):
+    """INDI Switch property
+    """
+
     def __init__(self, name: str, label: str = None, value: str = ISwitchState.OFF):
         super().__init__(name=name, label=label, value=value)
         self._propertyType = "Switch"
 
     def get_defProperty(self) -> str:
+        """return XML for defSwitch message
+        """
         return f'<defSwitch name="{self.name}" label="{self.label}">{self.value}</defSwitch>'
 
 
 class ISwitchVector(IVector):
+    """INDI Switch vector
+    """
+
     def __init__(
             self,
             device: str, name: str, elements: list = [],
@@ -357,7 +450,7 @@ class ISwitchVector(IVector):
         return OnSwitches
 
     def get_OnSwitchesIdxs(self) -> list:
-        """return list of element names which are On
+        """return list of element indices which are On
         """
         OnSwitchesIdxs = []
         for Idx, element in enumerate(self.elements):
@@ -415,6 +508,9 @@ class ISwitchVector(IVector):
 
 
 class IBlob(IProperty):
+    """INDI BLOB property
+    """
+
     def __init__(self, name: str, label: str = None):
         super().__init__(name=name, label=label)
         self._propertyType = "BLOB"
@@ -424,6 +520,13 @@ class IBlob(IProperty):
         self.enabled = "Only"
 
     def set_data(self, data: bytes, format: str =".fits", compress: bool =False):
+        """set BLOB data
+
+        Args:
+            data: data bytes
+            format: data format
+            compress: do ZIP compression (True/False)
+        """
         self.size = len(data)
         if compress:
             self.data = zlib.compress(data)
@@ -433,10 +536,14 @@ class IBlob(IProperty):
             self.format = format
 
     def get_defProperty(self) -> str:
+        """return XML for defBLOB message
+        """
         xml = f'<defBLOB name="{self.name}" label="{self.label}"/>'
         return xml
 
     def get_oneProperty(self) -> str:
+        """return XML for oneBLOB message
+        """
         xml =""
         if self.enabled in ["Also", "Only"]:
             xml += f'<oneBLOB name="{self.name}" size="{self.size}" format="{self.format}">'
@@ -446,6 +553,9 @@ class IBlob(IProperty):
 
 
 class IBlobVector(IVector):
+    """INDI BLOB vector
+    """
+
     def __init__(
             self,
             device: str, name: str, elements: list = [],
@@ -492,55 +602,76 @@ class IVectorList:
             yield element
 
     def pop(self, name: str) -> IVector:
+        """return and remove named vector
+        """
         for i in range(len(self.elements)):
             if self.elements[i].name == name:
                 return self.elements.pop(i)
         raise ValueError(f'vector list {self.name} has no vector {name}!')
 
     def send_defVectors(self, device: str = None):
+        """send def messages for al vectors
+        """
         for element in self.elements:
             element.send_defVector(device=device)
 
     def send_delVectors(self):
+        """send del message for all vectors
+        """
         for element in self.elements:
             element.send_delVector()
 
     def checkin(self, vector: IVector, send_defVector: bool = False):
+        """add vector to list
+
+        Args:
+            vector: vector to add
+            send_defVector: send def message to client (True/False)
+        """
         if send_defVector:
             vector.send_defVector()
         self.elements.append(vector)
 
     def checkout(self, name: str):
+        """remove named vector and send del message to client
+        """
         self.pop(name).send_delVector()
 
 
-def send_Message(device: str, message: str, severity: str = "INFO", timestamp: bool = False):
-    """send message to client
-
-    Args:
-        device: device name
-        message: message text
-        severity: message type, one of "DEBUG", "INFO", "WARN", "INFO"
-        timestamp: send timestamp
-    """
-    xml = f'<message device="{device}" message="[{severity}] {message}"'
-    if timestamp:
-        xml += f' timestamp="{get_TimeStamp()}"'
-    xml += f'/>'
-    logging.info(f'send_Message: {xml}')
-    to_server(xml)
-
-
 class indidevice:
+    """general INDI device
+    """
+
     def __init__(self, device: str):
+        """constructor
+
+        Args:
+            device: device name as shown in client GUI
+        """
         self.device = device
         self.running = True
         self.knownVectors = IVectorList(name="knownVectors")
-        self.message_loop_thread = None
+        # lock for device parameter
+        self.knownVectorsLock = threading.Lock()
+
+    def send_Message(self, message: str, severity: str = "INFO", timestamp: bool = False):
+        """send message to client
+
+        Args:
+            message: message text
+            severity: message type, one of "DEBUG", "INFO", "WARN", "INFO"
+            timestamp: send timestamp
+        """
+        xml = f'<message device="{self.device}" message="[{severity}] {message}"'
+        if timestamp:
+            xml += f' timestamp="{get_TimeStamp()}"'
+        xml += f'/>'
+        logging.debug(f'send_Message: {xml}')
+        to_server(xml)
 
     def on_getProperties(self, device=None):
-        # FIXME: remove after debug!
-        #send_Message(device=self.device, message="Hallo Nachricht", severity="ERROR")
+        """action to be done after receiving getProperties request
+        """
         self.knownVectors.send_defVectors(device=device)
 
     def message_loop(self):
@@ -557,9 +688,9 @@ class indidevice:
                 logging.debug(f"XML not complete ({error}): {inp}")
                 continue
 
-            logging.info("Parsed data from client")
-            logging.info(etree.tostring(xml, pretty_print=True).decode())
-            logging.info("End client data")
+            logging.debug("Parsed data from client")
+            logging.debug(etree.tostring(xml, pretty_print=True).decode())
+            logging.debug("End client data")
 
             if xml.tag == "getProperties":
                 if "device" in xml.attrib:
@@ -571,18 +702,28 @@ class indidevice:
                 values = {ele.attrib["name"]: ele.text.strip() for ele in xml}
                 device = xml.attrib.get('device', None)
                 vector = self.knownVectors[vectorName]
-                logging.debug(f"calling {vector} set_byClinet")
+                logging.debug(f"calling {vector} set_byClient")
                 if (device is None) or (vector.device == device):
-                    vector.set_byClient(values)
+                    with self.knownVectorsLock:
+                        vector.set_byClient(values)
             else:
                 logging.error(f'could not interpret client request: {etree.tostring(xml, pretty_print=True).decode()}')
 
     def checkin(self, vector: IVector, send_defVector: bool = False):
+        """add vector to knownVectors list
+
+        Args:
+            vector: vector to add
+            send_defVector: send def message to client (True/False)
+        """
         self.knownVectors.checkin(vector, send_defVector=send_defVector)
 
     def checkout(self, name: str):
+        """remove named vector from knownVectors list and send del message to client
+        """
         self.knownVectors.checkout(name)
 
     def run(self):
-        self.message_loop_thread = threading.Thread(target=self.message_loop)
-        self.message_loop_thread.start()
+        """start device
+        """
+        self.message_loop()

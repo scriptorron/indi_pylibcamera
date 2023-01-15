@@ -6,10 +6,13 @@ Raspberry Pi HQ camera can compete with expensive astro cameras.
 
 This project implements a Raspberry Pi camera driver for INDI. It is based on the new camera framework
 "libcamera" (https://github.com/raspberrypi/libcamera) which is already part of many Raspberry Pi operating systems.
-It is made to run on a Raspberry Pi Zero wih HQ camera. Ofcourse it will also rn on a more capable Raspberry Pi.
+
+The driver is made and optimized to run on a Raspberry Pi Zero wih HQ camera. Ofcourse it will also run on a more
+capable Raspberry Pi.
 
 The "indi_pylibcamera" may support all cameras supported by "libcamera". But not all cameras will provide image data
-the required formats (raw Bayer or at least RGB). 
+in the required formats (raw Bayer or at least RGB). So it is not guaranteed that the driver will work with all
+cameras you can connect to a Raspberry Pi.
 
 ## Requirements
 - Python 3 and some libraries:
@@ -22,12 +25,12 @@ have enough RAM to compile with 4 threads in parallel: you need to do `make -j1`
 Finally, after installation, you need to have a working INDI server: `indiserver -v indi_simulator_telescope`
 
 ## Installation
-Currently, the `indi_pylibcamera` driver does not has a setup or installation tool. Just copy the `indidevice.py` and
-`indi_pylibcamera.py` in a folder.
+Currently, the `indi_pylibcamera` driver does not has a setup or installation tool. Just copy the files in a folder.
 
 ## Running
-You can start the INDI server with `indiserver -v ./indi_pylibcamer.py`. When the server is running you can connect
-to the server from an other computer with an INDI client (for instance KStars/EKOS).
+You can start the INDI server with `indiserver -v ./indi_pylibcamer.py` after changing to the folder where you stored
+`indi_pylibcamera.py`. When the server is running you can connect to the server from an other computer with an INDI
+client (for instance KStars/EKOS).
 
 ## Global Configuration
 The driver uses configuration files to set global parameter. If environment variable `INDI_PYLIBCAMERA_CONFIG_PATH`
@@ -36,12 +39,21 @@ exists the file `$INDI_PYLIBCAMERA_CONFIG_PATH/indi_pylibcamera.ini` is loaded. 
 
 The configuration file must have the section `[driver}`. The following keys are supported:
 - `DeviceName` (string): INDI name of the device. This allows to distinguish indi_pylibcamera devices in your setup.
+For instance you can have one Raspberry Pi with HQ camera as main camera for taking photos and a second Raspberry Pi with
+a V1 camera for auto guiding.
 - `SendTimeStamps` (`yes`, `no`, `on`, `off`, `true`, `false`, `1`, `0`): Add a timestamp to the messages send from
-the device to the client. Such timestamps are needed only in very seldom cases and in most of the cases setting this
-to `no` is okay. If you really need timestamps make sure that the system clock is correct. 
+the device to the client. Such timestamps are needed in very seldom cases only and usually it is okay to set this 
+to `no`. If you really need timestamps make sure that the system clock is correct. 
 
 An example for a configuration file can be found in this repository.
 
-## TODO
-- make this an installable Python library
-- many many functional improvements and debugging
+
+## Known Limitations
+- Snoopying is not supported.
+Snooping is an INDI feature which allows a driver to get information from an other driver. For instance the camera
+driver can ask the mount driver for the actual position to write these data as metadata in the images. The present
+implementation of the indi_pylibcamera driver does not support this.
+- The maximum exposure time of the V1 camera is about 1 second. This limitation is caused by libcamera and the kernel
+driver. The indi_pylibcamera can not work around this.
+- Local saving of images on driver device is not implemented yet.
+
