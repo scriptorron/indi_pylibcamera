@@ -17,7 +17,7 @@ for c, camera in enumerate(cameras):
     print("Raw sensor modes:")
     pprint.pprint(picam2.sensor_modes)
     print('Camera controls:')
-    print(picam2.camera_controls["ExposureTime"])
+    print(picam2.camera_controls)
     if "ExposureTime" in picam2.camera_controls["ExposureTime"]:
         print('Exposure time:')
         min_exp, max_exp, default_exp = picam2.camera_controls["ExposureTime"]
