@@ -37,7 +37,7 @@ The driver uses configuration files to set global parameter. If environment vari
 exists the file `$INDI_PYLIBCAMERA_CONFIG_PATH/indi_pylibcamera.ini` is loaded. Otherwise, it tries to load
 `$HOME/.indi_pylibcamera/indi_pylibcamera.ini`.
 
-The configuration file must have the section `[driver}`. The following keys are supported:
+The configuration file must have the section `[driver]`. The following keys are supported:
 - `DeviceName` (string): INDI name of the device. This allows to distinguish indi_pylibcamera devices in your setup.
 For instance you can have one Raspberry Pi with HQ camera as main camera for taking photos and a second Raspberry Pi with
 a V1 camera for auto guiding.
