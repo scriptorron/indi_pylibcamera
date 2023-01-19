@@ -461,7 +461,7 @@ class CameraControl:
         Reset CCD_FAST_COUNT FRAMES and acknowledge the abort.
         """
         if self.parent.knownVectors["CCD_ABORT_EXPOSURE"]["ABORT"].value == ISwitchState.ON:
-            self.parent.setVector("CCD_FAST_COUNT", "FRAMES", value=0, state=IVectorState.IDLE)
+            self.parent.setVector("CCD_FAST_COUNT", "FRAMES", value=0, state=IVectorState.OK)
             self.parent.setVector("CCD_ABORT_EXPOSURE", "ABORT", value=ISwitchState.OFF, state=IVectorState.OK)
             return True
         return False
@@ -473,26 +473,26 @@ class CameraControl:
 
         typical communications between client and device:
             start single exposure:
-              new CCD_EXPOSURE 1
-              set CCD_EXPOSURE 1 Busy
-              set CCD_EXPOSURE 0.1 Busy
-              set CCD_EXPOSURE 0 Busy
-              set CCD1 blob
-              set CCD_EXPOSURE 0 Ok
+              new CCD_EXPOSURE_VALUE 1
+              set CCD_EXPOSURE_VALUE 1 Busy
+              set CCD_EXPOSURE_VALUE 0.1 Busy
+              set CCD_EXPOSURE_VALUE 0 Busy
+              set CCD1 blob Ok
+              set CCD_EXPOSURE_VALUE 0 Ok
             start Fast Exposure:
               new CCD_FAST_COUNT 100000
               set CCD_FAST_COUNT 100000 Ok
-              new CCD_EXPOSURE 1
-              set CCD_EXPOSURE 1 Busy
-              set CCD_EXPOSURE 0.1 Busy
-              set CCD_EXPOSURE 0 Busy
+              new CCD_EXPOSURE_VALUE 1
+              set CCD_EXPOSURE_VALUE 1 Busy
+              set CCD_EXPOSURE_VALUE 0.1 Busy
+              set CCD_EXPOSURE_VALUE 0 Busy
               set CCD_FAST_COUNT 99999 Busy
-              set CCD_EXPOSURE 0 Busy
+              set CCD_EXPOSURE_VALUE 0 Busy
               set CCD1 blob
-              set CCD_EXPOSURE 0 Ok
-              set CCD_EXPOSURE 0 Busy
+              set CCD_EXPOSURE_VALUE 0 Ok
+              set CCD_EXPOSURE_VALUE 0 Busy
               set CCD_FAST_COUNT 99998 Busy
-              set CCD_EXPOSURE 0 Busy
+              set CCD_EXPOSURE_VALUE 0 Busy
               set CCD1 blob
             abort:
               new CCD_ABORT_EXPOSURE On
@@ -625,10 +625,13 @@ class CameraControl:
                     bv["CCD1"].set_data(data=bstream.read(), format=".fits", compress=compress)
                     logging.info(f"sending BLOB")
                     bv.send_setVector()
-                    # tell client that we finished fast exposure
-                    if DoFastExposure and (FastCount_Frames == 0):
+                    # tell client that we finished exposure
+                    if DoFastExposure:
+                        if FastCount_Frames == 0:
+                            self.parent.setVector("CCD_FAST_COUNT", "FRAMES", value=0, state=IVectorState.OK)
+                            self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
+                    else:
                         self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
-
 
     def startExposure(self, exposuretime):
         """start a single or fast exposure
