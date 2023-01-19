@@ -688,9 +688,8 @@ class indidevice:
                 logging.debug(f"XML not complete ({error}): {inp}")
                 continue
 
-            logging.debug("Parsed data from client")
-            logging.debug(etree.tostring(xml, pretty_print=True).decode())
-            logging.debug("End client data")
+            logging.info(f'Parsed data from client:\n{etree.tostring(xml, pretty_print=True).decode()}')
+            logging.info("End client data")
 
             if xml.tag == "getProperties":
                 if "device" in xml.attrib:

@@ -168,7 +168,7 @@ class ExposureVector(INumberVector):
             self.state = IVectorState.OK
         self.state = IVectorState.BUSY
         self.send_setVector()
-        self.parent.startExposure()
+        self.parent.startExposure(exposuretime=self["CCD_EXPOSURE_VALUE"].value)
 
 
 # camera specific
@@ -241,6 +241,7 @@ class CameraControl:
         self.min_AnalogueGain = None
         self.max_AnalogueGain = None
         # exposure loop control
+        self.ExposureTime = 0.0
         self.Sig_Do = threading.Event() # do an action
         self.Sig_ActionExpose = threading.Event()  # single or fast exposure
         self.Sig_ActionExit = threading.Event()  # exit exposure loop
@@ -460,7 +461,7 @@ class CameraControl:
         Reset CCD_FAST_COUNT FRAMES and acknowledge the abort.
         """
         if self.parent.knownVectors["CCD_ABORT_EXPOSURE"]["ABORT"].value == ISwitchState.ON:
-            self.parent.setVector("CCD_FAST_COUNT", "FRAMES", value=1, state=IVectorState.IDLE)
+            self.parent.setVector("CCD_FAST_COUNT", "FRAMES", value=0, state=IVectorState.IDLE)
             self.parent.setVector("CCD_ABORT_EXPOSURE", "ABORT", value=ISwitchState.OFF, state=IVectorState.OK)
             return True
         return False
@@ -501,8 +502,9 @@ class CameraControl:
         while True:
             with self.parent.knownVectorsLock:
                 self.checkAbort()
+                DoFastExposure = self.parent.knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON
                 FastCount_Frames = self.parent.knownVectors["CCD_FAST_COUNT"]["FRAMES"].value
-            if FastCount_Frames <= 1:
+            if not DoFastExposure or (FastCount_Frames < 1):
                 self.Sig_Do.wait()
                 self.Sig_Do.clear()
             if self.Sig_ActionExpose.is_set():
@@ -518,21 +520,22 @@ class CameraControl:
             has_RawModes = len(self.RawModes) > 0
             with self.parent.knownVectorsLock:
                 NewCameraSettings = CameraSettings(
-                    ExposureTime=self.parent.knownVectors["CCD_EXPOSURE"]["CCD_EXPOSURE_VALUE"].value,
+                    ExposureTime=self.ExposureTime,
                     AGain=self.parent.knownVectors["CCD_GAIN"]["GAIN"].value,
                     DoFastExposure=self.parent.knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON,
                     DoRaw=self.parent.knownVectors["FRAME_TYPE"]["FRAMETYPE_RAW"].value == ISwitchState.ON if has_RawModes else False,
                     ProcSize=(int(self.parent.knownVectors["CCD_PROCFRAME"]["WIDTH"].value), int(self.parent.knownVectors["CCD_PROCFRAME"]["HEIGHT"].value)),
                     RawMode=self.RawModes[self.parent.knownVectors["RAW_FORMAT"].get_OnSwitchesIdxs()[0]] if has_RawModes else None,
                 )
-            logging.info(f'new camera settings: {NewCameraSettings}')
+            logging.info(f'exposure settings: {NewCameraSettings}')
             # need a camera stop/start when something has changed on exposure controls
             IsRestartNeeded = self.present_CameraSettings.is_RestartNeeded(NewCameraSettings)
             if self.picam2.started and IsRestartNeeded:
-                logging.info(f'stopping camera for reconfiguration: {NewCameraSettings}')
+                logging.info(f'stopping camera for deeper reconfiguration')
                 self.picam2.stop()
             # change of DoFastExposure needs a configuration change
             if self.present_CameraSettings.is_ReconfigurationNeeded(NewCameraSettings):
+                logging.info(f'reconfiguring camera')
                 # need a new camera configuration
                 config = self.picam2.create_still_configuration(
                     queue=NewCameraSettings.DoFastExposure,
@@ -557,23 +560,25 @@ class CameraControl:
                 self.picam2.align_configuration(config)
                 # set still configuration
                 self.picam2.configure(config)
-            # exposure time and analog gain are controls
-            self.picam2.set_controls(
-                {
-                    # controls for main frame: disable all regulations
-                    "AeEnable": False,  # AEC/AGC algorithm
-                    # disable noise reduction in main frame because it eats stars
-                    "NoiseReductionMode": controls.draft.NoiseReductionModeEnum.Off,
-                    # disable automatic white balance algorithm and set colour gains manually
-                    "AwbEnable": False,
-                    "ColourGains": (2.0, 2.0),  # to compensate the 2 G pixel in Bayer pattern
-                    # controls for raw and main frames
-                    "AnalogueGain": NewCameraSettings.AGain,
-                    "ExposureTime": int(NewCameraSettings.ExposureTime * 1e6),  # exposure time in us; needs to be integer!
-                }
-            )
-            # restart if needed
+            # changing exposure time or analogue gain needs a restart
             if IsRestartNeeded:
+                # exposure time and analog gain are controls
+                self.picam2.set_controls(
+                    {
+                        # controls for main frame: disable all regulations
+                        "AeEnable": False,  # AEC/AGC algorithm
+                        # disable noise reduction in main frame because it eats stars
+                        "NoiseReductionMode": controls.draft.NoiseReductionModeEnum.Off,
+                        # disable automatic white balance algorithm and set colour gains manually
+                        "AwbEnable": False,
+                        "ColourGains": (2.0, 2.0),  # to compensate the 2 G pixel in Bayer pattern
+                        # controls for raw and main frames
+                        "AnalogueGain": NewCameraSettings.AGain,
+                        "ExposureTime": int(NewCameraSettings.ExposureTime * 1e6),
+                        # exposure time in us; needs to be integer!
+                    }
+                )
+                # restart
                 self.picam2.start()
                 logging.info(f'camera restarted')
             # camera runs now with new parameter
@@ -598,10 +603,11 @@ class CameraControl:
                     return
                 with self.parent.knownVectorsLock:
                     Abort = self.checkAbort()
+                    DoFastExposure = self.parent.knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON
                     FastCount_Frames = self.parent.knownVectors["CCD_FAST_COUNT"]["FRAMES"].value
                 if not Abort:
-                    FastCount_Frames -= 1
-                    if FastCount_Frames >= 1:  # CCD_FAST_COUNT is nor updated in a single exposure!
+                    if DoFastExposure:
+                        FastCount_Frames -= 1
                         self.parent.setVector("CCD_FAST_COUNT", "FRAMES", value=FastCount_Frames, state=IVectorState.BUSY)
                     # create FITS images
                     if self.present_CameraSettings.DoRaw:
@@ -619,16 +625,20 @@ class CameraControl:
                     bv["CCD1"].set_data(data=bstream.read(), format=".fits", compress=compress)
                     logging.info(f"sending BLOB")
                     bv.send_setVector()
-                    # finish exposure if CCD_FAST_COUNT FRAMES was 1 before exposure
-                    if FastCount_Frames < 1:
+                    # tell client that we finished fast exposure
+                    if DoFastExposure and (FastCount_Frames == 0):
                         self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
 
 
-    def startExposure(self):
+    def startExposure(self, exposuretime):
         """start a single or fast exposure
+
+        Args:
+            exposuretime: exposure time (seconds)
         """
         if not self.ExposureThread.is_alive():
             raise RuntimeError("Try ro start exposure without having exposure loop running!")
+        self.ExposureTime = exposuretime
         self.Sig_ActionExpose.set()
         self.Sig_ActionExit.clear()
         self.Sig_Do.set()
@@ -696,10 +706,10 @@ class indi_pylibcamera(indidevice):
     def closeCamera(self):
         """close camera and tell client to remove camera vectors from GUI
         """
+        self.CameraThread.closeCamera()
         for n in self.CameraVectorNames:
             self.checkout(n)
         self.CameraVectorNames = []
-        self.CameraThread.closeCamera()
 
     def openCamera(self):
         """ opens camera, reads camera properties and still configurations, updates INDI properties
@@ -1070,10 +1080,13 @@ class indi_pylibcamera(indidevice):
         if send:
             v.send_setVector()
 
-    def startExposure(self):
+    def startExposure(self, exposuretime):
         """start single or fast exposure
+
+        Args:
+            exposuretime: exposure time (seconds)
         """
-        self.CameraThread.startExposure()
+        self.CameraThread.startExposure(exposuretime)
 
 
 # main entry point
