@@ -47,6 +47,15 @@ to `no`. If you really need timestamps make sure that the system clock is correc
 
 An example for a configuration file can be found in this repository.
 
+## Error when restarting indiserver
+When killing the indiserver sometimes the driver process continues to run. You can see this with:
+
+`ps ax | grep indi`
+
+
+If you get `python3 ././indi_pylibcamera.py` in the output the driver process is still running. In that case you must
+kill the driver process manually before you restart the indiserver. Otherwise you will get get an libcamera error 
+when connecting to the camera.
 
 ## Known Limitations
 - Snoopying is not supported.
@@ -55,5 +64,3 @@ driver can ask the mount driver for the actual position to write these data as m
 implementation of the indi_pylibcamera driver does not support this.
 - The maximum exposure time of the V1 camera is about 1 second. This limitation is caused by libcamera and the kernel
 driver. The indi_pylibcamera can not work around this.
-- Local saving of images on driver device is not implemented yet.
-

@@ -2,6 +2,7 @@
 
 import sys
 import os
+import os.path
 from pathlib import Path
 import numpy as np
 from astropy.io import fits
@@ -9,6 +10,7 @@ import io
 import re
 import logging
 import threading
+import datetime
 
 from picamera2 import Picamera2
 from libcamera import controls
@@ -29,7 +31,7 @@ config = ConfigParser()
 config.read(str(configpath))
 logging.debug(f"ConfigParser: {configpath}, {config}")
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 
 # INDI vectors with immediate actions
@@ -223,6 +225,41 @@ class CameraSettings:
     def __repr__(self):
         return str(self)
 
+
+def getLocalFileName(dir: str = ".", prefix: str = "Image_XXX", suffix: str = ".fits"):
+    """make image name for local storage
+
+    Valid placeholder in prefix are:
+        _XXX: 3 digit image count
+        _ISO8601: local time
+
+    Args:
+        dir: local directory, will be created if not existing
+        prefix: file name prefix with placeholders
+        suffix: file name suffix
+
+    Returns:
+        path and file name with placeholders dissolved
+    """
+    os.makedirs(dir, exist_ok=True)
+    # replace ISO8601 placeholder in prefix with current time
+    now = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    prefix_now = prefix.replace("_ISO8601", f"_{now}")
+    # find largest existing image index
+    maxidx = 0
+    patternstring = prefix_now.replace("_XXX", "_(?P<Idx>\d{3})", 1) + suffix
+    patternstring = patternstring.replace(".", "\.")
+    pattern = re.compile(patternstring)
+    for fn in os.listdir(dir):
+        match = pattern.fullmatch(fn)
+        if match:
+            if "Idx" in match.groupdict():
+                idx = int(match.group("Idx"))
+                maxidx = max(maxidx, idx)
+    #
+    maxidx += 1
+    filename = prefix_now.replace("_XXX",f"_{maxidx:03d}", 1) + suffix
+    return os.path.join(dir, filename)
 
 
 class CameraControl:
@@ -546,7 +583,7 @@ class CameraControl:
                     config["main"]["size"] = (240, 190)
                     # configure raw stream
                     config["raw"] = {"size": NewCameraSettings.RawMode["size"], "format": NewCameraSettings.RawMode["camera_format"]}
-                    # binning does not change sensor array mechanical dimensions!
+                    # libcamera internal binning does not change sensor array mechanical dimensions!
                     #self.parent.setVector("CCD_FRAME", "WIDTH", value=NewCameraSettings.RawMode["size"][0], send=False)
                     #self.parent.setVector("CCD_FRAME", "HEIGHT", value=NewCameraSettings.RawMode["size"][1])
                 else:
@@ -617,14 +654,29 @@ class CameraControl:
                     bstream = io.BytesIO()
                     hdul.writeto(bstream)
                     size = bstream.tell()
-                    bstream.seek(0)
-                    # make BLOB
-                    logging.info(f"preparing frame as BLOB: {size} bytes")
-                    bv = self.parent.knownVectors["CCD1"]
-                    compress = self.parent.knownVectors["CCD_COMPRESSION"].get_OnSwitches()[0] == "CCD_COMPRESS"
-                    bv["CCD1"].set_data(data=bstream.read(), format=".fits", compress=compress)
-                    logging.info(f"sending BLOB")
-                    bv.send_setVector()
+                    # what to do with image
+                    with self.parent.knownVectorsLock:
+                        tv = self.parent.knownVectors["UPLOAD_SETTINGS"]
+                        upload_dir = tv["UPLOAD_DIR"].value
+                        upload_prefix = tv["UPLOAD_PREFIX"].value
+                        upload_mode = self.parent.knownVectors["UPLOAD_MODE"].get_OnSwitches()
+                    if upload_mode[0] in ["UPLOAD_LOCAL", "UPLOAD_BOTH"]:
+                        # requested to save locally
+                        local_filename = getLocalFileName(dir=upload_dir, prefix=upload_prefix, suffix=".fits")
+                        bstream.seek(0)
+                        logging.info(f"saving image to file {local_filename}")
+                        with open(local_filename, 'wb') as fh:
+                            fh.write(bstream.getbuffer())
+                    if upload_mode[0] in ["UPLOAD_CLIENT", "UPLOAD_BOTH"]:
+                        # send blob to client
+                        bstream.seek(0)
+                        # make BLOB
+                        logging.info(f"preparing frame as BLOB: {size} bytes")
+                        bv = self.parent.knownVectors["CCD1"]
+                        compress = self.parent.knownVectors["CCD_COMPRESSION"].get_OnSwitches()[0] == "CCD_COMPRESS"
+                        bv["CCD1"].set_data(data=bstream.getbuffer(), format=".fits", compress=compress)
+                        logging.info(f"sending BLOB")
+                        bv.send_setVector()
                     # tell client that we finished exposure
                     if DoFastExposure:
                         if FastCount_Frames == 0:
