@@ -64,3 +64,5 @@ driver can ask the mount driver for the actual position to write these data as m
 implementation of the indi_pylibcamera driver does not support this.
 - The maximum exposure time of the V1 camera is about 1 second. This limitation is caused by libcamera and the kernel
 driver. The indi_pylibcamera can not work around this.
+- Libcamera reports a higher maximum value for analogue gain than expected. The analogue gain is implemented by hardware
+and has therefore well defined restrictions. It is not clear if the reported higher maximum analogue gain is correct.

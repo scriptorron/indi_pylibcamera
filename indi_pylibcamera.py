@@ -542,6 +542,10 @@ class CameraControl:
                 DoFastExposure = self.parent.knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON
                 FastCount_Frames = self.parent.knownVectors["CCD_FAST_COUNT"]["FRAMES"].value
             if not DoFastExposure or (FastCount_Frames < 1):
+                # prepare for next exposure
+                if FastCount_Frames < 1:
+                    self.parent.setVector("CCD_FAST_COUNT", "FRAMES", value=1, state=IVectorState.OK)
+                # wait for next action
                 self.Sig_Do.wait()
                 self.Sig_Do.clear()
             if self.Sig_ActionExpose.is_set():
