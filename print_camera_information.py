@@ -6,6 +6,7 @@ import pprint
 # list of available cameras:
 cameras = Picamera2.global_camera_info()
 print(f'Found {len(cameras)} cameras.')
+print()
 
 for c, camera in enumerate(cameras):
     print(f'Camera {c}:')
@@ -14,16 +15,20 @@ for c, camera in enumerate(cameras):
     picam2 = Picamera2(c)
     print('Camera properties:')
     pprint.pprint(picam2.camera_properties)
+    print()
     print("Raw sensor modes:")
     pprint.pprint(picam2.sensor_modes)
+    print()
     print('Camera controls:')
-    print(picam2.camera_controls)
+    pprint.pprint(picam2.camera_controls)
+    print()
     if "ExposureTime" in picam2.camera_controls:
         print('Exposure time:')
         min_exp, max_exp, default_exp = picam2.camera_controls["ExposureTime"]
         print(f'  min: {min_exp}, max: {max_exp}, default: {default_exp}')
     else:
         print("ERROR: ExposureTime not in camera controls!")
+    print()
     if "AnalogueGain" in picam2.camera_controls:
         print('AnalogGain:')
         min_again, max_again, default_again = picam2.camera_controls["AnalogueGain"]

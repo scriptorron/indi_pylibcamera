@@ -29,7 +29,7 @@ Currently, the `indi_pylibcamera` driver does not has a setup or installation to
 
 ## Running
 You can start the INDI server with `indiserver -v ./indi_pylibcamer.py` after changing to the folder where you stored
-`indi_pylibcamera.py`. When the server is running you can connect to the server from an other computer with an INDI
+`indi_pylibcamera.py`. When the server is running you can connect to the server from another computer with an INDI
 client (for instance KStars/EKOS).
 
 ## Global Configuration
@@ -42,7 +42,7 @@ The configuration file must have the section `[driver]`. The following keys are 
 For instance you can have one Raspberry Pi with HQ camera as main camera for taking photos and a second Raspberry Pi with
 a V1 camera for auto guiding.
 - `SendTimeStamps` (`yes`, `no`, `on`, `off`, `true`, `false`, `1`, `0`): Add a timestamp to the messages send from
-the device to the client. Such timestamps are needed in very seldom cases only and usually it is okay to set this 
+the device to the client. Such timestamps are needed in very seldom cases only, and usually it is okay to set this 
 to `no`. If you really need timestamps make sure that the system clock is correct. 
 
 An example for a configuration file can be found in this repository.
@@ -54,8 +54,16 @@ When killing the indiserver sometimes the driver process continues to run. You c
 
 
 If you get `python3 ././indi_pylibcamera.py` in the output the driver process is still running. In that case you must
-kill the driver process manually before you restart the indiserver. Otherwise you will get get an libcamera error 
+kill the driver process manually before you restart the indiserver. Otherwise, you will get a libcamera error 
 when connecting to the camera.
+
+## When you need support for a new camera
+In case you have trouble, or you see unexpected behavior it will help debugging when you give more information about
+your camera. Please run:
+
+`.\print_camera_information.py > MyCam.txt`
+
+and send the generated "MyCam.txt" file. 
 
 ## Known Limitations
 - Snoopying is not supported.
@@ -65,4 +73,4 @@ implementation of the indi_pylibcamera driver does not support this.
 - The maximum exposure time of the V1 camera is about 1 second. This limitation is caused by libcamera and the kernel
 driver. The indi_pylibcamera can not work around this.
 - Libcamera reports a higher maximum value for analogue gain than expected. The analogue gain is implemented by hardware
-and has therefore well defined restrictions. It is not clear if the reported higher maximum analogue gain is correct.
+and has therefore well-defined restrictions. It is not clear if the reported higher maximum analogue gain is correct.
