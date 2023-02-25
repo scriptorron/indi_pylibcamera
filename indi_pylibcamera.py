@@ -580,7 +580,7 @@ class CameraControl:
                 # need a new camera configuration
                 config = self.picam2.create_still_configuration(
                     queue=NewCameraSettings.DoFastExposure,
-                    buffer_count=2 if NewCameraSettings.DoFastExposure else 1  # need at least 2 buffer for queueing
+                    buffer_count=2  # 2 if NewCameraSettings.DoFastExposure else 1  # need at least 2 buffer for queueing
                 )
                 if NewCameraSettings.DoRaw:
                     # we do not need the main stream and configure it to smaller size to save memory
