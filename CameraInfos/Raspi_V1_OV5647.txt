@@ -1,0 +1,76 @@
+Found 1 cameras.
+
+Camera 0:
+{'Id': '/base/soc/i2c0mux/i2c@1/ov5647@36',
+ 'Location': 2,
+ 'Model': 'ov5647',
+ 'Rotation': 0}
+
+Camera properties:
+{'ColorFilterArrangement': 2,
+ 'Location': 2,
+ 'Model': 'ov5647',
+ 'PixelArrayActiveAreas': (16, 6, 2592, 1944),
+ 'PixelArraySize': (2592, 1944),
+ 'Rotation': 0,
+ 'ScalerCropMaximum': (0, 0, 0, 0),
+ 'UnitCellSize': (1400, 1400)}
+
+Raw sensor modes:
+[{'bit_depth': 10,
+  'crop_limits': (16, 0, 2560, 1920),
+  'exposure_limits': (134, 1103219, None),
+  'format': SGBRG10_CSI2P,
+  'fps': 58.92,
+  'size': (640, 480),
+  'unpacked': 'SGBRG10'},
+ {'bit_depth': 10,
+  'crop_limits': (0, 0, 2592, 1944),
+  'exposure_limits': (92, 760636, None),
+  'format': SGBRG10_CSI2P,
+  'fps': 43.25,
+  'size': (1296, 972),
+  'unpacked': 'SGBRG10'},
+ {'bit_depth': 10,
+  'crop_limits': (348, 434, 1928, 1080),
+  'exposure_limits': (118, 969249, None),
+  'format': SGBRG10_CSI2P,
+  'fps': 30.62,
+  'size': (1920, 1080),
+  'unpacked': 'SGBRG10'},
+ {'bit_depth': 10,
+  'crop_limits': (0, 0, 2592, 1944),
+  'exposure_limits': (130, 1064891, None),
+  'format': SGBRG10_CSI2P,
+  'fps': 15.63,
+  'size': (2592, 1944),
+  'unpacked': 'SGBRG10'}]
+
+Camera controls:
+{'AeConstraintMode': (0, 3, 0),
+ 'AeEnable': (False, True, None),
+ 'AeExposureMode': (0, 3, 0),
+ 'AeMeteringMode': (0, 3, 0),
+ 'AnalogueGain': (1.0, 63.9375, None),
+ 'AwbEnable': (False, True, None),
+ 'AwbMode': (0, 7, 0),
+ 'Brightness': (-1.0, 1.0, 0.0),
+ 'ColourCorrectionMatrix': (-16.0, 16.0, None),
+ 'ColourGains': (0.0, 32.0, None),
+ 'Contrast': (0.0, 32.0, 1.0),
+ 'ExposureTime': (130, 1064891, None),
+ 'ExposureValue': (-8.0, 8.0, 0.0),
+ 'FrameDurationLimits': (63965, 1065021, None),
+ 'NoiseReductionMode': (0, 4, 0),
+ 'Saturation': (0.0, 32.0, 1.0),
+ 'ScalerCrop': (libcamera.Rectangle(0, 0, 64, 64),
+                libcamera.Rectangle(0, 0, 2592, 1944),
+                None),
+ 'Sharpness': (0.0, 16.0, 1.0)}
+
+Exposure time:
+  min: 130, max: 1064891, default: None
+
+AnalogGain:
+  min: 1.0, max: 63.9375, default: None
+
