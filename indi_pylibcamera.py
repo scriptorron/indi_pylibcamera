@@ -301,7 +301,7 @@ class CameraControl:
         # close picam2
         if self.picam2 is not None:
             if self.picam2.started:
-                self.picam2.stop()
+                self.picam2.stop_()
         # reset states
         self.picam2 = None
         self.present_CameraSettings = CameraSettings()
@@ -553,8 +553,9 @@ class CameraControl:
                 self.Sig_ActionExpose.clear()
             if self.Sig_ActionExit.is_set():
                 # exit exposure loop
+                self.picam2.stop_()
                 return
-            # picam2 needs to be opwn!
+            # picam2 needs to be open!
             if self.picam2 is None:
                 raise RuntimeError("trying to make an exposure without camera opened")
             # get new camera settings for exposure
@@ -573,7 +574,7 @@ class CameraControl:
             IsRestartNeeded = self.present_CameraSettings.is_RestartNeeded(NewCameraSettings)
             if self.picam2.started and IsRestartNeeded:
                 logging.info(f'stopping camera for deeper reconfiguration')
-                self.picam2.stop()
+                self.picam2.stop_()
             # change of DoFastExposure needs a configuration change
             if self.present_CameraSettings.is_ReconfigurationNeeded(NewCameraSettings):
                 logging.info(f'reconfiguring camera')
@@ -619,14 +620,16 @@ class CameraControl:
                         # exposure time in us; needs to be integer!
                     }
                 )
-                # restart
+            # start camera if not already running in Fast Exposure mode
+            if not self.picam2.started:
                 self.picam2.start()
-                logging.info(f'camera restarted')
+                logging.info(f'camera started')
             # camera runs now with new parameter
             self.present_CameraSettings = NewCameraSettings
             # last chance to exit or abort before doing exposure
             if self.Sig_ActionExit.is_set():
                 # exit exposure loop
+                self.picam2.stop_()
                 return
             with self.parent.knownVectorsLock:
                 Abort = self.checkAbort()
@@ -641,11 +644,15 @@ class CameraControl:
                 # last change to exit or abort before sending blob
                 if self.Sig_ActionExit.is_set():
                     # exit exposure loop
+                    self.picam2.stop_()
                     return
                 with self.parent.knownVectorsLock:
                     Abort = self.checkAbort()
                     DoFastExposure = self.parent.knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON
                     FastCount_Frames = self.parent.knownVectors["CCD_FAST_COUNT"]["FRAMES"].value
+                if not DoFastExposure:
+                    # in normal exposure mode the camera needs to be started with exposure command
+                    self.picam2.stop_()
                 if not Abort:
                     if DoFastExposure:
                         FastCount_Frames -= 1
