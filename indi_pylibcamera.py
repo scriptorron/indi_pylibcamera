@@ -336,10 +336,10 @@ class CameraControl:
             # it seems that self.CamProps["Rotation"] determines the orientation of the Bayer pattern
             if self.CamProps["Rotation"] == 0:
                 # at least V1 camera has this
-                FITS_format = sensor_format[4:0:-1]
+                FITS_format = sensor_format[1:5]
             elif self.CamProps["Rotation"] == 180:
                 # at least HQ camera has this
-                FITS_format = sensor_format[1:5]
+                FITS_format = sensor_format[4:0:-1]
             elif self.CamProps["Rotation"] == 90:
                 # don't know if there is such a camera and if the following rotation is right
                 FITS_format = "".join([sensor_format[2], sensor_format[4], sensor_format[1], sensor_format[3]])
@@ -348,7 +348,7 @@ class CameraControl:
                 FITS_format = "".join([sensor_format[3], sensor_format[1], sensor_format[4], sensor_format[2]])
             else:
                 logging.warning(f'Sensor rotation {self.CamProps["Rotation"]} not supported!')
-                FITS_format = sensor_format[4:0:-1]
+                FITS_format = sensor_format[1:5]
             # add to list of raw formats
             raw_mode = {
                 "size": sensor_mode["size"],
