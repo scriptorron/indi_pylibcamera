@@ -398,10 +398,10 @@ class CameraControl:
         bit_depth = self.present_CameraSettings.RawMode["bit_depth"]
         if bit_depth > 8:
             bit_pix = 16
-            array = array.view(np.uint16) * (2 ** (bit_pix - bit_depth))
+            array = array.view(np.uint16)
         else:
             bit_pix = 8
-            array = array.view(np.uint8) * (2 ** (bit_pix - bit_depth))
+            array = array.view(np.uint8)
         # convert to FITS
         hdu = fits.PrimaryHDU(array)
         # avoid access conflicts to knownVectors
