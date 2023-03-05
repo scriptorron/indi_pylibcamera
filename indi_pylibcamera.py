@@ -410,7 +410,8 @@ class CameraControl:
         """
         # remove 0- or garbage-filled columns
         true_size = self.present_CameraSettings.RawMode["size"]
-        array = np.ascontiguousarray(array[0:true_size[0], 0:true_size[1]])
+        logging.warning(f'frame shape: {array.shape}, true size: {true_size}')
+        array = np.ascontiguousarray(array[0:true_size[1], 0:true_size[0]])
         # rescale
         bit_depth = self.present_CameraSettings.RawMode["bit_depth"]
         if bit_depth > 8:
