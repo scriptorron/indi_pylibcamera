@@ -349,9 +349,23 @@ class CameraControl:
             else:
                 logging.warning(f'Sensor rotation {self.CamProps["Rotation"]} not supported!')
                 FITS_format = sensor_format[1:5]
+            #
+            size = sensor_mode["size"]
+            # adjustments for cameras with 0- or garbage-filled columns
+            if self.CamProps["Model"] == 'imx477':
+                if size == (1332, 990):
+                    size = (1332, 990)
+                elif size == (2028, 1080):
+                    size = (2024, 1080)
+                elif size == (2028, 1520):
+                    size = (2024, 1520)
+                elif size == (4056, 3040):
+                    size = (4056, 3040)
+                else:
+                    logging.warning(f'Unsupported frame size {size} for imx477!')
             # add to list of raw formats
             raw_mode = {
-                "size": sensor_mode["size"],
+                "size": size,
                 "camera_format": sensor_format,
                 "bit_depth": sensor_mode["bit_depth"],
                 "FITS_format": FITS_format,
@@ -394,6 +408,9 @@ class CameraControl:
             array: data array
             metadata: metadata
         """
+        # remove 0- or garbage-filled columns
+        true_size = self.present_CameraSettings.RawMode["size"]
+        array = array[0:true_size[1], 0:true_size[0]]
         # rescale
         bit_depth = self.present_CameraSettings.RawMode["bit_depth"]
         if bit_depth > 8:
