@@ -412,11 +412,7 @@ class CameraControl:
             array: data array
             metadata: metadata
         """
-        # remove 0- or garbage-filled columns
-        true_size = self.present_CameraSettings.RawMode["true_size"]
-        logging.warning(f'frame shape: {array.shape}, true size: {true_size}')
-        array = np.ascontiguousarray(array[0:true_size[1], 0:true_size[0]])
-        # rescale
+        # type cast and rescale
         bit_depth = self.present_CameraSettings.RawMode["bit_depth"]
         if bit_depth > 8:
             bit_pix = 16
@@ -424,6 +420,10 @@ class CameraControl:
         else:
             bit_pix = 8
             array = array.view(np.uint8) * (2 ** (bit_pix - bit_depth))
+        # remove 0- or garbage-filled columns
+        true_size = self.present_CameraSettings.RawMode["true_size"]
+        logging.warning(f'frame shape: {array.shape}, true size: {true_size}')
+        array = array[0:true_size[1], 0:true_size[0]]
         # convert to FITS
         hdu = fits.PrimaryHDU(array)
         # avoid access conflicts to knownVectors
