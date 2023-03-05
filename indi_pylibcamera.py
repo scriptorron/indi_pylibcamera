@@ -354,18 +354,22 @@ class CameraControl:
             # adjustments for cameras with 0- or garbage-filled columns
             if self.CamProps["Model"] == 'imx477':
                 if size == (1332, 990):
-                    size = (1332, 990)
+                    true_size = (1332, 990)
                 elif size == (2028, 1080):
-                    size = (2024, 1080)
+                    true_size = (2024, 1080)
                 elif size == (2028, 1520):
-                    size = (2024, 1520)
+                    true_size = (2024, 1520)
                 elif size == (4056, 3040):
-                    size = (4056, 3040)
+                    true_size = (4056, 3040)
                 else:
+                    true_size = size
                     logging.warning(f'Unsupported frame size {size} for imx477!')
+            else:
+                true_size = size
             # add to list of raw formats
             raw_mode = {
                 "size": size,
+                "true_size": true_size,
                 "camera_format": sensor_format,
                 "bit_depth": sensor_mode["bit_depth"],
                 "FITS_format": FITS_format,
@@ -409,7 +413,7 @@ class CameraControl:
             metadata: metadata
         """
         # remove 0- or garbage-filled columns
-        true_size = self.present_CameraSettings.RawMode["size"]
+        true_size = self.present_CameraSettings.RawMode["true_size"]
         logging.warning(f'frame shape: {array.shape}, true size: {true_size}')
         array = np.ascontiguousarray(array[0:true_size[1], 0:true_size[0]])
         # rescale
