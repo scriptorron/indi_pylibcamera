@@ -61,7 +61,7 @@ when connecting to the camera.
 In case you have trouble, or you see unexpected behavior it will help debugging when you give more information about
 your camera. Please run:
 
-`.\print_camera_information.py > MyCam.txt`
+`./print_camera_information.py > MyCam.txt`
 
 and send the generated "MyCam.txt" file. 
 
