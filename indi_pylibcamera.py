@@ -173,6 +173,84 @@ class ExposureVector(INumberVector):
         self.parent.startExposure(exposuretime=self["CCD_EXPOSURE_VALUE"].value)
 
 
+class RawFormatVector(ISwitchVector):
+    """INDI Switch vector to select raw format
+
+    For some cameras the raw format changes binning.
+    """
+
+    def __init__(self, parent, CameraThread):
+        self.parent=parent
+        self.CameraThread = CameraThread
+        super().__init__(
+            device=self.parent.device, timestamp=self.parent.timestamp, name="RAW_FORMAT",
+            elements=[
+                ISwitch(name=f'RAWFORMAT{i}', label=rm["label"], value=ISwitchState.ON if i == 0 else ISwitchState.OFF)
+                for i, rm in enumerate(self.CameraThread.RawModes)
+            ],
+            label="Raw format", group="Image Settings",
+            rule=ISwitchRule.ONEOFMANY,
+        )
+
+    def get_SelectedRawMode(self):
+        return self.CameraThread.RawModes[self.get_OnSwitchesIdxs()[0]]
+
+    def update_Binning(self):
+        selectedRawMode = self.CameraThread.RawModes[self.get_OnSwitchesIdxs()[0]]
+        binning = selectedRawMode["binning"]
+        self.parent.setVector("CCD_BINNING", "HOR_BIN", value=binning[0], state=IVectorState.OK, send=False)
+        self.parent.setVector("CCD_BINNING", "HOR_BIN", value=binning[1], state=IVectorState.OK, send=True)
+
+    def set_byClient(self, values: dict):
+        """called when vector gets set by client
+        special version for changing raw mode depending binning
+
+        Args:
+            values: dict(propertyName: value) of values to set
+        """
+        super().set_byClient(values=values)
+        self.update_Binning()
+
+
+class RawProcessedVector(ISwitchVector):
+    """INDI Switch vector to select raw or processed format
+
+    Processed formats have allways binning = (1,1).
+    """
+
+    def __init__(self, parent):
+        self.parent=parent
+        super().__init__(
+            device=self.parent.device, timestamp=self.parent.timestamp, name="FRAME_TYPE",
+            elements=[
+                ISwitch(name="FRAMETYPE_RAW", label="Raw", value=ISwitchState.ON),
+                ISwitch(name="FRAMETYPE_PROC", label="Processed", value=ISwitchState.OFF),
+            ],
+            label="Frame type", group="Image Settings",
+            rule=ISwitchRule.ONEOFMANY,
+        )
+
+    def update_Binning(self):
+        selectedFormat = self.get_OnSwitches()[0]
+        if selectedFormat == "FRAMETYPE_RAW":
+            # set binning according to raw format
+            self.parent.knownVectors["RAW_FORMAT"].update_Binning()
+        else:
+            # processed frames are all from (1,1) binning
+            self.parent.setVector("CCD_BINNING", "HOR_BIN", value=1, state=IVectorState.OK, send=False)
+            self.parent.setVector("CCD_BINNING", "HOR_BIN", value=1, state=IVectorState.OK, send=True)
+
+    def set_byClient(self, values: dict):
+        """called when vector gets set by client
+        special version for changing frame type depending binning
+
+        Args:
+            values: dict(propertyName: value) of values to set
+        """
+        super().set_byClient(values=values)
+        self.update_Binning()
+
+
 # camera specific
 
 class CameraSettings:
@@ -351,21 +429,36 @@ class CameraControl:
                 FITS_format = sensor_format[1:5]
             #
             size = sensor_mode["size"]
-            # adjustments for cameras with 0- or garbage-filled columns
+            # adjustments for cameras:
+            #   * 0- or garbage-filled columns
+            #   * raw modes with binning or subsampling
+            true_size = size
+            binning = (1, 1)
             if self.CamProps["Model"] == 'imx477':
                 if size == (1332, 990):
                     true_size = (1332, 990)
+                    binning = (2, 2)
                 elif size == (2028, 1080):
                     true_size = (2024, 1080)
+                    binning = (2, 2)
                 elif size == (2028, 1520):
                     true_size = (2024, 1520)
+                    binning = (2, 2)
                 elif size == (4056, 3040):
                     true_size = (4056, 3040)
                 else:
-                    true_size = size
                     logging.warning(f'Unsupported frame size {size} for imx477!')
-            else:
-                true_size = size
+            elif self.CamProps["Model"] == 'ov5647':
+                if size == (640, 480):
+                    binning = (4, 4)
+                elif size == (1296, 972):
+                    binning = (2, 2)
+                elif size == (1920, 1080):
+                    pass
+                elif size == (2592, 1944):
+                    pass
+                else:
+                    logging.warning(f'Unsupported frame size {size} for ov5647!')
             # add to list of raw formats
             raw_mode = {
                 "size": size,
@@ -373,6 +466,7 @@ class CameraControl:
                 "camera_format": sensor_format,
                 "bit_depth": sensor_mode["bit_depth"],
                 "FITS_format": FITS_format,
+                "binning": binning,
             }
             raw_mode["label"] = f'{raw_mode["size"][0]}x{raw_mode["size"][1]} {raw_mode["FITS_format"]} {raw_mode["bit_depth"]}bit'
             raw_modes.append(raw_mode)
@@ -428,7 +522,7 @@ class CameraControl:
         # avoid access conflicts to knownVectors
         with self.parent.knownVectorsLock:
             # determine frame type
-            FrameType = self.parent.knownVectors["CCD_FRAME_TYPE"].get_OnSwitches()[0]
+            FrameType = self.parent.knownVectors["CCD_FRAME_TYPE"].get_OnSwitchesLabels()[0]
             # FITS header and metadata
             FitsHeader = [
                 ("BZERO", 2 ** (bit_pix - 1), "offset data range"),
@@ -442,10 +536,10 @@ class CameraControl:
                 ("CCD-TEMP", metadata.get('SensorTemperature', 0), "CCD Temperature (Celsius)"),
                 ("PIXSIZE1", self.getProp("UnitCellSize")[0] / 1e3, "Pixel Size 1 (microns)"),
                 ("PIXSIZE2", self.getProp("UnitCellSize")[1] / 1e3, "Pixel Size 2 (microns)"),
-                ("XBINNING", 1, "Binning factor in width"),
-                ("YBINNING", 1, "Binning factor in height"),
-                ("XPIXSZ", self.getProp("UnitCellSize")[0] / 1e3, "X binned pixel size in microns"),
-                ("YPIXSZ", self.getProp("UnitCellSize")[1] / 1e3, "Y binned pixel size in microns"),
+                ("XBINNING", self.present_CameraSettings.RawMode["binning"][0], "Binning factor in width"),
+                ("YBINNING", self.present_CameraSettings.RawMode["binning"][1], "Binning factor in height"),
+                ("XPIXSZ", self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.RawMode["binning"][0], "X binned pixel size in microns"),
+                ("YPIXSZ", self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.RawMode["binning"][1], "Y binned pixel size in microns"),
                 ("FRAME", FrameType, "Frame Type"),
                 ("IMAGETYP", FrameType+" Frame", "Frame Type"),
                 ("XBAYROFF", 0, "X offset of Bayer array"),
@@ -476,7 +570,7 @@ class CameraControl:
         # avoid access conflicts to knownVectors
         with self.parent.knownVectorsLock:
             # determine frame type
-            FrameType = self.parent.knownVectors["CCD_FRAME_TYPE"].get_OnSwitches()[0]
+            FrameType = self.parent.knownVectors["CCD_FRAME_TYPE"].get_OnSwitchesLabels()[0]
             # FITS header and metadata
             FitsHeader = [
                 # ("CTYPE3", 'RGB'),  # Is that needed to make it a RGB image?
@@ -588,7 +682,7 @@ class CameraControl:
                     DoFastExposure=self.parent.knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON,
                     DoRaw=self.parent.knownVectors["FRAME_TYPE"]["FRAMETYPE_RAW"].value == ISwitchState.ON if has_RawModes else False,
                     ProcSize=(int(self.parent.knownVectors["CCD_PROCFRAME"]["WIDTH"].value), int(self.parent.knownVectors["CCD_PROCFRAME"]["HEIGHT"].value)),
-                    RawMode=self.RawModes[self.parent.knownVectors["RAW_FORMAT"].get_OnSwitchesIdxs()[0]] if has_RawModes else None,
+                    RawMode=self.parent.knownVectors["RAW_FORMAT"].get_SelectedRawMode() if has_RawModes else None,
                 )
             logging.info(f'exposure settings: {NewCameraSettings}')
             # need a camera stop/start when something has changed on exposure controls
@@ -831,29 +925,13 @@ class indi_pylibcamera(indidevice):
         else:
             # allow to select raw or processed frame
             self.checkin(
-                ISwitchVector(
-                    device=self.device, timestamp=self.timestamp, name="FRAME_TYPE",
-                    elements=[
-                        ISwitch(name="FRAMETYPE_RAW", label="Raw", value=ISwitchState.ON),
-                        ISwitch(name="FRAMETYPE_PROC", label="Processed", value=ISwitchState.OFF),
-                    ],
-                    label="Frame type", group="Image Settings",
-                    rule=ISwitchRule.ONEOFMANY,
-                ),
+                RawProcessedVector(parent=self),
                 send_defVector=True,
             )
             self.CameraVectorNames.append("FRAME_TYPE")
             # raw frame types
             self.checkin(
-                ISwitchVector(
-                    device=self.device, timestamp=self.timestamp, name="RAW_FORMAT",
-                    elements=[
-                        ISwitch(name=f'RAWFORMAT{i}', label=rm["label"], value=ISwitchState.ON if i == 0 else ISwitchState.OFF)
-                        for i, rm in enumerate(self.CameraThread.RawModes)
-                    ],
-                    label="Raw format", group="Image Settings",
-                    rule=ISwitchRule.ONEOFMANY,
-                ),
+                RawFormatVector(parent=self, CameraThread=self.CameraThread),
                 send_defVector=True,
             )
             self.CameraVectorNames.append("RAW_FORMAT")
@@ -951,19 +1029,20 @@ class indi_pylibcamera(indidevice):
         )
         self.CameraVectorNames.append("CCD_GAIN")
         #
-        # self.checkin(
-        #     INumberVector(
-        #         device=self.device, name="CCD_BINNING",
-        #         elements=[
-        #             INumber(name="HOR_BIN", label="X", min=1, max=1, step=1, value=1, format="%2.0f"),
-        #             INumber(name="VER_BIN", label="Y", min=1, max=1, step=1, value=1, format="%2.0f"),
-        #         ],
-        #         label="Binning", group="Image Settings",
-        #         state=IVectorState.IDLE, perm=IPermission.RO,
-        #     ),
-        #     send_defVector=True,
-        # )
-        # self.CameraVectorNames.append("CCD_BINNING")
+        self.checkin(
+            INumberVector(
+                device=self.device, name="CCD_BINNING",
+                elements=[
+                    INumber(name="HOR_BIN", label="X", min=1, max=16, step=1, value=1, format="%2.0f"),
+                    INumber(name="VER_BIN", label="Y", min=1, max=16, step=1, value=1, format="%2.0f"),
+                ],
+                label="Binning", group="Image Settings",
+                state=IVectorState.IDLE, perm=IPermission.RO,
+            ),
+            send_defVector=True,
+        )
+        self.CameraVectorNames.append("CCD_BINNING")
+        self.knownVectors["FRAME_TYPE"].update_Binning()  # set binning according to frame type and raw format
         #
         self.checkin(
             ITextVector(
