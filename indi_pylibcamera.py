@@ -24,7 +24,7 @@ config = ConfigParser()
 config.read(str(configpath))
 logging.debug(f"ConfigParser: {configpath}, {config}")
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 
 # INDI vectors with immediate actions
