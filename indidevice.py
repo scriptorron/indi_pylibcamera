@@ -449,6 +449,15 @@ class ISwitchVector(IVector):
                 OnSwitches.append(element.name)
         return OnSwitches
 
+    def get_OnSwitchesLabels(self) -> list:
+        """return list of element labels which are On
+        """
+        OnSwitches = []
+        for element in self.elements:
+            if element.value == ISwitchState.ON:
+                OnSwitches.append(element.label)
+        return OnSwitches
+
     def get_OnSwitchesIdxs(self) -> list:
         """return list of element indices which are On
         """

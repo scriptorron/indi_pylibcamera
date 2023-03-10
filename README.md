@@ -57,13 +57,48 @@ If you get `python3 ././indi_pylibcamera.py` in the output the driver process is
 kill the driver process manually before you restart the indiserver. Otherwise, you will get a libcamera error 
 when connecting to the camera.
 
-## When you need support for a new camera
+## Special handling for some cameras
+The driver is made as generic as possible by using the camera information provided by libcamera. For instance the raw
+modes and frame sizes selectable in the driver are coming from libcamera. Unfortunately some important information
+is not provided by libcamera:
+* Some cameras have columns or rows filled with 0 or "garbage". These can disturb postprocessing of frames. 
+For instance an automated color/brightness adjustment can get confused by these 0s.
+* Libcamera creates some raw modes by cropping, and others by binning (or subsampling, this is not sure) of frames.
+Binning (and subsampling) influences the viewing angle of the pixel. An INDI CCD driver must provide the used binning
+to allow client software to calculate the image viewing angle.
+
+To work around this the driver makes a special handling for the cameras listed below. Due to the removing of 
+zero-filled columns/rows the image frame size will be smaller than stated on the raw mode name.
+
+### IMX477 (Raspberry Pi HQ camera)
+Libcamera provides 4 raw modes for this camera, some made by binning (or subsampling) and all with 0-filled columns:
+* **4056x3040 BGGR 12bit:** provided frame size 4064x3040, no binning, has 8 zero-filled columns on its right, 
+final image size is 4056x3040
+* **2028x1520 BGGR 12bit:** provided frame size 2032x1520, 2x2 binning, has 6 zero-filled columns on its right 
+(8 get removed to avoid 1/2 Bayer pattern), final image size is 2024x1520
+* **2028x1080 BGGR 12bit:** provided frame size 2032x1080, 2x2 binning, has 6 zero-filled columns on its right 
+(8 get removed to avoid 1/2 Bayer pattern), final image size is 2024x1080
+* **1332x990 BGGR 10bit:** provided frame size 1344x990, 2x2 binning, has 12 zero-filled columns on its right,
+final image size is 1332x990
+
+### OV5647 (Raspberry Pi V1 camera)
+This camera does not add zero-filled columns. But libcamera uses 3 binning modes.
+* **2592x1944 GBRG 10bit:** provided frame size 2592x1944, no binning, no garbage columns, final image size is 2592x1944
+* **1920x1080 GBRG 10bit:** provided frame size 1920x1080, no binning, no garbage columns, final image size is 1920x1080
+* **1296x972 GBRG 10bit:** provided frame size 1296x972, 2x2 binning, no garbage columns, final image size is 1296x972
+* **640x480 GBRG 10bit:** provided frame size 640x480, 4x4 binning, no garbage columns, final image size is 640x480
+
+## When you need support for a different camera
 In case you have trouble, or you see unexpected behavior it will help debugging when you give more information about
 your camera. Please run:
 
 `./print_camera_information.py > MyCam.txt`
 
-and send the generated "MyCam.txt" file. 
+and send the generated "MyCam.txt" file.
+
+Furthermore, send one raw image for each available raw mode. Make pictures of a terrestrial object with red, green and
+blue areas. Do not change camera position between taking these pictures. It must be possible to measure and compare
+object dimensions.
 
 ## Known Limitations
 - Snoopying is not supported.
