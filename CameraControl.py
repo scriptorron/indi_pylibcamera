@@ -113,9 +113,10 @@ class CameraControl:
     """camera control and exposure thread
     """
 
-    def __init__(self, parent, do_CameraAdjustments=True):
+    def __init__(self, parent, do_CameraAdjustments, IgnoreRawModes):
         self.parent = parent
         self.do_CameraAdjustments = do_CameraAdjustments
+        self.IgnoreRawModes=IgnoreRawModes
         # reset states
         self.picam2 = None
         self.present_CameraSettings = CameraSettings()
@@ -256,6 +257,8 @@ class CameraControl:
         logging.info(f'camera properties: {self.CamProps}')
         # raw modes
         self.RawModes = self.getRawCameraModes()
+        if self.IgnoreRawModes:
+            self.RawModes = []
         # exposure time range
         self.min_ExposureTime, self.max_ExposureTime, default_exp = self.picam2.camera_controls["ExposureTime"]
         self.min_AnalogueGain, self.max_AnalogueGain, default_again = self.picam2.camera_controls["AnalogueGain"]

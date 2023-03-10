@@ -24,7 +24,7 @@ config = ConfigParser()
 config.read(str(configpath))
 logging.debug(f"ConfigParser: {configpath}, {config}")
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 
 # INDI vectors with immediate actions
@@ -219,14 +219,20 @@ class RawProcessedVector(ISwitchVector):
     Processed formats have allways binning = (1,1).
     """
 
-    def __init__(self, parent):
+    def __init__(self, parent, CameraThread):
         self.parent=parent
-        super().__init__(
-            device=self.parent.device, timestamp=self.parent.timestamp, name="FRAME_TYPE",
-            elements=[
+        if len(CameraThread.RawModes) > 0:
+            elements = [
                 ISwitch(name="FRAMETYPE_RAW", label="Raw", value=ISwitchState.ON),
                 ISwitch(name="FRAMETYPE_PROC", label="Processed", value=ISwitchState.OFF),
-            ],
+            ]
+        else:
+            elements = [
+                ISwitch(name="FRAMETYPE_PROC", label="Processed", value=ISwitchState.ON),
+            ]
+        super().__init__(
+            device=self.parent.device, timestamp=self.parent.timestamp, name="FRAME_TYPE",
+            elements=elements,
             label="Frame type", group="Image Settings",
             rule=ISwitchRule.ONEOFMANY,
         )
@@ -289,15 +295,12 @@ class BinningVector(INumberVector):
             bestRawIdx = 1
             if selectedFormat == "FRAMETYPE_RAW":
                 # select best matching frame type
-                bestBinning = (1, 1)
                 bestError = 1000000
                 for binning, RawIdx in self.RawBinningModes.items():
                     err = abs(float(values["HOR_BIN"]) - binning[0]) + abs(float(values["VER_BIN"]) - binning[1])
                     if err < bestError:
                         bestError = err
-                        bestBinning = binning
                         bestRawIdx = RawIdx
-                logging.error(f'values={values}, RawBinningModes={self.RawBinningModes}, bestBinning={bestBinning}, bestRawIdx={bestRawIdx}, bestError={bestError}')
             # set fitting raw mode and matching binning
             self.parent.knownVectors["RAW_FORMAT"].set_byClient({f'RAWFORMAT{bestRawIdx}': ISwitchState.ON})
         else:
@@ -321,7 +324,8 @@ class indi_pylibcamera(indidevice):
         # camera
         self.CameraThread = CameraControl(
             parent=self,
-            do_CameraAdjustments=config.getboolean("driver", "CameraAdjustments", fallback=True)
+            do_CameraAdjustments=config.getboolean("driver", "CameraAdjustments", fallback=True),
+            IgnoreRawModes=config.getboolean("driver", "IgnoreRawModes", fallback=False),
         )
         # get connected cameras
         cameras = Picamera2.global_camera_info()
@@ -401,26 +405,22 @@ class indi_pylibcamera(indidevice):
             send_defVector=True,
         )
         self.CameraVectorNames.append("CAMERA_INFO")
-        # raw camera modes
-        if len(self.CameraThread.RawModes) < 1:
-            logging.warning("camera does not has a useful raw mode")
-        else:
-            # allow to select raw or processed frame
-            self.checkin(
-                RawProcessedVector(parent=self),
-                send_defVector=True,
-            )
-            self.CameraVectorNames.append("FRAME_TYPE")
-            # raw frame types
-            self.checkin(
-                RawFormatVector(
-                    parent=self,
-                    CameraThread=self.CameraThread,
-                    do_CameraAdjustments=config.getboolean("driver", "CameraAdjustments", fallback=True),
-                ),
-                send_defVector=True,
-            )
-            self.CameraVectorNames.append("RAW_FORMAT")
+        # allow to select raw or processed frame
+        self.checkin(
+            RawProcessedVector(parent=self, CameraThread=self.CameraThread),
+            send_defVector=True,
+        )
+        self.CameraVectorNames.append("FRAME_TYPE")
+        # raw frame types
+        self.checkin(
+            RawFormatVector(
+                parent=self,
+                CameraThread=self.CameraThread,
+                do_CameraAdjustments=config.getboolean("driver", "CameraAdjustments", fallback=True),
+            ),
+            send_defVector=True,
+        )
+        self.CameraVectorNames.append("RAW_FORMAT")
         #
         self.checkin(
             INumberVector(
