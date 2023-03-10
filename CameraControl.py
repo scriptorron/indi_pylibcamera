@@ -8,7 +8,8 @@ import numpy as np
 from astropy.io import fits
 import io
 import re
-
+import threading
+import datetime
 
 from picamera2 import Picamera2
 from libcamera import controls
@@ -21,7 +22,10 @@ class CameraSettings:
     """exposure settings
     """
 
-    def __init__(self, ExposureTime=None, AGain=None, DoFastExposure=None, DoRaw=None, ProcSize=None, RawMode=None):
+    def __init__(
+            self,
+            ExposureTime=None, AGain=None, DoFastExposure=None, DoRaw=None, ProcSize=None, RawMode=None, Binning=None
+    ):
         """constructor
 
         Args:
@@ -38,6 +42,7 @@ class CameraSettings:
         self.DoRaw = DoRaw
         self.ProcSize = ProcSize
         self.RawMode = RawMode
+        self.Binning = Binning
 
     def is_RestartNeeded(self, NewCameraSettings):
         """would using NewCameraSettings need a camera restart?
@@ -108,8 +113,9 @@ class CameraControl:
     """camera control and exposure thread
     """
 
-    def __init__(self, parent):
-        self.parent=parent
+    def __init__(self, parent, do_CameraAdjustments=True):
+        self.parent = parent
+        self.do_CameraAdjustments = do_CameraAdjustments
         # reset states
         self.picam2 = None
         self.present_CameraSettings = CameraSettings()
@@ -198,31 +204,32 @@ class CameraControl:
             #   * raw modes with binning or subsampling
             true_size = size
             binning = (1, 1)
-            if self.CamProps["Model"] == 'imx477':
-                if size == (1332, 990):
-                    true_size = (1332, 990)
-                    binning = (2, 2)
-                elif size == (2028, 1080):
-                    true_size = (2024, 1080)
-                    binning = (2, 2)
-                elif size == (2028, 1520):
-                    true_size = (2024, 1520)
-                    binning = (2, 2)
-                elif size == (4056, 3040):
-                    true_size = (4056, 3040)
-                else:
-                    logging.warning(f'Unsupported frame size {size} for imx477!')
-            elif self.CamProps["Model"] == 'ov5647':
-                if size == (640, 480):
-                    binning = (4, 4)
-                elif size == (1296, 972):
-                    binning = (2, 2)
-                elif size == (1920, 1080):
-                    pass
-                elif size == (2592, 1944):
-                    pass
-                else:
-                    logging.warning(f'Unsupported frame size {size} for ov5647!')
+            if self.do_CameraAdjustments:
+                if self.CamProps["Model"] == 'imx477':
+                    if size == (1332, 990):
+                        true_size = (1332, 990)
+                        binning = (2, 2)
+                    elif size == (2028, 1080):
+                        true_size = (2024, 1080)
+                        binning = (2, 2)
+                    elif size == (2028, 1520):
+                        true_size = (2024, 1520)
+                        binning = (2, 2)
+                    elif size == (4056, 3040):
+                        true_size = (4056, 3040)
+                    else:
+                        logging.warning(f'Unsupported frame size {size} for imx477!')
+                elif self.CamProps["Model"] == 'ov5647':
+                    if size == (640, 480):
+                        binning = (4, 4)
+                    elif size == (1296, 972):
+                        binning = (2, 2)
+                    elif size == (1920, 1080):
+                        pass
+                    elif size == (2592, 1944):
+                        pass
+                    else:
+                        logging.warning(f'Unsupported frame size {size} for ov5647!')
             # add to list of raw formats
             raw_mode = {
                 "size": size,
@@ -300,10 +307,10 @@ class CameraControl:
                 ("CCD-TEMP", metadata.get('SensorTemperature', 0), "CCD Temperature (Celsius)"),
                 ("PIXSIZE1", self.getProp("UnitCellSize")[0] / 1e3, "Pixel Size 1 (microns)"),
                 ("PIXSIZE2", self.getProp("UnitCellSize")[1] / 1e3, "Pixel Size 2 (microns)"),
-                ("XBINNING", self.present_CameraSettings.RawMode["binning"][0], "Binning factor in width"),
-                ("YBINNING", self.present_CameraSettings.RawMode["binning"][1], "Binning factor in height"),
-                ("XPIXSZ", self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.RawMode["binning"][0], "X binned pixel size in microns"),
-                ("YPIXSZ", self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.RawMode["binning"][1], "Y binned pixel size in microns"),
+                ("XBINNING", self.present_CameraSettings.Binning[0], "Binning factor in width"),
+                ("YBINNING", self.present_CameraSettings.Binning[1], "Binning factor in height"),
+                ("XPIXSZ", self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0], "X binned pixel size in microns"),
+                ("YPIXSZ", self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1], "Y binned pixel size in microns"),
                 ("FRAME", FrameType, "Frame Type"),
                 ("IMAGETYP", FrameType+" Frame", "Frame Type"),
                 ("XBAYROFF", 0, "X offset of Bayer array"),
@@ -351,10 +358,10 @@ class CameraControl:
                 ("CCD-TEMP", metadata.get('SensorTemperature', 0), "CCD Temperature (Celsius)"),
                 ("PIXSIZE1", self.getProp("UnitCellSize")[0] / 1e3, "Pixel Size 1 (microns)"),
                 ("PIXSIZE2", self.getProp("UnitCellSize")[1] / 1e3, "Pixel Size 2 (microns)"),
-                ("XBINNING", 1, "Binning factor in width"),
-                ("YBINNING", 1, "Binning factor in height"),
-                ("XPIXSZ", self.getProp("UnitCellSize")[0] / 1e3, "X binned pixel size in microns"),
-                ("YPIXSZ", self.getProp("UnitCellSize")[1] / 1e3, "Y binned pixel size in microns"),
+                ("XBINNING", self.present_CameraSettings.Binning[0], "Binning factor in width"),
+                ("YBINNING", self.present_CameraSettings.Binning[1], "Binning factor in height"),
+                ("XPIXSZ", self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0], "X binned pixel size in microns"),
+                ("YPIXSZ", self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1], "Y binned pixel size in microns"),
                 ("FRAME", FrameType, "Frame Type"),
                 ("IMAGETYP", FrameType+" Frame", "Frame Type"),
                 #("FOCALLEN", 900, "Focal Length (mm)"),  # TODO
@@ -447,6 +454,7 @@ class CameraControl:
                     DoRaw=self.parent.knownVectors["FRAME_TYPE"]["FRAMETYPE_RAW"].value == ISwitchState.ON if has_RawModes else False,
                     ProcSize=(int(self.parent.knownVectors["CCD_PROCFRAME"]["WIDTH"].value), int(self.parent.knownVectors["CCD_PROCFRAME"]["HEIGHT"].value)),
                     RawMode=self.parent.knownVectors["RAW_FORMAT"].get_SelectedRawMode() if has_RawModes else None,
+                    Binning=(int(self.parent.knownVectors["CCD_BINNING"]["HOR_BIN"].value), int(self.parent.knownVectors["CCD_BINNING"]["VER_BIN"].value))
                 )
             logging.info(f'exposure settings: {NewCameraSettings}')
             # need a camera stop/start when something has changed on exposure controls
