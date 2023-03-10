@@ -197,10 +197,16 @@ class RawFormatVector(ISwitchVector):
         return self.CameraThread.RawModes[self.get_OnSwitchesIdxs()[0]]
 
     def update_Binning(self):
-        selectedRawMode = self.CameraThread.RawModes[self.get_OnSwitchesIdxs()[0]]
-        binning = selectedRawMode["binning"]
+        selectedFormat = self.parent.knownVectors["FRAME_TYPE"].get_OnSwitches()[0]
+        if selectedFormat == "FRAMETYPE_RAW":
+            # set binning according to raw format
+            selectedRawMode = self.CameraThread.RawModes[self.get_OnSwitchesIdxs()[0]]
+            binning = selectedRawMode["binning"]
+        else:
+            # processed frames are all with 1x1 binning
+            binning = (1, 1)
         self.parent.setVector("CCD_BINNING", "HOR_BIN", value=binning[0], state=IVectorState.OK, send=False)
-        self.parent.setVector("CCD_BINNING", "HOR_BIN", value=binning[1], state=IVectorState.OK, send=True)
+        self.parent.setVector("CCD_BINNING", "VER_BIN", value=binning[1], state=IVectorState.OK, send=True)
 
     def set_byClient(self, values: dict):
         """called when vector gets set by client
@@ -231,16 +237,6 @@ class RawProcessedVector(ISwitchVector):
             rule=ISwitchRule.ONEOFMANY,
         )
 
-    def update_Binning(self):
-        selectedFormat = self.get_OnSwitches()[0]
-        if selectedFormat == "FRAMETYPE_RAW":
-            # set binning according to raw format
-            self.parent.knownVectors["RAW_FORMAT"].update_Binning()
-        else:
-            # processed frames are all from (1,1) binning
-            self.parent.setVector("CCD_BINNING", "HOR_BIN", value=1, state=IVectorState.OK, send=False)
-            self.parent.setVector("CCD_BINNING", "HOR_BIN", value=1, state=IVectorState.OK, send=True)
-
     def set_byClient(self, values: dict):
         """called when vector gets set by client
         special version for changing frame type depending binning
@@ -249,7 +245,62 @@ class RawProcessedVector(ISwitchVector):
             values: dict(propertyName: value) of values to set
         """
         super().set_byClient(values=values)
-        self.update_Binning()
+        self.parent.knownVectors["RAW_FORMAT"].update_Binning()
+
+
+class BinningVector(INumberVector):
+    """INDI Number vector for binning setting
+
+    Binning is related to raw modes: when changing binning the raw mode must also be changed.
+    """
+    def __init__(self, parent, CameraThread):
+        self.parent = parent
+        self.CameraThread = CameraThread
+        # make dict: binning-->index in CameraThread.RawModes
+        self.RawBinningModes = dict()
+        for i, rm in enumerate(self.CameraThread.RawModes):
+            if not rm["binning"] in self.RawBinningModes:
+                self.RawBinningModes[rm["binning"]] = i
+        # determine max bining values
+        max_HOR_BIN = 1
+        max_VER_BIN = 1
+        for binning in self.RawBinningModes.keys():
+            max_HOR_BIN = max(max_HOR_BIN, binning[0])
+            max_VER_BIN = max(max_VER_BIN, binning[1])
+        super().__init__(
+            device=self.parent.device, timestamp=self.parent.timestamp, name="CCD_BINNING",
+            elements=[
+                INumber(name="HOR_BIN", label="X", min=1, max=max_HOR_BIN, step=1, value=1, format="%2.0f"),
+                INumber(name="VER_BIN", label="Y", min=1, max=max_VER_BIN, step=1, value=1, format="%2.0f"),
+            ],
+            label="Binning", group="Image Settings",
+            state=IVectorState.IDLE, perm=IPermission.RW,
+        )
+
+    def set_byClient(self, values: dict):
+        """called when vector gets set by client
+        special version for binning
+
+        Args:
+            values: dict(propertyName: value) of values to set
+        """
+        # allowed binning depends on FRAME_TYPE (raw or processed) and raw mode
+        selectedFormat = self.parent.knownVectors["FRAME_TYPE"].get_OnSwitches()[0]
+        bestRawIdx = 1
+        if selectedFormat == "FRAMETYPE_RAW":
+            # select best matching frame type
+            bestBinning = (1, 1)
+            bestError = 1000000
+            for binning, RawIdx in self.RawBinningModes.items():
+                err = abs(float(values["HOR_BIN"]) - binning[0]) + abs(float(values["VER_BIN"]) - binning[1])
+                if err < bestError:
+                    bestError = err
+                    bestBinning = binning
+                    bestRawIdx = RawIdx
+            logging.error(f'values={values}, RawBinningModes={self.RawBinningModes}, bestBinning={bestBinning}, bestRawIdx={bestRawIdx}, bestError={bestError}')
+        # set fitting raw mode and matching binning
+        self.parent.knownVectors["RAW_FORMAT"].set_byClient({f'RAWFORMAT{bestRawIdx}': ISwitchState.ON})
+
 
 
 # the device driver
@@ -457,19 +508,11 @@ class indi_pylibcamera(indidevice):
         self.CameraVectorNames.append("CCD_GAIN")
         #
         self.checkin(
-            INumberVector(
-                device=self.device, name="CCD_BINNING",
-                elements=[
-                    INumber(name="HOR_BIN", label="X", min=1, max=16, step=1, value=1, format="%2.0f"),
-                    INumber(name="VER_BIN", label="Y", min=1, max=16, step=1, value=1, format="%2.0f"),
-                ],
-                label="Binning", group="Image Settings",
-                state=IVectorState.IDLE, perm=IPermission.RO,
-            ),
+            BinningVector(parent=self, CameraThread=self.CameraThread),
             send_defVector=True,
         )
         self.CameraVectorNames.append("CCD_BINNING")
-        self.knownVectors["FRAME_TYPE"].update_Binning()  # set binning according to frame type and raw format
+        self.knownVectors["RAW_FORMAT"].update_Binning()  # set binning according to frame type and raw format
         #
         self.checkin(
             ITextVector(
