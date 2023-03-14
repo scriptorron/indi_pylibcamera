@@ -356,7 +356,6 @@ class indi_pylibcamera(indidevice):
             ITextVector(
                 device=self.device, timestamp=self.timestamp, name="DRIVER_INFO",
                 elements=[
-                    # TODO: make driver name editable to allow multiple cameras of same type
                     IText(name="DRIVER_NAME", label="Name", value=self.device),
                     IText(name="DRIVER_EXEC", label="Exec", value=sys.argv[0]),
                     IText(name="DRIVER_VERSION", label="Version", value=__version__),
@@ -456,25 +455,21 @@ class indi_pylibcamera(indidevice):
             send_defVector=True,
         )
         self.CameraVectorNames.append("CCD_ABORT_EXPOSURE")
-        # This is needed for field solver!
+        # CCD_FRAME defines a cropping area in the frame.
         self.checkin(
             INumberVector(
                 device=self.device, timestamp=self.timestamp, name="CCD_FRAME",
                 elements=[
+                    # ATTENTION: max must be >0
                     INumber(name="X", label="Left", min=0, max=self.CameraThread.getProp("PixelArraySize")[0], step=0, value=0, format="%4.0f"),
                     INumber(name="Y", label="Top", min=0, max=self.CameraThread.getProp("PixelArraySize")[1], step=0, value=0, format="%4.0f"),
-                    # INumber(name="WIDTH", label="Width", min=0, max=self.CameraThread.getProp("PixelArraySize")[0],
-                    #         step=0, value=self.CameraThread.getProp("PixelArraySize")[0], format="%4.0f"),
-                    # INumber(name="HEIGHT", label="Height", min=0, max=self.CameraThread.getProp("PixelArraySize")[1],
-                    #         step=0, value=self.CameraThread.getProp("PixelArraySize")[1], format="%4.0f"),
-                    # FIXME
                     INumber(name="WIDTH", label="Width", min=1, max=self.CameraThread.getProp("PixelArraySize")[0],
-                            step=0, value=0, format="%4.0f"),
+                            step=0, value=self.CameraThread.getProp("PixelArraySize")[0], format="%4.0f"),
                     INumber(name="HEIGHT", label="Height", min=1, max=self.CameraThread.getProp("PixelArraySize")[1],
-                            step=0, value=0, format="%4.0f"),
+                            step=0, value=self.CameraThread.getProp("PixelArraySize")[1], format="%4.0f"),
                 ],
-                label="Frame", group="Image Settings",  # group="Image Info",
-                perm=IPermission.RW,
+                label="Frame", group="Image Info",
+                perm=IPermission.RO,
             ),
             send_defVector=True,
         )
@@ -723,10 +718,6 @@ class indi_pylibcamera(indidevice):
         # self.CameraVectorNames.append("TELESCOPE_TYPE")
         #
         # delayed updates
-        #self.knownVectors["CCD_FRAME"].send_setVector()
-        self.setVector("CCD_FRAME", "WIDTH", self.CameraThread.getProp("PixelArraySize")[0], send=False)
-        self.setVector("CCD_FRAME", "HEIGHT", self.CameraThread.getProp("PixelArraySize")[1], send=True)
-
         self.knownVectors["RAW_FORMAT"].update_Binning()  # set binning according to frame type and raw format
         # finish
         return True
