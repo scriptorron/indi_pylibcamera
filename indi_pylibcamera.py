@@ -432,88 +432,66 @@ class indi_pylibcamera(indidevice):
                             step=0, value=self.CameraThread.getProp("PixelArraySize")[1], format="%4.0f"),
                 ],
                 label="Processed frame", group="Image Settings",
-                state=IVectorState.IDLE, perm=IPermission.RW,
+                perm=IPermission.RW,
             ),
             send_defVector=True,
         )
         self.CameraVectorNames.append("CCD_PROCFRAME")
         #
         self.checkin(
-            INumberVector(
-                device=self.device, timestamp=self.timestamp, name="CCD_INFO",
+            ExposureVector(parent=self, min_exp=self.CameraThread.min_ExposureTime, max_exp=self.CameraThread.max_ExposureTime),
+            send_defVector=True,
+        )
+        self.CameraVectorNames.append("CCD_EXPOSURE")
+        # TODO: implement functionality
+        self.checkin(
+            ISwitchVector(
+                device=self.device, timestamp=self.timestamp, name="CCD_ABORT_EXPOSURE",
                 elements=[
-                    INumber(name="CCD_MAX_X", label="Max. Width", min=1, max=1000000, step=0,
-                            value=self.CameraThread.getProp("PixelArraySize")[0], format="%.f"),
-                    INumber(name="CCD_MAX_Y", label="Max. Height", min=1, max=1000000, step=0,
-                            value=self.CameraThread.getProp("PixelArraySize")[1], format="%.f"),
-                    INumber(name="CCD_PIXEL_SIZE", label="Pixel size (um)", min=0, max=1000, step=0,
-                            value=max(self.CameraThread.getProp("UnitCellSize")) / 1e3, format="%.2f"),
-                    INumber(name="CCD_PIXEL_SIZE_X", label="Pixel size X", min=0, max=1000, step=0,
-                            value=self.CameraThread.getProp("UnitCellSize")[0] / 1e3, format="%.2f"),
-                    INumber(name="CCD_PIXEL_SIZE_Y", label="Pixel size Y", min=0, max=1000, step=0,
-                            value=self.CameraThread.getProp("UnitCellSize")[1] / 1e3, format="%.2f"),
-                    INumber(name="CCD_BITSPERPIXEL", label="Bits per pixel", min=0, max=1000, step=0,
-                            # using value of first raw mode or 8 if no raw mode available, TODO: is that right?
-                            value=8 if len(self.CameraThread.RawModes) < 1 else self.CameraThread.RawModes[0]["bit_depth"], format="%.f"),
+                    ISwitch(name="ABORT", label="Abort", value=ISwitchState.OFF),
                 ],
-                label="CCD Information", group="Image Info",
-                state=IVectorState.IDLE, perm=IPermission.RO,
+                label="Abort", group="Main Control",
+                rule=ISwitchRule.ATMOST1,
             ),
             send_defVector=True,
         )
-        self.CameraVectorNames.append("CCD_INFO")
+        self.CameraVectorNames.append("CCD_ABORT_EXPOSURE")
         # This is needed for field solver!
         self.checkin(
             INumberVector(
                 device=self.device, timestamp=self.timestamp, name="CCD_FRAME",
                 elements=[
-                    INumber(name="X", label="Left", min=0, max=0, step=0, value=0, format="%4.0f"),
-                    INumber(name="Y", label="Top", min=0, max=0, step=0, value=0, format="%4.0f"),
+                    INumber(name="X", label="Left", min=0, max=self.CameraThread.getProp("PixelArraySize")[0], step=0, value=0, format="%4.0f"),
+                    INumber(name="Y", label="Top", min=0, max=self.CameraThread.getProp("PixelArraySize")[1], step=0, value=0, format="%4.0f"),
+                    # INumber(name="WIDTH", label="Width", min=0, max=self.CameraThread.getProp("PixelArraySize")[0],
+                    #         step=0, value=self.CameraThread.getProp("PixelArraySize")[0], format="%4.0f"),
+                    # INumber(name="HEIGHT", label="Height", min=0, max=self.CameraThread.getProp("PixelArraySize")[1],
+                    #         step=0, value=self.CameraThread.getProp("PixelArraySize")[1], format="%4.0f"),
+                    # FIXME
                     INumber(name="WIDTH", label="Width", min=1, max=self.CameraThread.getProp("PixelArraySize")[0],
-                            step=0, value=self.CameraThread.getProp("PixelArraySize")[0], format="%4.0f"),
+                            step=0, value=0, format="%4.0f"),
                     INumber(name="HEIGHT", label="Height", min=1, max=self.CameraThread.getProp("PixelArraySize")[1],
-                            step=0, value=self.CameraThread.getProp("PixelArraySize")[1], format="%4.0f"),
+                            step=0, value=0, format="%4.0f"),
                 ],
-                label="Frame", group="Image Info",
-                state=IVectorState.IDLE, perm=IPermission.RO,
+                label="Frame", group="Image Settings",  # group="Image Info",
+                perm=IPermission.RW,
             ),
             send_defVector=True,
         )
         self.CameraVectorNames.append("CCD_FRAME")
-        #
-        # self.checkin(
-        #     ITextVector(
-        #         device=self.device, timestamp=self.timestamp, name="CCD_CFA",
-        #         elements=[
-        #             IText(name="CFA_OFFSET_X", label="Offset X", value="0"),
-        #             IText(name="CFA_OFFSET_Y", label="Offset Y", value="0"),
-        #             IText(name="CFA_TYPE", label="Type", value=self.raw_mode["format"][1:].rstrip("0123456789")),
-        #         ],
-        #         label="Color filter array", group="Image Info",
-        #         state=IVectorState.IDLE, perm=IPermission.RO,
-        #     ),
-        #     send_defVector=True,
-        # )
-        # self.CameraVectorNames.append("CCD_CFA")
-        #
+        # TODO: implement functionality
         self.checkin(
-            ExposureVector(parent=self, min_exp=self.CameraThread.min_ExposureTime, max_exp=self.CameraThread.max_ExposureTime),
-            send_defVector=True,
-        )
-        self.CameraVectorNames.append("CCD_EXPOSURE")
-        #
-        self.checkin(
-            INumberVector(
-                device=self.device, timestamp=self.timestamp, name="CCD_GAIN",
+            ISwitchVector(
+                device=self.device, timestamp=self.timestamp, name="CCD_FRAME_RESET",
                 elements=[
-                    INumber(name="GAIN", label="Analog Gain", min=self.CameraThread.min_AnalogueGain, max=self.CameraThread.max_AnalogueGain, step=0.1,
-                            value=self.CameraThread.max_AnalogueGain, format="%.1f"),
+                    ISwitch(name="RESET", label="Reset", value=ISwitchState.OFF),
                 ],
-                label="Gain", group="Main Control",
+                label="Frame Values", group="Image Settings",
+                rule=ISwitchRule.ONEOFMANY, perm=IPermission.WO,
             ),
             send_defVector=True,
         )
-        self.CameraVectorNames.append("CCD_GAIN")
+        self.CameraVectorNames.append("CCD_FRAME_RESET")
         #
         self.checkin(
             BinningVector(
@@ -524,7 +502,6 @@ class indi_pylibcamera(indidevice):
             send_defVector=True,
         )
         self.CameraVectorNames.append("CCD_BINNING")
-        self.knownVectors["RAW_FORMAT"].update_Binning()  # set binning according to frame type and raw format
         #
         self.checkin(
             ITextVector(
@@ -554,11 +531,41 @@ class indi_pylibcamera(indidevice):
         self.CameraVectorNames.append("CCD_TEMPERATURE")
         #
         self.checkin(
+            INumberVector(
+                device=self.device, timestamp=self.timestamp, name="CCD_INFO",
+                elements=[
+                    INumber(name="CCD_MAX_X", label="Max. Width", min=1, max=1000000, step=0,
+                            value=self.CameraThread.getProp("PixelArraySize")[0], format="%.f"),
+                    INumber(name="CCD_MAX_Y", label="Max. Height", min=1, max=1000000, step=0,
+                            value=self.CameraThread.getProp("PixelArraySize")[1], format="%.f"),
+                    INumber(name="CCD_PIXEL_SIZE", label="Pixel size (um)", min=0, max=1000, step=0,
+                            value=max(self.CameraThread.getProp("UnitCellSize")) / 1e3, format="%.2f"),
+                    INumber(name="CCD_PIXEL_SIZE_X", label="Pixel size X", min=0, max=1000, step=0,
+                            value=self.CameraThread.getProp("UnitCellSize")[0] / 1e3, format="%.2f"),
+                    INumber(name="CCD_PIXEL_SIZE_Y", label="Pixel size Y", min=0, max=1000, step=0,
+                            value=self.CameraThread.getProp("UnitCellSize")[1] / 1e3, format="%.2f"),
+                    INumber(name="CCD_BITSPERPIXEL", label="Bits per pixel", min=0, max=1000, step=0,
+                            # using value of first raw mode or 8 if no raw mode available, TODO: is that right?
+                            value=8 if len(self.CameraThread.RawModes) < 1 else self.CameraThread.RawModes[0]["bit_depth"], format="%.f"),
+                ],
+                label="CCD Information", group="Image Info",
+                state=IVectorState.IDLE, perm=IPermission.RO,
+            ),
+            send_defVector=True,
+        )
+        self.CameraVectorNames.append("CCD_INFO")
+        #
+        self.checkin(
             ISwitchVector(
                 device=self.device, timestamp=self.timestamp, name="CCD_COMPRESSION",
                 elements=[
-                    ISwitch(name="CCD_COMPRESS", label="Compressed", value=ISwitchState.OFF),
-                    ISwitch(name="CCD_RAW", label="Uncompressed", value=ISwitchState.ON),
+                    # The CCD Simulator has here other names which are not conform to protocol specification:
+                    # INDI_ENABLED and INDI_DISABLED
+                    ISwitch(name="INDI_ENABLED", label="Compressed", value=ISwitchState.OFF),
+                    ISwitch(name="INDI_DISABLED", label="Uncompressed", value=ISwitchState.ON),
+                    # Specification conform names are: CCD_COMPRESS and CCD_RAW
+                    #ISwitch(name="CCD_COMPRESS", label="Compressed", value=ISwitchState.OFF),
+                    #ISwitch(name="CCD_RAW", label="Uncompressed", value=ISwitchState.ON),
                 ],
                 label="Image compression", group="Image Settings",
                 rule=ISwitchRule.ONEOFMANY,
@@ -595,51 +602,6 @@ class indi_pylibcamera(indidevice):
             send_defVector=True,
         )
         self.CameraVectorNames.append("CCD_FRAME_TYPE")
-        #
-        # self.checkin(
-        #     ISwitchVector(
-        #         device=self.device, timestamp=self.timestamp, name="CCD_FRAME_RESET",
-        #         elements=[
-        #             ISwitch(name="RESET", label="Reset", value=ISwitchState.OFF),
-        #         ],
-        #         label="Frame Values", group="Image Settings",
-        #         rule=ISwitchRule.ONEOFMANY,
-        #     ),
-        #     send_defVector=True,
-        # )
-        # self.CameraVectorNames.append("CCD_FRAME_RESET")
-        #  TODO: snooping
-        # needed for field solver?
-        # self.checkin(
-        #     ITextVector(
-        #         device=self.device, timestamp=self.timestamp, name="ACTIVE_DEVICES",
-        #         elements=[
-        #             IText(name="ACTIVE_TELESCOPE", label="Telescope", value="Telescope Simulator"),
-        #             IText(name="ACTIVE_ROTATOR", label="Rotator", value="Rotator Simulator"),
-        #             IText(name="ACTIVE_FOCUSER", label="Focuser", value="Focuser Simulator"),
-        #             IText(name="ACTIVE_FILTER", label="Filter", value="CCD Simulator"),
-        #             IText(name="ACTIVE_SKYQUALITY", label="Sky Quality", value="SQM"),
-        #
-        #         ],
-        #         label="Snoop devices", group="Options",
-        #     ),
-        #     send_defVector=True,
-        # )
-        # self.CameraVectorNames.append("ACTIVE_DEVICES")
-        # needed for field solver?
-        # self.checkin(
-        #     ISwitchVector(
-        #         device=self.device, timestamp=self.timestamp, name="TELESCOPE_TYPE",
-        #         elements=[
-        #             ISwitch(name="TELESCOPE_PRIMARY", label="Primary", value=ISwitchState.ON),
-        #             ISwitch(name="TELESCOPE_GUIDE", label="Guide", value=ISwitchState.OFF),
-        #         ],
-        #         label="Telescope", group="Options",
-        #         rule=ISwitchRule.ONEOFMANY,
-        #     ),
-        #     send_defVector=True,
-        # )
-        # self.CameraVectorNames.append("TELESCOPE_TYPE")
         #
         self.checkin(
             ISwitchVector(
@@ -690,23 +652,82 @@ class indi_pylibcamera(indidevice):
                     INumber(name="FRAMES", label="Frames", min=0, max=100000, step=1, value=1, format="%.f"),
                 ],
                 label="Fast Count", group="Main Control",
-                state=IVectorState.IDLE,
             ),
             send_defVector=True,
         )
         self.CameraVectorNames.append("CCD_FAST_COUNT")
+        #
         self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, name="CCD_ABORT_EXPOSURE",
+            INumberVector(
+                device=self.device, timestamp=self.timestamp, name="CCD_GAIN",
                 elements=[
-                    ISwitch(name="ABORT", label="Abort", value=ISwitchState.OFF),
+                    INumber(name="GAIN", label="Analog Gain", min=self.CameraThread.min_AnalogueGain,
+                            max=self.CameraThread.max_AnalogueGain, step=0.1,
+                            value=self.CameraThread.max_AnalogueGain, format="%.1f"),
                 ],
-                label="Expose Abort", group="Main Control",
-                rule=ISwitchRule.ATMOST1,
+                label="Gain", group="Main Control",
             ),
             send_defVector=True,
         )
-        self.CameraVectorNames.append("CCD_ABORT_EXPOSURE")
+        self.CameraVectorNames.append("CCD_GAIN")
+        #
+        # Maybe needed: CCD_CFA
+        # self.checkin(
+        #     ITextVector(
+        #         device=self.device, timestamp=self.timestamp, name="CCD_CFA",
+        #         elements=[
+        #             IText(name="CFA_OFFSET_X", label="Offset X", value="0"),
+        #             IText(name="CFA_OFFSET_Y", label="Offset Y", value="0"),
+        #             IText(name="CFA_TYPE", label="Type", value=self.raw_mode["format"][1:].rstrip("0123456789")),
+        #         ],
+        #         label="Color filter array", group="Image Info",
+        #         state=IVectorState.IDLE, perm=IPermission.RO,
+        #     ),
+        #     send_defVector=True,
+        # )
+        # self.CameraVectorNames.append("CCD_CFA")
+        #
+        # Maybe needed: CCD_COOLER
+        #
+        #  TODO: snooping
+        # needed for field solver?
+        # self.checkin(
+        #     ITextVector(
+        #         device=self.device, timestamp=self.timestamp, name="ACTIVE_DEVICES",
+        #         elements=[
+        #             IText(name="ACTIVE_TELESCOPE", label="Telescope", value="Telescope Simulator"),
+        #             IText(name="ACTIVE_ROTATOR", label="Rotator", value="Rotator Simulator"),
+        #             IText(name="ACTIVE_FOCUSER", label="Focuser", value="Focuser Simulator"),
+        #             IText(name="ACTIVE_FILTER", label="Filter", value="CCD Simulator"),
+        #             IText(name="ACTIVE_SKYQUALITY", label="Sky Quality", value="SQM"),
+        #
+        #         ],
+        #         label="Snoop devices", group="Options",
+        #     ),
+        #     send_defVector=True,
+        # )
+        # self.CameraVectorNames.append("ACTIVE_DEVICES")
+        # needed for field solver?
+        # self.checkin(
+        #     ISwitchVector(
+        #         device=self.device, timestamp=self.timestamp, name="TELESCOPE_TYPE",
+        #         elements=[
+        #             ISwitch(name="TELESCOPE_PRIMARY", label="Primary", value=ISwitchState.ON),
+        #             ISwitch(name="TELESCOPE_GUIDE", label="Guide", value=ISwitchState.OFF),
+        #         ],
+        #         label="Telescope", group="Options",
+        #         rule=ISwitchRule.ONEOFMANY,
+        #     ),
+        #     send_defVector=True,
+        # )
+        # self.CameraVectorNames.append("TELESCOPE_TYPE")
+        #
+        # delayed updates
+        #self.knownVectors["CCD_FRAME"].send_setVector()
+        self.setVector("CCD_FRAME", "WIDTH", self.CameraThread.getProp("PixelArraySize")[0], send=False)
+        self.setVector("CCD_FRAME", "HEIGHT", self.CameraThread.getProp("PixelArraySize")[1], send=True)
+
+        self.knownVectors["RAW_FORMAT"].update_Binning()  # set binning according to frame type and raw format
         # finish
         return True
 
