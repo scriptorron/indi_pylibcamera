@@ -1,8 +1,7 @@
 """
 indi_pylibcamera: CameraControl class
 """
-
-
+import logging
 import os.path
 import numpy as np
 from astropy.io import fits
@@ -10,6 +9,7 @@ import io
 import re
 import threading
 import datetime
+import time
 
 from picamera2 import Picamera2
 from libcamera import controls
@@ -131,6 +131,7 @@ class CameraControl:
         self.Sig_Do = threading.Event() # do an action
         self.Sig_ActionExpose = threading.Event()  # single or fast exposure
         self.Sig_ActionExit = threading.Event()  # exit exposure loop
+        self.Sig_CaptureDone = threading.Event()
         # exposure loop in separate thread
         self.Sig_ActionExit.clear()
         self.Sig_ActionExpose.clear()
@@ -524,20 +525,48 @@ class CameraControl:
             with self.parent.knownVectorsLock:
                 Abort = self.checkAbort()
             if not Abort:
-                # get (blocking!) frame and meta data
-                (array, ), metadata = self.picam2.capture_arrays(["raw" if self.present_CameraSettings.DoRaw else "main"])
-                logging.info("got exposed frame")
+                # get (non-blocking!) frame and meta data
+                self.Sig_CaptureDone.clear()
+                ExpectedEndOfExposure = time.time() + self.present_CameraSettings.ExposureTime
+                job = self.picam2.capture_arrays(
+                    ["raw" if self.present_CameraSettings.DoRaw else "main"],
+                    wait=False, signal_function=self.on_CaptureFinished,
+                )
+                while ExpectedEndOfExposure - time.time() > 0.5:
+                    # exposure count down
+                    self.parent.setVector(
+                        "CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=ExpectedEndOfExposure - time.time(),
+                        state=IVectorState.BUSY
+                    )
+                    # allow to close camera
+                    if self.Sig_ActionExit.is_set():
+                        # exit exposure loop
+                        self.picam2.stop_()
+                        return
+                    # allow to abort exposure
+                    with self.parent.knownVectorsLock:
+                        Abort = self.checkAbort()
+                    if Abort:
+                        break
+                    # allow exposure to finish earlier than expected (for instance when in fast exposure mode)
+                    if self.Sig_CaptureDone.is_set():
+                        break
+                    time.sleep(0.5)
+                # get frame and its metadata
+                if not Abort:
+                    (array, ), metadata =  self.picam2.wait(job)
+                    logging.info("got exposed frame")
                 # inform client about progress
                 self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.BUSY)
                 # at least HQ camera reports CCD temperature in meta data
                 self.parent.setVector("CCD_TEMPERATURE", "CCD_TEMPERATURE_VALUE", value=metadata.get('SensorTemperature', 0))
-                # last change to exit or abort before sending blob
+                # last chance to exit or abort before sending blob
                 if self.Sig_ActionExit.is_set():
                     # exit exposure loop
                     self.picam2.stop_()
                     return
                 with self.parent.knownVectorsLock:
-                    Abort = self.checkAbort()
+                    Abort = Abort or self.checkAbort()
                     DoFastExposure = self.parent.knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON
                     FastCount_Frames = self.parent.knownVectors["CCD_FAST_COUNT"]["FRAMES"].value
                 if not DoFastExposure:
@@ -585,6 +614,11 @@ class CameraControl:
                             self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                     else:
                         self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
+
+    def on_CaptureFinished(self, Job):
+        """callback function for capture done
+        """
+        self.Sig_CaptureDone.set()
 
     def startExposure(self, exposuretime):
         """start a single or fast exposure
