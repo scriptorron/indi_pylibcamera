@@ -24,7 +24,7 @@ config = ConfigParser()
 config.read(str(configpath))
 logging.debug(f"ConfigParser: {configpath}, {config}")
 
-__version__ = "1.5.0"
+__version__ = "1.6.0"
 
 
 # INDI vectors with immediate actions
@@ -36,18 +36,37 @@ class LoggingVector(ISwitchVector):
     """
 
     def __init__(self, parent):
-        self.parent=parent
+        self.parent = parent
+        LoggingLevel = config.get("driver", "LoggingLevel", fallback="Info")
+        if LoggingLevel not in ["Debug", "Info", "Warning", "Error"]:
+            logging.error('Parameter "LoggingLevel" in INI file has an unsupported value!')
+            LoggingLevel = "Info"
         super().__init__(
             device=self.parent.device, timestamp=self.parent.timestamp, name="LOGGING_LEVEL",
             elements=[
-                ISwitch(name="LOGGING_DEBUG", label="Debug", value=ISwitchState.OFF),
-                ISwitch(name="LOGGING_INFO", label="Info", value=ISwitchState.ON),
-                ISwitch(name="LOGGING_WARN", label="Warning", value=ISwitchState.OFF),
-                ISwitch(name="LOGGING_ERROR", label="Error", value=ISwitchState.OFF),
+                ISwitch(name="LOGGING_DEBUG", label="Debug", value=ISwitchState.ON if LoggingLevel == "Debug" else ISwitchState.OFF),
+                ISwitch(name="LOGGING_INFO", label="Info", value=ISwitchState.ON if LoggingLevel == "Info" else ISwitchState.OFF),
+                ISwitch(name="LOGGING_WARN", label="Warning", value=ISwitchState.ON if LoggingLevel == "Warning" else ISwitchState.OFF),
+                ISwitch(name="LOGGING_ERROR", label="Error", value=ISwitchState.ON if LoggingLevel == "Error" else ISwitchState.OFF),
             ],
             label="Logging", group="Options",
             rule=ISwitchRule.ONEOFMANY,
         )
+        self.configure_logger()
+
+
+    def configure_logger(self):
+        selectedLogLevel = self.get_OnSwitches()[0]
+        logging.info(f'selected logging level: {selectedLogLevel}')
+        if selectedLogLevel == "LOGGING_DEBUG":
+            logging.getLogger().setLevel(logging.DEBUG)
+        elif selectedLogLevel == "LOGGING_INFO":
+            logging.getLogger().setLevel(logging.INFO)
+        elif selectedLogLevel == "LOGGING_WARN":
+            logging.getLogger().setLevel(logging.WARN)
+        else:
+            logging.getLogger().setLevel(logging.ERROR)
+
 
     def set_byClient(self, values: dict):
         """called when vector gets set by client
@@ -64,16 +83,7 @@ class LoggingVector(ISwitchVector):
             self.send_setVector()
             self.message = ""
             return
-        selectedLogLevel = self.get_OnSwitches()[0]
-        logging.info(f'selected logging level: {selectedLogLevel}')
-        if selectedLogLevel == "LOGGING_DEBUG":
-            logging.getLogger().setLevel(logging.DEBUG)
-        elif selectedLogLevel == "LOGGING_INFO":
-            logging.getLogger().setLevel(logging.INFO)
-        elif selectedLogLevel == "LOGGING_WARN":
-            logging.getLogger().setLevel(logging.WARN)
-        else:
-            logging.getLogger().setLevel(logging.ERROR)
+        self.configure_logger()
         self.state = IVectorState.OK
         self.send_setVector()
 
