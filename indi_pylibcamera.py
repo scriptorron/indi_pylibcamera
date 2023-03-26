@@ -317,6 +317,43 @@ class BinningVector(INumberVector):
             super().set_byClient(values=values)
 
 
+class SnoopingVector(ITextVector):
+    """INDI Text vector with other devices to snoop
+    """
+
+    def __init__(self, parent):
+        self.parent = parent
+        super().__init__(
+            device=self.device, timestamp=self.timestamp, name="ACTIVE_DEVICES",
+            # empty values mean do not snoop
+            elements=[
+                IText(name="ACTIVE_TELESCOPE", label="Telescope", value=""),
+                IText(name="ACTIVE_ROTATOR", label="Rotator", value=""),
+                IText(name="ACTIVE_FOCUSER", label="Focuser", value=""),
+                IText(name="ACTIVE_FILTER", label="Filter", value=""),
+                IText(name="ACTIVE_SKYQUALITY", label="Sky Quality", value=""),
+
+            ],
+            label="Snoop devices", group="Options",
+        )
+
+    def set_byClient(self, values: dict):
+        """called when vector gets set by client
+        special version for activating snooping
+
+        Args:
+            values: dict(propertyName: value) of values to set
+        """
+        super().set_byClient(values=values)
+        for k, v in values.items():
+            if v != "":
+                if k == "ACTIVE_TELESCOPE":
+                    self.parent.start_Snooping(v, "TELESCOPE_PIER_SIDE"),
+
+
+
+
+
 # the device driver
 
 class indi_pylibcamera(indidevice):
@@ -694,24 +731,13 @@ class indi_pylibcamera(indidevice):
         #
         # Maybe needed: CCD_COOLER
         #
-        #  TODO: snooping
-        # needed for field solver?
-        # self.checkin(
-        #     ITextVector(
-        #         device=self.device, timestamp=self.timestamp, name="ACTIVE_DEVICES",
-        #         elements=[
-        #             IText(name="ACTIVE_TELESCOPE", label="Telescope", value="Telescope Simulator"),
-        #             IText(name="ACTIVE_ROTATOR", label="Rotator", value="Rotator Simulator"),
-        #             IText(name="ACTIVE_FOCUSER", label="Focuser", value="Focuser Simulator"),
-        #             IText(name="ACTIVE_FILTER", label="Filter", value="CCD Simulator"),
-        #             IText(name="ACTIVE_SKYQUALITY", label="Sky Quality", value="SQM"),
-        #
-        #         ],
-        #         label="Snoop devices", group="Options",
-        #     ),
-        #     send_defVector=True,
-        # )
-        # self.CameraVectorNames.append("ACTIVE_DEVICES")
+        # snooping
+        if config.getboolean("driver", "DoSnooping", fallback=True):
+            self.checkin(
+                SnoopingVector(parent=self,),
+                send_defVector=True,
+            )
+            self.CameraVectorNames.append("ACTIVE_DEVICES")
         # needed for field solver?
         # self.checkin(
         #     ISwitchVector(

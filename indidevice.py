@@ -19,6 +19,8 @@ import threading
 import fcntl
 import datetime
 
+import SnoopingManager
+
 
 # helping functions
 
@@ -662,6 +664,9 @@ class indidevice:
         self.knownVectors = IVectorList(name="knownVectors")
         # lock for device parameter
         self.knownVectorsLock = threading.Lock()
+        # snooping
+        self.SnoopingManager = SnoopingManager()
+
 
     def send_Message(self, message: str, severity: str = "INFO", timestamp: bool = False):
         """send message to client
@@ -735,3 +740,13 @@ class indidevice:
         """start device
         """
         self.message_loop()
+
+    def start_Snooping(self, device: str, name: str):
+        """start snooping of device with property name
+
+        Args:
+            device: device name to snoop
+            name: vector name
+        """
+        self.SnoopingManager.start_Snooping(device=device, name=name)
+
