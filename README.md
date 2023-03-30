@@ -37,13 +37,16 @@ The driver uses configuration files to set global parameter. If environment vari
 exists the file `$INDI_PYLIBCAMERA_CONFIG_PATH/indi_pylibcamera.ini` is loaded. Otherwise, it tries to load
 `$HOME/.indi_pylibcamera/indi_pylibcamera.ini`.
 
-The configuration file must have the section `[driver]`. The following keys are supported:
+The configuration file must have the section `[driver]`. The most important keys are:
 - `DeviceName` (string): INDI name of the device. This allows to distinguish indi_pylibcamera devices in your setup.
 For instance you can have one Raspberry Pi with HQ camera as main camera for taking photos and a second Raspberry Pi with
 a V1 camera for auto guiding.
 - `SendTimeStamps` (`yes`, `no`, `on`, `off`, `true`, `false`, `1`, `0`): Add a timestamp to the messages send from
 the device to the client. Such timestamps are needed in very seldom cases only, and usually it is okay to set this 
 to `no`. If you really need timestamps make sure that the system clock is correct. 
+
+Some cameras are not fully supported by libcamera and do not provide all needed information. The configuration
+file allows to force pixel size and Bayer pattern rotation for such cameras.
 
 An example for a configuration file can be found in this repository.
 

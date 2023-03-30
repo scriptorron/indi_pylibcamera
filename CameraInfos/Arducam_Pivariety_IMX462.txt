@@ -1,0 +1,52 @@
+Found 1 cameras.
+
+Camera 0:
+{'Id': '/base/soc/i2c0mux/i2c@1/arducam_pivariety@c',
+ 'Location': 2,
+ 'Model': 'arducam-pivariety',
+ 'Rotation': 0}
+
+Camera properties:
+{'ColorFilterArrangement': 0,
+ 'Location': 2,
+ 'Model': 'arducam-pivariety',
+ 'PixelArrayActiveAreas': (libcamera.Rectangle(0, 0, 1920, 1080),),
+ 'PixelArraySize': (1920, 1080),
+ 'Rotation': 0,
+ 'ScalerCropMaximum': (0, 0, 0, 0)}
+
+Raw sensor modes:
+[{'bit_depth': 10,
+  'crop_limits': (0, 0, 1920, 1080),
+  'exposure_limits': (14, 15534385, None),
+  'format': SRGGB10_CSI2P,
+  'fps': 60.0,
+  'size': (1920, 1080),
+  'unpacked': 'SRGGB10'}]
+
+Camera controls:
+{'AeConstraintMode': (0, 3, 0),
+ 'AeEnable': (False, True, None),
+ 'AeExposureMode': (0, 3, 0),
+ 'AeMeteringMode': (0, 3, 0),
+ 'AnalogueGain': (1.0, 200.0, None),
+ 'AwbEnable': (False, True, None),
+ 'AwbMode': (0, 7, 0),
+ 'Brightness': (-1.0, 1.0, 0.0),
+ 'ColourCorrectionMatrix': (-16.0, 16.0, None),
+ 'ColourGains': (0.0, 32.0, None),
+ 'Contrast': (0.0, 32.0, 1.0),
+ 'ExposureTime': (14, 15534385, None),
+ 'ExposureValue': (-8.0, 8.0, 0.0),
+ 'FrameDurationLimits': (16666, 15534444, None),
+ 'NoiseReductionMode': (0, 4, 0),
+ 'Saturation': (0.0, 32.0, 1.0),
+ 'ScalerCrop': ((0, 0, 64, 64), (0, 0, 1920, 1080), (240, 0, 1440, 1080)),
+ 'Sharpness': (0.0, 16.0, 1.0)}
+
+Exposure time:
+  min: 14, max: 15534385, default: None
+
+AnalogGain:
+  min: 1.0, max: 200.0, default: None
+
