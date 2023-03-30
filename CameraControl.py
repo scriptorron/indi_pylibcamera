@@ -12,7 +12,7 @@ import datetime
 import time
 
 from picamera2 import Picamera2
-from libcamera import controls
+from libcamera import controls, Rectangle
 
 
 from indidevice import *
@@ -113,10 +113,11 @@ class CameraControl:
     """camera control and exposure thread
     """
 
-    def __init__(self, parent, do_CameraAdjustments, IgnoreRawModes):
+    def __init__(self, parent, config):
         self.parent = parent
-        self.do_CameraAdjustments = do_CameraAdjustments
-        self.IgnoreRawModes=IgnoreRawModes
+        self.config = config
+        self.do_CameraAdjustments = config.getboolean("driver", "CameraAdjustments", fallback=True)
+        self.IgnoreRawModes = config.getboolean("driver", "IgnoreRawModes", fallback=False)
         # reset states
         self.picam2 = None
         self.present_CameraSettings = CameraSettings()
@@ -256,6 +257,29 @@ class CameraControl:
         # read camera properties
         self.CamProps = self.picam2.camera_properties
         logging.info(f'camera properties: {self.CamProps}')
+        # force properties with values from config file
+        if "Rotation" not in self.CamProps:
+            logging.warning("Camera properties do not have Rotation value. Need to force from config file!")
+        self.CamProps["Rotation"] = self.config.getint(
+            "driver", "force_Rotation",
+            fallback=self.CamProps["Rotation"] if "Rotation" in self.CamProps else 0
+        )
+        if "UnitCellSize" not in self.CamProps:
+            logging.warning("Camera properties do not have UnitCellSize value. Need to force from config file!")
+        self.CamProps["UnitCellSize"] = (
+            self.config.getint(
+                "driver", "force_UnitCellSize_X",
+                fallback=self.CamProps["UnitCellSize"][0] if "UnitCellSize" in self.CamProps else 1000
+            ),
+            self.config.getint(
+                "driver", "force_UnitCellSize_Y",
+                fallback=self.CamProps["UnitCellSize"][1] if "UnitCellSize" in self.CamProps else 1000
+            )
+        )
+        # newer libcamera version return a libcamera.Rectangle here!
+        if type(self.CamProps["PixelArrayActiveAreas"][0]) is Rectangle:
+            Rect = self.CamProps["PixelArrayActiveAreas"][0]
+            self.CamProps["PixelArrayActiveAreas"] = (Rect.x, Rect.y, Rect.width, Rect.height)
         # raw modes
         self.RawModes = self.getRawCameraModes()
         if self.IgnoreRawModes:

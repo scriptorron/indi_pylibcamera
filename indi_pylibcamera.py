@@ -324,8 +324,7 @@ class indi_pylibcamera(indidevice):
         # camera
         self.CameraThread = CameraControl(
             parent=self,
-            do_CameraAdjustments=config.getboolean("driver", "CameraAdjustments", fallback=True),
-            IgnoreRawModes=config.getboolean("driver", "IgnoreRawModes", fallback=False),
+            config=config,
         )
         # get connected cameras
         cameras = Picamera2.global_camera_info()
