@@ -674,6 +674,19 @@ class indi_pylibcamera(indidevice):
         self.CameraVectorNames.append("UPLOAD_SETTINGS")
         #
         self.checkin(
+            INumberVector(
+                device=self.device, timestamp=self.timestamp, name="SCOPE_INFO",
+                elements=[
+                    INumber(name="FOCAL_LENGTH", label="Focal Length (mm)", min=10, max=10000, step=10, value=0, format="%.2f"),
+                    INumber(name="APERTURE", label="Aperture (mm)", min=10, max=3000, step=10, value=0, format="%.2f"),
+                ],
+                label="Scope", group="Options",
+            ),
+            send_defVector=True,
+        )
+        self.CameraVectorNames.append("SCOPE_INFO")
+        #
+        self.checkin(
             ISwitchVector(
                 device=self.device, timestamp=self.timestamp, name="CCD_FAST_TOGGLE",
                 elements=[

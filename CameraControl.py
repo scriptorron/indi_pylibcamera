@@ -317,11 +317,22 @@ class CameraControl:
                 ("YPIXSZ", self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1], "Y binned pixel size in microns"),
                 ("FRAME", FrameType, "Frame Type"),
                 ("IMAGETYP", FrameType+" Frame", "Frame Type"),
+                ("FOCALLEN", self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value, "Focal Length (mm)"),
+                ("APTDIA", self.parent.knownVectors["SCOPE_INFO"]["APERTURE"].value, "Telescope diameter (mm)"),
+            ]
+            if self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value > 0:
+                FitsHeader += [
+                    (
+                        "SCALE",
+                        206.265 * self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0]
+                        / self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value,
+                        "arcsecs per pixel"
+                    ),
+                ]
+            FitsHeader += [
                 ("XBAYROFF", 0, "X offset of Bayer array"),
                 ("YBAYROFF", 0, "Y offset of Bayer array"),
                 ("BAYERPAT", self.present_CameraSettings.RawMode["FITS_format"], "Bayer color pattern"),
-                #("FOCALLEN", 900, "Focal Length (mm)"),  # TODO
-                #("APTDIA", 120, "Telescope diameter (mm)"),  # TODO
                 #("DATE-OBS", time.strftime("%Y-%m-%dT%H:%M:%S.000", time.gmtime(FileInfo.get("TimeStamp", 0.0))), "UTC start date of observation"),
                 ("Gain", metadata.get("AnalogueGain", 0.0), "Gain"),
             ]
@@ -368,8 +379,19 @@ class CameraControl:
                 ("YPIXSZ", self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1], "Y binned pixel size in microns"),
                 ("FRAME", FrameType, "Frame Type"),
                 ("IMAGETYP", FrameType+" Frame", "Frame Type"),
-                #("FOCALLEN", 900, "Focal Length (mm)"),  # TODO
-                #("APTDIA", 120, "Telescope diameter (mm)"),  # TODO
+                ("FOCALLEN", self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value, "Focal Length (mm)"),
+                ("APTDIA", self.parent.knownVectors["SCOPE_INFO"]["APERTURE"].value, "Telescope diameter (mm)"),
+            ]
+            if self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value > 0:
+                FitsHeader += [
+                    (
+                        "SCALE",
+                        206.265 * self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0]
+                        / self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value,
+                        "arcsecs per pixel"
+                    ),
+                ]
+            FitsHeader += [
                 #("DATE-OBS", time.strftime("%Y-%m-%dT%H:%M:%S.000", time.gmtime(FileInfo.get("TimeStamp", 0.0))), "UTC start date of observation"),
                 # more info from camera
                 ("Gain", metadata.get("AnalogueGain", 0.0), "Gain"),
