@@ -1,0 +1,75 @@
+Found 1 cameras.
+
+Camera 0:
+{'Id': '/base/soc/i2c0mux/i2c@1/imx708@1a',
+'Location': 2,
+'Model': 'imx708_noir',
+'Rotation': 180}
+
+Camera properties:
+{'ColorFilterArrangement': 0,
+'Location': 2,
+'Model': 'imx708_noir',
+'PixelArrayActiveAreas': (libcamera.Rectangle(16, 24, 4608, 2592),),
+'PixelArraySize': (4608, 2592),
+'Rotation': 180,
+'ScalerCropMaximum': (0, 0, 0, 0),
+'UnitCellSize': (1400, 1400)}
+
+Raw sensor modes:
+[{'bit_depth': 10,
+'crop_limits': (0, 0, 4608, 2592),
+'exposure_limits': (9, 603302, None),
+'format': SRGGB10_CSI2P,
+'fps': 120.13,
+'size': (1536, 864),
+'unpacked': 'SRGGB10'},
+{'bit_depth': 10,
+'crop_limits': (0, 0, 4608, 2592),
+'exposure_limits': (13, 875283, None),
+'format': SRGGB10_CSI2P,
+'fps': 56.03,
+'size': (2304, 1296),
+'unpacked': 'SRGGB10'},
+{'bit_depth': 10,
+'crop_limits': (0, 0, 4608, 2592),
+'exposure_limits': (26, 1722331, None),
+'format': SRGGB10_CSI2P,
+'fps': 14.35,
+'size': (4608, 2592),
+'unpacked': 'SRGGB10'}]
+
+Camera controls:
+{'AeConstraintMode': (0, 3, 0),
+'AeEnable': (False, True, None),
+'AeExposureMode': (0, 3, 0),
+'AeMeteringMode': (0, 3, 0),
+'AfMetering': (0, 1, 0),
+'AfMode': (0, 2, 0),
+'AfPause': (0, 2, 0),
+'AfRange': (0, 2, 0),
+'AfSpeed': (0, 1, 0),
+'AfTrigger': (0, 1, 0),
+'AfWindows': ((0, 0, 0, 0), (65535, 65535, 65535, 65535), (0, 0, 0, 0)),
+'AnalogueGain': (1.0, 16.0, None),
+'AwbEnable': (False, True, None),
+'AwbMode': (0, 7, 0),
+'Brightness': (-1.0, 1.0, 0.0),
+'ColourCorrectionMatrix': (-16.0, 16.0, None),
+'ColourGains': (0.0, 32.0, None),
+'Contrast': (0.0, 32.0, 1.0),
+'ExposureTime': (26, 1722331, None),
+'ExposureValue': (-8.0, 8.0, 0.0),
+'FrameDurationLimits': (69669, 1722936, None),
+'LensPosition': (0.0, 32.0, 1.0),
+'NoiseReductionMode': (0, 4, 0),
+'Saturation': (0.0, 32.0, 1.0),
+'ScalerCrop': ((0, 0, 64, 64), (0, 0, 4608, 2592), (576, 0, 3456, 2592)),
+'Sharpness': (0.0, 16.0, 1.0)}
+
+Exposure time:
+min: 26, max: 1722331, default: None
+
+AnalogGain:
+min: 1.0, max: 16.0, default: None
+
