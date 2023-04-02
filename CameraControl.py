@@ -233,6 +233,15 @@ class CameraControl:
                         pass
                     else:
                         logging.warning(f'Unsupported frame size {size} for ov5647!')
+                elif self.CamProps["Model"].startswith("imx708"):
+                    if size == (1536, 864):
+                        binning = (2, 2)
+                    elif size == (2304, 1296):
+                        binning = (2, 2)
+                    elif size == (4608, 2592):
+                        pass
+                    else:
+                        logging.warning(f'Unsupported frame size {size} for imx708!')
             # add to list of raw formats
             raw_mode = {
                 "size": size,

@@ -84,12 +84,20 @@ final image size is 4056x3040
 * **1332x990 BGGR 10bit:** provided frame size 1344x990, 2x2 binning, has 12 zero-filled columns on its right,
 final image size is 1332x990
 
+Maximum exposure time is > 5 minutes.
+
 ### OV5647 (Raspberry Pi V1 camera)
-This camera does not add zero-filled columns. But libcamera uses 3 binning modes.
+This camera does not add zero-filled columns. But libcamera uses 3 binning modes. Maximum exposure time is 1 sec.
 * **2592x1944 GBRG 10bit:** provided frame size 2592x1944, no binning, no garbage columns, final image size is 2592x1944
 * **1920x1080 GBRG 10bit:** provided frame size 1920x1080, no binning, no garbage columns, final image size is 1920x1080
 * **1296x972 GBRG 10bit:** provided frame size 1296x972, 2x2 binning, no garbage columns, final image size is 1296x972
 * **640x480 GBRG 10bit:** provided frame size 640x480, 4x4 binning, no garbage columns, final image size is 640x480
+
+### IMX708 (Raspberry Pi Module 3 camera)
+This camera has auto-focus capabilities which are not supported by this driver. Maximum exposure time is 1.7 sec.
+* **4608x2592 BGGR 10bit:** provided frame size 4608x2592, no binning, no garbage columns, final image size is 4608x2592
+* **2304x1296 BGGR 10bit:** provided frame size 2304x1296, 2x2 binning, no garbage columns, final image size is 2304x1296
+* **1536x864 BGGR 10bit:** provided frame size 1536x864, 2x2 binning, no garbage columns, final image size is 1536x864
 
 ## When you need support for a different camera
 In case you have trouble, or you see unexpected behavior it will help debugging when you give more information about
