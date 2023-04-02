@@ -328,10 +328,10 @@ class SnoopingVector(ITextVector):
             # empty values mean do not snoop
             elements=[
                 IText(name="ACTIVE_TELESCOPE", label="Telescope", value=""),
-                IText(name="ACTIVE_ROTATOR", label="Rotator", value=""),
-                IText(name="ACTIVE_FOCUSER", label="Focuser", value=""),
-                IText(name="ACTIVE_FILTER", label="Filter", value=""),
-                IText(name="ACTIVE_SKYQUALITY", label="Sky Quality", value=""),
+                #IText(name="ACTIVE_ROTATOR", label="Rotator", value=""),
+                #IText(name="ACTIVE_FOCUSER", label="Focuser", value=""),
+                #IText(name="ACTIVE_FILTER", label="Filter", value=""),
+                #IText(name="ACTIVE_SKYQUALITY", label="Sky Quality", value=""),
 
             ],
             label="Snoop devices", group="Options",
@@ -344,12 +344,21 @@ class SnoopingVector(ITextVector):
         Args:
             values: dict(propertyName: value) of values to set
         """
+        old_Telescope = self["ACTIVE_TELESCOPE"]
         super().set_byClient(values=values)
         for k, v in values.items():
-            if v != "":
-                if k == "ACTIVE_TELESCOPE":
-                    self.parent.start_Snooping(v, "TELESCOPE_PIER_SIDE"),
-
+            if k == "ACTIVE_TELESCOPE":
+                self.parent.stop_Snooping(old_Telescope, "GEOGRAPHIC_COORD")  # observer site coordinates
+                self.parent.stop_Snooping(old_Telescope, "EQUATORIAL_EOD_COORD")
+                self.parent.stop_Snooping(old_Telescope, "EQUATORIAL_COORD")
+                self.parent.stop_Snooping(old_Telescope, "TELESCOPE_PIER_SIDE")
+                # self.parent.stop_Snooping(old_Telescope, "TELESCOPE_INFO")  # focal length and aperture are taken from SCOPE_INFO
+                if v != "":
+                    self.parent.start_Snooping(v, "GEOGRAPHIC_COORD")  # observer site coordinates
+                    self.parent.start_Snooping(v, "EQUATORIAL_EOD_COORD")
+                    self.parent.start_Snooping(v, "EQUATORIAL_COORD")
+                    self.parent.start_Snooping(v, "TELESCOPE_PIER_SIDE")
+                    #self.parent.start_Snooping(v, "TELESCOPE_INFO")  # focal length and aperture are taken from SCOPE_INFO
 
 
 

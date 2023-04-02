@@ -16,11 +16,16 @@ class SnoopingManager:
             "elements": dict(),
         }
         # send request to server
-        xml = f'<getProperties device="{device}" name="{name}" />'
+        xml = f'<getProperties version="1.7" device="{device}" name="{name}" />'
         to_server(xml)
 
+    def stop_Snooping(self, device: str, name: str):
+        if device in self.snoopedValues:
+            if name in self.snoopedValues[device]:
+                del self.snoopedValues[device][name]
+
     def __str__(self):
-        """make string representation of snooped values (for debugging)
+        """make string representation of snooped values
         """
         snooped = []
         for device, deviceProps in self.snoopedValues.items():

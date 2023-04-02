@@ -750,3 +750,11 @@ class indidevice:
         """
         self.SnoopingManager.start_Snooping(device=device, name=name)
 
+    def stop_Snooping(self, device: str, name: str):
+        """stop snooping of property name from devices
+
+        Args:
+            device: device name to snoop
+            name: vector name
+        """
+        self.SnoopingManager.stop_Snooping(device=device, name=name)
