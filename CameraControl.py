@@ -4,12 +4,15 @@ indi_pylibcamera: CameraControl class
 import logging
 import os.path
 import numpy as np
-from astropy.io import fits
 import io
 import re
 import threading
 import datetime
 import time
+
+from astropy.io import fits
+import astropy.coordinates
+import astropy.units
 
 from picamera2 import Picamera2
 from libcamera import controls
@@ -274,6 +277,40 @@ class CameraControl:
         """
         return self.CamProps[name]
 
+    def FitsHeader_Scale(self):
+        if self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value <= 0:
+            return []
+        return [
+            (
+                "SCALE",
+                206.265 * self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0]
+                / self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value,
+                "arcsecs per pixel"
+            ),
+        ]
+
+    def FitsHeader_Site(self):
+        """FITS header data for observer site and airmass
+
+        Example:
+        SITELAT =         5.105000E+01 / Latitude of the imaging site in degrees
+        SITELONG=         1.375000E+01 / Longitude of the imaging site in degrees
+        AIRMASS =         1.285375E+00 / Airmass
+        """
+        FitsHeader = []
+        ObsSite = self.parent.SnoopingManager.get_Elements("ACTIVE_TELESCOPE", "GEOGRAPHIC_COORD")
+        if ("LAT" in ObsSite) and ("LONG" in ObsSite):
+            try:
+                lat = float(ObsSite["LAT"])
+                long = float(ObsSite["LONG"])
+            except ValueError:
+                # values are not float!
+            else:
+                FitsHeader.append(("SITELAT", lat, "Latitude of the imaging site in degrees"))
+                FitsHeader.append(("SITELONG", long, "Longitude of the imaging site in degrees"))
+                AirMass = astropy.coordinates.AltAz(alt=ObjAlt * astropy.units.deg, az=ObjAz * astropy.units.deg).secz
+
+
     def createBayerFits(self, array, metadata):
         """creates Bayer pattern FITS image from raw frame
 
@@ -319,17 +356,7 @@ class CameraControl:
                 ("IMAGETYP", FrameType+" Frame", "Frame Type"),
                 ("FOCALLEN", self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value, "Focal Length (mm)"),
                 ("APTDIA", self.parent.knownVectors["SCOPE_INFO"]["APERTURE"].value, "Telescope diameter (mm)"),
-            ]
-            if self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value > 0:
-                FitsHeader += [
-                    (
-                        "SCALE",
-                        206.265 * self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0]
-                        / self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value,
-                        "arcsecs per pixel"
-                    ),
-                ]
-            FitsHeader += [
+            ] + self.FitsHeader_Scale() + [
                 ("XBAYROFF", 0, "X offset of Bayer array"),
                 ("YBAYROFF", 0, "Y offset of Bayer array"),
                 ("BAYERPAT", self.present_CameraSettings.RawMode["FITS_format"], "Bayer color pattern"),
@@ -381,17 +408,7 @@ class CameraControl:
                 ("IMAGETYP", FrameType+" Frame", "Frame Type"),
                 ("FOCALLEN", self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value, "Focal Length (mm)"),
                 ("APTDIA", self.parent.knownVectors["SCOPE_INFO"]["APERTURE"].value, "Telescope diameter (mm)"),
-            ]
-            if self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value > 0:
-                FitsHeader += [
-                    (
-                        "SCALE",
-                        206.265 * self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0]
-                        / self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value,
-                        "arcsecs per pixel"
-                    ),
-                ]
-            FitsHeader += [
+            ] + self.FitsHeader_Scale() + [
                 #("DATE-OBS", time.strftime("%Y-%m-%dT%H:%M:%S.000", time.gmtime(FileInfo.get("TimeStamp", 0.0))), "UTC start date of observation"),
                 # more info from camera
                 ("Gain", metadata.get("AnalogueGain", 0.0), "Gain"),

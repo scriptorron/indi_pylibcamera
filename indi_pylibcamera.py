@@ -324,7 +324,7 @@ class SnoopingVector(ITextVector):
     def __init__(self, parent):
         self.parent = parent
         super().__init__(
-            device=self.device, timestamp=self.timestamp, name="ACTIVE_DEVICES",
+            device=self.parent.device, timestamp=self.parent.timestamp, name="ACTIVE_DEVICES",
             # empty values mean do not snoop
             elements=[
                 IText(name="ACTIVE_TELESCOPE", label="Telescope", value=""),
@@ -344,23 +344,50 @@ class SnoopingVector(ITextVector):
         Args:
             values: dict(propertyName: value) of values to set
         """
-        old_Telescope = self["ACTIVE_TELESCOPE"]
         super().set_byClient(values=values)
         for k, v in values.items():
             if k == "ACTIVE_TELESCOPE":
-                self.parent.stop_Snooping(old_Telescope, "GEOGRAPHIC_COORD")  # observer site coordinates
-                self.parent.stop_Snooping(old_Telescope, "EQUATORIAL_EOD_COORD")
-                self.parent.stop_Snooping(old_Telescope, "EQUATORIAL_COORD")
-                self.parent.stop_Snooping(old_Telescope, "TELESCOPE_PIER_SIDE")
-                # self.parent.stop_Snooping(old_Telescope, "TELESCOPE_INFO")  # focal length and aperture are taken from SCOPE_INFO
+                self.parent.stop_Snooping(kind="ACTIVE_TELESCOPE")
                 if v != "":
-                    self.parent.start_Snooping(v, "GEOGRAPHIC_COORD")  # observer site coordinates
-                    self.parent.start_Snooping(v, "EQUATORIAL_EOD_COORD")
-                    self.parent.start_Snooping(v, "EQUATORIAL_COORD")
-                    self.parent.start_Snooping(v, "TELESCOPE_PIER_SIDE")
-                    #self.parent.start_Snooping(v, "TELESCOPE_INFO")  # focal length and aperture are taken from SCOPE_INFO
+                    self.parent.start_Snooping(
+                        kind="ACTIVE_TELESCOPE",
+                        device=v,
+                        names=[
+                            "GEOGRAPHIC_COORD",  # observer site coordinates
+                            "EQUATORIAL_EOD_COORD",
+                            "EQUATORIAL_COORD",
+                            "TELESCOPE_PIER_SIDE",
+                            #"TELESCOPE_INFO",  # not used: focal length and aperture are taken from SCOPE_INFO
+                        ]
+                    )
 
 
+class PrintSnoopedValuesVector(ISwitchVector):
+    """Button that prints all snooped values as INFO in log
+    """
+
+    def __init__(self, parent):
+        self.parent = parent
+        super().__init__(
+            device=self.parent.device, timestamp=self.parent.timestamp, name="PRINT_SNOOPED_VALUES",
+            elements=[
+                ISwitch(name="PRINT_SNOOPED", label="Print", value=ISwitchState.OFF),
+            ],
+            label="Print snooped values", group="Options",
+            rule=ISwitchRule.ATMOST1,
+        )
+
+    def set_byClient(self, values: dict):
+        """called when vector gets set by client
+        special version to print snooped values
+
+        Args:
+            values: dict(propertyName: value) of values to set
+        """
+        logging.debug(f"logging level action: {values}")
+        logging.info(str(self.parent.SnoopingManager))
+        self.state = IVectorState.OK
+        self.send_setVector()
 
 
 # the device driver
@@ -760,6 +787,12 @@ class indi_pylibcamera(indidevice):
                 send_defVector=True,
             )
             self.CameraVectorNames.append("ACTIVE_DEVICES")
+        if config.getboolean("driver", "PrintSnoopedValuesButton", fallback=False):
+            self.checkin(
+                PrintSnoopedValuesVector(parent=self,),
+                send_defVector=True,
+            )
+            self.CameraVectorNames.append("PRINT_SNOOPED_VALUES")
         # needed for field solver?
         # self.checkin(
         #     ISwitchVector(

@@ -665,7 +665,7 @@ class indidevice:
         # lock for device parameter
         self.knownVectorsLock = threading.Lock()
         # snooping
-        self.SnoopingManager = SnoopingManager()
+        self.SnoopingManager = SnoopingManager.SnoopingManager(to_server_func=to_server)
 
 
     def send_Message(self, message: str, severity: str = "INFO", timestamp: bool = False):
@@ -702,25 +702,38 @@ class indidevice:
                 logging.debug(f"XML not complete ({error}): {inp}")
                 continue
 
-            logging.info(f'Parsed data from client:\n{etree.tostring(xml, pretty_print=True).decode()}')
-            logging.info("End client data")
+            logging.debug(f'Parsed data from client:\n{etree.tostring(xml, pretty_print=True).decode()}')
+            logging.debug("End client data")
 
+            device = xml.attrib.get('device', None)
             if xml.tag == "getProperties":
-                if "device" in xml.attrib:
-                    self.on_getProperties(xml.attrib['device'])
+                self.on_getProperties(device)
+            elif (device is None) or (device == self.device):
+                if xml.tag in ["newNumberVector", "newTextVector", "newSwitchVector"]:
+                    vectorName = xml.attrib["name"]
+                    values = {ele.attrib["name"]: ele.text.strip() for ele in xml}
+                    try:
+                        vector = self.knownVectors[vectorName]
+                    except ValueError as e:
+                        logging.error(f'unknown vector name {vectorName}')
+                    else:
+                        logging.debug(f"calling {vector} set_byClient")
+                        with self.knownVectorsLock:
+                            vector.set_byClient(values)
                 else:
-                    self.on_getProperties()
-            elif xml.tag in ["newNumberVector", "newTextVector", "newSwitchVector"]:
-                vectorName = xml.attrib["name"]
-                values = {ele.attrib["name"]: ele.text.strip() for ele in xml}
-                device = xml.attrib.get('device', None)
-                vector = self.knownVectors[vectorName]
-                logging.debug(f"calling {vector} set_byClient")
-                if (device is None) or (vector.device == device):
-                    with self.knownVectorsLock:
-                        vector.set_byClient(values)
+                    logging.error(f'could not interpret client request: {etree.tostring(xml, pretty_print=True).decode()}')
             else:
-                logging.error(f'could not interpret client request: {etree.tostring(xml, pretty_print=True).decode()}')
+                # can be a snooped device
+                if xml.tag in ["setNumberVector", "setTextVector", "setSwitchVector", "defNumberVector", "defTextVector", "defSwitchVector"]:
+                    vectorName = xml.attrib["name"]
+                    values = {ele.attrib["name"]: ele.text.strip() for ele in xml}
+                    self.SnoopingManager.catching(device=device, name=vectorName, values=values)
+                elif xml.tag == "delProperty":
+                    # snooped device got closed
+                    pass
+                else:
+                    logging.error(f'could not interpret client request: {etree.tostring(xml, pretty_print=True).decode()}')
+
 
     def checkin(self, vector: IVector, send_defVector: bool = False):
         """add vector to knownVectors list
@@ -741,20 +754,17 @@ class indidevice:
         """
         self.message_loop()
 
-    def start_Snooping(self, device: str, name: str):
-        """start snooping of device with property name
+    def start_Snooping(self, kind: str, device: str, names: list):
+        """start snooping of a different driver
 
         Args:
+            kind: type/kind of driver (mount, focusser, ...)
             device: device name to snoop
-            name: vector name
+            names: vector names to snoop
         """
-        self.SnoopingManager.start_Snooping(device=device, name=name)
+        self.SnoopingManager.start_Snooping(kind=kind, device=device, names=names)
 
-    def stop_Snooping(self, device: str, name: str):
-        """stop snooping of property name from devices
-
-        Args:
-            device: device name to snoop
-            name: vector name
+    def stop_Snooping(self, kind: str):
+        """stop snooping for given driver kind/type
         """
-        self.SnoopingManager.stop_Snooping(device=device, name=name)
+        self.SnoopingManager.stop_Snooping(kind=kind)
