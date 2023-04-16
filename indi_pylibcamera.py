@@ -37,7 +37,7 @@ class LoggingVector(ISwitchVector):
 
     def __init__(self, parent):
         self.parent = parent
-        LoggingLevel = config.get("driver", "LoggingLevel", fallback="Info")
+        LoggingLevel = self.parent.config.get("driver", "LoggingLevel", fallback="Info")
         if LoggingLevel not in ["Debug", "Info", "Warning", "Error"]:
             logging.error('Parameter "LoggingLevel" in INI file has an unsupported value!')
             LoggingLevel = "Info"
@@ -345,21 +345,22 @@ class SnoopingVector(ITextVector):
             values: dict(propertyName: value) of values to set
         """
         super().set_byClient(values=values)
-        for k, v in values.items():
-            if k == "ACTIVE_TELESCOPE":
-                self.parent.stop_Snooping(kind="ACTIVE_TELESCOPE")
-                if v != "":
-                    self.parent.start_Snooping(
-                        kind="ACTIVE_TELESCOPE",
-                        device=v,
-                        names=[
-                            "GEOGRAPHIC_COORD",  # observer site coordinates
-                            "EQUATORIAL_EOD_COORD",
-                            "EQUATORIAL_COORD",
-                            "TELESCOPE_PIER_SIDE",
-                            #"TELESCOPE_INFO",  # not used: focal length and aperture are taken from SCOPE_INFO
-                        ]
-                    )
+        if self.parent.config.getboolean("driver", "DoSnooping", fallback=True):
+            for k, v in values.items():
+                if k == "ACTIVE_TELESCOPE":
+                    self.parent.stop_Snooping(kind="ACTIVE_TELESCOPE")
+                    if v != "":
+                        self.parent.start_Snooping(
+                            kind="ACTIVE_TELESCOPE",
+                            device=v,
+                            names=[
+                                "GEOGRAPHIC_COORD",  # observer site coordinates
+                                "EQUATORIAL_EOD_COORD",
+                                "EQUATORIAL_COORD",
+                                "TELESCOPE_PIER_SIDE",
+                                "TELESCOPE_INFO",
+                            ]
+                        )
 
 
 class PrintSnoopedValuesVector(ISwitchVector):
@@ -403,12 +404,13 @@ class indi_pylibcamera(indidevice):
             config: driver configuration
         """
         super().__init__(device=config.get("driver", "DeviceName", fallback="indi_pylibcamera"))
-        self.timestamp = config.getboolean("driver", "SendTimeStamps", fallback=False)
+        self.config = config
+        self.timestamp = self.config.getboolean("driver", "SendTimeStamps", fallback=False)
         # camera
         self.CameraThread = CameraControl(
             parent=self,
-            do_CameraAdjustments=config.getboolean("driver", "CameraAdjustments", fallback=True),
-            IgnoreRawModes=config.getboolean("driver", "IgnoreRawModes", fallback=False),
+            do_CameraAdjustments=self.config.getboolean("driver", "CameraAdjustments", fallback=True),
+            IgnoreRawModes=self.config.getboolean("driver", "IgnoreRawModes", fallback=False),
         )
         # get connected cameras
         cameras = Picamera2.global_camera_info()
@@ -498,7 +500,7 @@ class indi_pylibcamera(indidevice):
             RawFormatVector(
                 parent=self,
                 CameraThread=self.CameraThread,
-                do_CameraAdjustments=config.getboolean("driver", "CameraAdjustments", fallback=True),
+                do_CameraAdjustments=self.config.getboolean("driver", "CameraAdjustments", fallback=True),
             ),
             send_defVector=True,
         )
@@ -575,7 +577,7 @@ class indi_pylibcamera(indidevice):
             BinningVector(
                 parent=self,
                 CameraThread=self.CameraThread,
-                do_CameraAdjustments=config.getboolean("driver", "CameraAdjustments", fallback=True),
+                do_CameraAdjustments=self.config.getboolean("driver", "CameraAdjustments", fallback=True),
             ),
             send_defVector=True,
         )
@@ -781,13 +783,12 @@ class indi_pylibcamera(indidevice):
         # Maybe needed: CCD_COOLER
         #
         # snooping
-        if config.getboolean("driver", "DoSnooping", fallback=True):
-            self.checkin(
-                SnoopingVector(parent=self,),
-                send_defVector=True,
-            )
-            self.CameraVectorNames.append("ACTIVE_DEVICES")
-        if config.getboolean("driver", "PrintSnoopedValuesButton", fallback=False):
+        self.checkin(
+            SnoopingVector(parent=self,),
+            send_defVector=True,
+        )
+        self.CameraVectorNames.append("ACTIVE_DEVICES")
+        if self.config.getboolean("driver", "PrintSnoopedValuesButton", fallback=False):
             self.checkin(
                 PrintSnoopedValuesVector(parent=self,),
                 send_defVector=True,
