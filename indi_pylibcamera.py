@@ -24,7 +24,7 @@ config = ConfigParser()
 config.read(str(configpath))
 logging.debug(f"ConfigParser: {configpath}, {config}")
 
-__version__ = "1.6.0"
+__version__ = "1.7.0"
 
 
 # INDI vectors with immediate actions
@@ -386,7 +386,7 @@ class PrintSnoopedValuesVector(ISwitchVector):
             values: dict(propertyName: value) of values to set
         """
         logging.debug(f"logging level action: {values}")
-        logging.info(str(self.parent.SnoopingManager))
+        logging.info(f'Snooped values: {str(self.parent.SnoopingManager)}')
         self.state = IVectorState.OK
         self.send_setVector()
 
@@ -452,6 +452,17 @@ class indi_pylibcamera(indidevice):
         self.checkin(
             LoggingVector(parent=self),
         )
+        # FIXME: teste Snooping in init
+        # snooping
+        self.checkin(
+            SnoopingVector(parent=self,),
+            send_defVector=True,
+        )
+        if self.config.getboolean("driver", "PrintSnoopedValuesButton", fallback=False):
+            self.checkin(
+                PrintSnoopedValuesVector(parent=self,),
+                send_defVector=True,
+            )
 
     def closeCamera(self):
         """close camera and tell client to remove camera vectors from GUI
@@ -526,7 +537,7 @@ class indi_pylibcamera(indidevice):
             send_defVector=True,
         )
         self.CameraVectorNames.append("CCD_EXPOSURE")
-        # TODO: implement functionality
+        #
         self.checkin(
             ISwitchVector(
                 device=self.device, timestamp=self.timestamp, name="CCD_ABORT_EXPOSURE",
@@ -781,18 +792,20 @@ class indi_pylibcamera(indidevice):
         #
         # Maybe needed: CCD_COOLER
         #
-        # snooping
-        self.checkin(
-            SnoopingVector(parent=self,),
-            send_defVector=True,
-        )
-        self.CameraVectorNames.append("ACTIVE_DEVICES")
-        if self.config.getboolean("driver", "PrintSnoopedValuesButton", fallback=False):
+        # FIXME: teste Snooping in init
+        if False:
+            # snooping
             self.checkin(
-                PrintSnoopedValuesVector(parent=self,),
+                SnoopingVector(parent=self,),
                 send_defVector=True,
             )
-            self.CameraVectorNames.append("PRINT_SNOOPED_VALUES")
+            self.CameraVectorNames.append("ACTIVE_DEVICES")
+            if self.config.getboolean("driver", "PrintSnoopedValuesButton", fallback=False):
+                self.checkin(
+                    PrintSnoopedValuesVector(parent=self,),
+                    send_defVector=True,
+                )
+                self.CameraVectorNames.append("PRINT_SNOOPED_VALUES")
         # needed for field solver?
         # self.checkin(
         #     ISwitchVector(

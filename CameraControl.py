@@ -333,9 +333,11 @@ class CameraControl:
         """
         FitsHeader = []
         if self.parent.config.getboolean("driver", "DoSnooping", fallback=True):
+            logging.info("Collecting snooped data.")
             #### FOCALLEN, APTDIA ####
             # values in SCOPE_INFO vector have higher priority than snooped values from mount
             if self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value > 0:
+                logging.debug("Taking focal length and aperture from SCOPE_INFO vector.")
                 FocalLength = self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value
                 FitsHeader += [
                     ("FOCALLEN", FocalLength, "Focal Length (mm)"),
@@ -346,7 +348,7 @@ class CameraControl:
                 try:
                     FocalLength = float(TelescopeInfo["TELESCOPE_FOCAL_LENGTH"])
                     Aperture = float(TelescopeInfo["TELESCOPE_APERTURE"])
-                except ValueError or KeyError:
+                except (ValueError, KeyError):
                     # not float values or not in data!
                     FocalLength = None  # invalid value for SCALE calculation
                 else:
@@ -367,7 +369,7 @@ class CameraControl:
                 Lat = float(ObsSite["LAT"])
                 Long = float(ObsSite["LONG"])
                 Height = float(ObsSite["ELEV"])
-            except ValueError or KeyError:
+            except (ValueError, KeyError):
                 # values are not float or not in data!
                 Lat = None
                 Long = None
@@ -382,16 +384,16 @@ class CameraControl:
             try:
                 J2000RA = float(Coord["RA"])
                 J2000DEC = float(Coord["DEC"])
-            except ValueError or KeyError:
+            except (ValueError, KeyError):
                 # values are not float or not in data!
                 J2000RA = None
                 J2000DEC = None
             if J2000RA is not None:
                 # got J2000 coordinates from mount!
                 FitsHeade += [
-                    ("OBJCTRA", J2000.ra.to_string(unit=u.hour).replace("h", " ").replace("m", " ").replace("s", " "),
+                    ("OBJCTRA", J2000.ra.to_string(unit=astropy.units.hour).replace("h", " ").replace("m", " ").replace("s", " "),
                      "Object J2000 RA in Hours"),
-                    ("OBJCTDEC", J2000.dec.to_string(unit=u.deg).replace("d", " ").replace("m", " ").replace("s", " "),
+                    ("OBJCTDEC", J2000.dec.to_string(unit=astropy.units.deg).replace("d", " ").replace("m", " ").replace("s", " "),
                      "Object J2000 DEC in Degrees"),
                     ("RA", float(J2000.ra.degree), "Object J2000 RA in Degrees"),
                     ("DEC", float(J2000.dec.degree), "Object J2000 DEC in Degrees")
@@ -402,7 +404,7 @@ class CameraControl:
                 try:
                     RA = float(EodCoord["RA"])
                     DEC = float(EodCoord["DEC"])
-                except ValueError or KeyError:
+                except (ValueError, KeyError):
                     # values are not float or not in data!
                     RA = None
                     DEC = None
@@ -417,10 +419,10 @@ class CameraControl:
                     #
                     FitsHeader += [
                         ("AIRMASS", float(cAltAz.secz), "Airmass"),
-                        ("OBJCTAZ", float(cAltAz.az/u.deg), "Azimuth of center of image in Degrees"),
-                        ("OBJCTALT", float(cAltAz.alt/u.deg), "Altitude of center of image in Degrees"),
-                        ("OBJCTRA", J2000.ra.to_string(unit=u.hour).replace("h", " ").replace("m", " ").replace("s", " "), "Object J2000 RA in Hours"),
-                        ("OBJCTDEC", J2000.dec.to_string(unit=u.deg).replace("d", " ").replace("m", " ").replace("s", " "), "Object J2000 DEC in Degrees"),
+                        ("OBJCTAZ", float(cAltAz.az/astropy.units.deg), "Azimuth of center of image in Degrees"),
+                        ("OBJCTALT", float(cAltAz.alt/astropy.units.deg), "Altitude of center of image in Degrees"),
+                        ("OBJCTRA", J2000.ra.to_string(unit=astropy.units.hour).replace("h", " ").replace("m", " ").replace("s", " "), "Object J2000 RA in Hours"),
+                        ("OBJCTDEC", J2000.dec.to_string(unit=astropy.units.deg).replace("d", " ").replace("m", " ").replace("s", " "), "Object J2000 DEC in Degrees"),
                         ("RA", float(J2000.ra.degree), "Object J2000 RA in Degrees"),
                         ("DEC", float(J2000.dec.degree), "Object J2000 DEC in Degrees")
                     ]
@@ -442,6 +444,7 @@ class CameraControl:
                 ("EQUINOX", 2000, "Equinox"),
                 ("DATE-OBS", datetime.datetime.utcnow().isoformat(timespec="milliseconds"), "UTC start date of observation"),  # FIXME: this is end and not start time!
             ]
+            logging.info("Finished collecting snooped data.")
         ####
         return FitsHeader
 
