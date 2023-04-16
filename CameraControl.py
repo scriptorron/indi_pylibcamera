@@ -4,12 +4,15 @@ indi_pylibcamera: CameraControl class
 import logging
 import os.path
 import numpy as np
-from astropy.io import fits
 import io
 import re
 import threading
 import datetime
 import time
+
+from astropy.io import fits
+import astropy.coordinates
+import astropy.units
 
 from picamera2 import Picamera2
 from libcamera import controls, Rectangle
@@ -307,6 +310,141 @@ class CameraControl:
         """
         return self.CamProps[name]
 
+    def snooped_FitsHeader(self):
+        """created FITS header data from snooped data
+
+        Example:
+            FOCALLEN=            2.000E+03 / Focal Length (mm)
+            APTDIA  =            2.000E+02 / Telescope diameter (mm)
+            ROTATANG=            0.000E+00 / Rotator angle in degrees
+            SCALE   =         1.598825E-01 / arcsecs per pixel
+            SITELAT =         5.105000E+01 / Latitude of the imaging site in degrees
+            SITELONG=         1.375000E+01 / Longitude of the imaging site in degrees
+            AIRMASS =         1.643007E+00 / Airmass
+            OBJCTAZ =         1.121091E+02 / Azimuth of center of image in Degrees
+            OBJCTALT=         3.744145E+01 / Altitude of center of image in Degrees
+            OBJCTRA = ' 4 36 07.37'        / Object J2000 RA in Hours
+            OBJCTDEC= '16 30 26.02'        / Object J2000 DEC in Degrees
+            RA      =         6.903072E+01 / Object J2000 RA in Degrees
+            DEC     =         1.650723E+01 / Object J2000 DEC in Degrees
+            PIERSIDE= 'WEST    '           / West, looking East
+            EQUINOX =                 2000 / Equinox
+            DATE-OBS= '2023-04-05T11:27:53.655' / UTC start date of observation
+        """
+        FitsHeader = []
+        if self.parent.config.getboolean("driver", "DoSnooping", fallback=True):
+            #### FOCALLEN, APTDIA ####
+            # values in SCOPE_INFO vector have higher priority than snooped values from mount
+            if self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value > 0:
+                FocalLength = self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value
+                FitsHeader += [
+                    ("FOCALLEN", FocalLength, "Focal Length (mm)"),
+                    ("APTDIA", self.parent.knownVectors["SCOPE_INFO"]["APERTURE"].value, "Telescope diameter (mm)"),
+                ]
+            else:
+                TelescopeInfo = self.parent.SnoopingManager.get_Elements("ACTIVE_TELESCOPE", "TELESCOPE_INFO")
+                try:
+                    FocalLength = float(TelescopeInfo["TELESCOPE_FOCAL_LENGTH"])
+                    Aperture = float(TelescopeInfo["TELESCOPE_APERTURE"])
+                except ValueError or KeyError:
+                    # not float values or not in data!
+                    FocalLength = None  # invalid value for SCALE calculation
+                else:
+                    FitsHeader += [
+                        ("FOCALLEN", FocalLength, "Focal Length (mm)"),
+                        ("APTDIA", Aperture, "Telescope diameter (mm)"),
+                    ]
+            #### SCALE ####
+            if FocalLength is not None:
+                FitsHeader += [(
+                    "SCALE",
+                    206.265 * self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0] / FocalLength,
+                    "arcsecs per pixel"
+                ), ]
+            #### SITELAT, SITELONG ####
+            ObsSite = self.parent.SnoopingManager.get_Elements("ACTIVE_TELESCOPE", "GEOGRAPHIC_COORD")
+            try:
+                Lat = float(ObsSite["LAT"])
+                Long = float(ObsSite["LONG"])
+                Height = float(ObsSite["ELEV"])
+            except ValueError or KeyError:
+                # values are not float or not in data!
+                Lat = None
+                Long = None
+                Height = None
+            else:
+                FitsHeader += [
+                    ("SITELAT", Lat, "Latitude of the imaging site in degrees"),
+                    ("SITELONG", Long, "Longitude of the imaging site in degrees"),
+                ]
+            ####
+            Coord = self.parent.SnoopingManager.get_Elements("ACTIVE_TELESCOPE", "EQUATORIAL_COORD")  # J2000 RA DEC
+            try:
+                J2000RA = float(Coord["RA"])
+                J2000DEC = float(Coord["DEC"])
+            except ValueError or KeyError:
+                # values are not float or not in data!
+                J2000RA = None
+                J2000DEC = None
+            if J2000RA is not None:
+                # got J2000 coordinates from mount!
+                FitsHeade += [
+                    ("OBJCTRA", J2000.ra.to_string(unit=u.hour).replace("h", " ").replace("m", " ").replace("s", " "),
+                     "Object J2000 RA in Hours"),
+                    ("OBJCTDEC", J2000.dec.to_string(unit=u.deg).replace("d", " ").replace("m", " ").replace("s", " "),
+                     "Object J2000 DEC in Degrees"),
+                    ("RA", float(J2000.ra.degree), "Object J2000 RA in Degrees"),
+                    ("DEC", float(J2000.dec.degree), "Object J2000 DEC in Degrees")
+                ]
+                # TODO: What about AIRMASS, OBJCTAZ and OBJCTALT?
+            else:
+                EodCoord = self.parent.SnoopingManager.get_Elements("ACTIVE_TELESCOPE", "EQUATORIAL_EOD_COORD")
+                try:
+                    RA = float(EodCoord["RA"])
+                    DEC = float(EodCoord["DEC"])
+                except ValueError or KeyError:
+                    # values are not float or not in data!
+                    RA = None
+                    DEC = None
+                #### AIRMASS, OBJCTAZ, OBJCTALT, OBJCTRA, OBJCTDEC, RA, DEC ####
+                if (Lat is not None) and (RA is not None):
+                    ObsLoc = astropy.coordinates.EarthLocation(
+                        lon=Long * astropy.units.deg, lat=Lat * astropy.units.deg, height=Height * astropy.units.meter
+                    )
+                    c = astropy.coordinates.SkyCoord(ra=RA * astropy.units.hourangle, dec=DEC * astropy.units.deg)
+                    cAltAz = c.transform_to(astropy.coordinates.AltAz(obstime=astropy.time.Time(datetime.datetime.utcnow()), location=ObsLoc))
+                    J2000 = cAltAz.transform_to(astropy.coordinates.ICRS())
+                    #
+                    FitsHeader += [
+                        ("AIRMASS", float(cAltAz.secz), "Airmass"),
+                        ("OBJCTAZ", float(cAltAz.az/u.deg), "Azimuth of center of image in Degrees"),
+                        ("OBJCTALT", float(cAltAz.alt/u.deg), "Altitude of center of image in Degrees"),
+                        ("OBJCTRA", J2000.ra.to_string(unit=u.hour).replace("h", " ").replace("m", " ").replace("s", " "), "Object J2000 RA in Hours"),
+                        ("OBJCTDEC", J2000.dec.to_string(unit=u.deg).replace("d", " ").replace("m", " ").replace("s", " "), "Object J2000 DEC in Degrees"),
+                        ("RA", float(J2000.ra.degree), "Object J2000 RA in Degrees"),
+                        ("DEC", float(J2000.dec.degree), "Object J2000 DEC in Degrees")
+                    ]
+            #### PIERSIDE ####
+            PierSide = self.parent.SnoopingManager.get_Elements("ACTIVE_TELESCOPE", "TELESCOPE_PIER_SIDE")
+            try:
+                PierWest = PierSide["PIER_WEST"] == "On"
+                PierEast = PierSide["PIER_EAST"] == "On"
+            except KeyError:
+                # value not snooped
+                PierWest = False
+                PierEast = False
+            if PierEast:
+                FitsHeader += [("PIERSIDE", "WEST", "West, looking East"),]
+            elif PierWest:
+                FitsHeader += [("PIERSIDE", "EAST", "East, looking West"),]
+            #### EQUINOX and DATE-OBS ####
+            FitsHeader += [
+                ("EQUINOX", 2000, "Equinox"),
+                ("DATE-OBS", datetime.datetime.utcnow().isoformat(timespec="milliseconds"), "UTC start date of observation"),  # FIXME: this is end and not start time!
+            ]
+        ####
+        return FitsHeader
+
     def createBayerFits(self, array, metadata):
         """creates Bayer pattern FITS image from raw frame
 
@@ -337,7 +475,7 @@ class CameraControl:
                 ("BSCALE", 1, "default scaling factor"),
                 ("ROWORDER", "TOP-DOWN", "Row order"),
                 ("INSTRUME", self.parent.device, "CCD Name"),
-                ("TELESCOP", "Unknown", "Telescope name"),  # TODO
+                ("TELESCOP", self.parent.knownVectors["ACTIVE_DEVICES"]["ACTIVE_TELESCOPE"].value, "Telescope name"),
                 ("OBSERVER", self.parent.knownVectors["FITS_HEADER"]["FITS_OBSERVER"].value, "Observer name"),
                 ("OBJECT", self.parent.knownVectors["FITS_HEADER"]["FITS_OBJECT"].value, "Object name"),
                 ("EXPTIME", metadata["ExposureTime"]/1e6, "Total Exposure Time (s)"),
@@ -350,12 +488,10 @@ class CameraControl:
                 ("YPIXSZ", self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1], "Y binned pixel size in microns"),
                 ("FRAME", FrameType, "Frame Type"),
                 ("IMAGETYP", FrameType+" Frame", "Frame Type"),
+            ] + self.snooped_FitsHeader() + [
                 ("XBAYROFF", 0, "X offset of Bayer array"),
                 ("YBAYROFF", 0, "Y offset of Bayer array"),
                 ("BAYERPAT", self.present_CameraSettings.RawMode["FITS_format"], "Bayer color pattern"),
-                #("FOCALLEN", 900, "Focal Length (mm)"),  # TODO
-                #("APTDIA", 120, "Telescope diameter (mm)"),  # TODO
-                #("DATE-OBS", time.strftime("%Y-%m-%dT%H:%M:%S.000", time.gmtime(FileInfo.get("TimeStamp", 0.0))), "UTC start date of observation"),
                 ("Gain", metadata.get("AnalogueGain", 0.0), "Gain"),
             ]
         for FHdr in FitsHeader:
@@ -388,7 +524,7 @@ class CameraControl:
                 ("DATAMIN", 0),
                 #("ROWORDER", "TOP-DOWN", "Row Order"),
                 ("INSTRUME", self.parent.device, "CCD Name"),
-                ("TELESCOP", "Unknown", "Telescope name"),  # TODO
+                ("TELESCOP", self.parent.knownVectors["ACTIVE_DEVICES"]["ACTIVE_TELESCOPE"].value, "Telescope name"),
                 ("OBSERVER", self.parent.knownVectors["FITS_HEADER"]["FITS_OBSERVER"].value, "Observer name"),
                 ("OBJECT", self.parent.knownVectors["FITS_HEADER"]["FITS_OBJECT"].value, "Object name"),
                 ("EXPTIME", metadata["ExposureTime"]/1e6, "Total Exposure Time (s)"),
@@ -401,9 +537,7 @@ class CameraControl:
                 ("YPIXSZ", self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1], "Y binned pixel size in microns"),
                 ("FRAME", FrameType, "Frame Type"),
                 ("IMAGETYP", FrameType+" Frame", "Frame Type"),
-                #("FOCALLEN", 900, "Focal Length (mm)"),  # TODO
-                #("APTDIA", 120, "Telescope diameter (mm)"),  # TODO
-                #("DATE-OBS", time.strftime("%Y-%m-%dT%H:%M:%S.000", time.gmtime(FileInfo.get("TimeStamp", 0.0))), "UTC start date of observation"),
+            ] + self.snooped_FitsHeader() + [
                 # more info from camera
                 ("Gain", metadata.get("AnalogueGain", 0.0), "Gain"),
             ]

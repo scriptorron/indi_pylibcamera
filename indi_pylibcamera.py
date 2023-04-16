@@ -24,7 +24,7 @@ config = ConfigParser()
 config.read(str(configpath))
 logging.debug(f"ConfigParser: {configpath}, {config}")
 
-__version__ = "1.5.0"
+__version__ = "1.6.0"
 
 
 # INDI vectors with immediate actions
@@ -36,18 +36,37 @@ class LoggingVector(ISwitchVector):
     """
 
     def __init__(self, parent):
-        self.parent=parent
+        self.parent = parent
+        LoggingLevel = self.parent.config.get("driver", "LoggingLevel", fallback="Info")
+        if LoggingLevel not in ["Debug", "Info", "Warning", "Error"]:
+            logging.error('Parameter "LoggingLevel" in INI file has an unsupported value!')
+            LoggingLevel = "Info"
         super().__init__(
             device=self.parent.device, timestamp=self.parent.timestamp, name="LOGGING_LEVEL",
             elements=[
-                ISwitch(name="LOGGING_DEBUG", label="Debug", value=ISwitchState.OFF),
-                ISwitch(name="LOGGING_INFO", label="Info", value=ISwitchState.ON),
-                ISwitch(name="LOGGING_WARN", label="Warning", value=ISwitchState.OFF),
-                ISwitch(name="LOGGING_ERROR", label="Error", value=ISwitchState.OFF),
+                ISwitch(name="LOGGING_DEBUG", label="Debug", value=ISwitchState.ON if LoggingLevel == "Debug" else ISwitchState.OFF),
+                ISwitch(name="LOGGING_INFO", label="Info", value=ISwitchState.ON if LoggingLevel == "Info" else ISwitchState.OFF),
+                ISwitch(name="LOGGING_WARN", label="Warning", value=ISwitchState.ON if LoggingLevel == "Warning" else ISwitchState.OFF),
+                ISwitch(name="LOGGING_ERROR", label="Error", value=ISwitchState.ON if LoggingLevel == "Error" else ISwitchState.OFF),
             ],
             label="Logging", group="Options",
             rule=ISwitchRule.ONEOFMANY,
         )
+        self.configure_logger()
+
+
+    def configure_logger(self):
+        selectedLogLevel = self.get_OnSwitches()[0]
+        logging.info(f'selected logging level: {selectedLogLevel}')
+        if selectedLogLevel == "LOGGING_DEBUG":
+            logging.getLogger().setLevel(logging.DEBUG)
+        elif selectedLogLevel == "LOGGING_INFO":
+            logging.getLogger().setLevel(logging.INFO)
+        elif selectedLogLevel == "LOGGING_WARN":
+            logging.getLogger().setLevel(logging.WARN)
+        else:
+            logging.getLogger().setLevel(logging.ERROR)
+
 
     def set_byClient(self, values: dict):
         """called when vector gets set by client
@@ -64,16 +83,7 @@ class LoggingVector(ISwitchVector):
             self.send_setVector()
             self.message = ""
             return
-        selectedLogLevel = self.get_OnSwitches()[0]
-        logging.info(f'selected logging level: {selectedLogLevel}')
-        if selectedLogLevel == "LOGGING_DEBUG":
-            logging.getLogger().setLevel(logging.DEBUG)
-        elif selectedLogLevel == "LOGGING_INFO":
-            logging.getLogger().setLevel(logging.INFO)
-        elif selectedLogLevel == "LOGGING_WARN":
-            logging.getLogger().setLevel(logging.WARN)
-        else:
-            logging.getLogger().setLevel(logging.ERROR)
+        self.configure_logger()
         self.state = IVectorState.OK
         self.send_setVector()
 
@@ -307,6 +317,80 @@ class BinningVector(INumberVector):
             super().set_byClient(values=values)
 
 
+class SnoopingVector(ITextVector):
+    """INDI Text vector with other devices to snoop
+    """
+
+    def __init__(self, parent):
+        self.parent = parent
+        super().__init__(
+            device=self.parent.device, timestamp=self.parent.timestamp, name="ACTIVE_DEVICES",
+            # empty values mean do not snoop
+            elements=[
+                IText(name="ACTIVE_TELESCOPE", label="Telescope", value=""),
+                #IText(name="ACTIVE_ROTATOR", label="Rotator", value=""),
+                #IText(name="ACTIVE_FOCUSER", label="Focuser", value=""),
+                #IText(name="ACTIVE_FILTER", label="Filter", value=""),
+                #IText(name="ACTIVE_SKYQUALITY", label="Sky Quality", value=""),
+
+            ],
+            label="Snoop devices", group="Options",
+        )
+
+    def set_byClient(self, values: dict):
+        """called when vector gets set by client
+        special version for activating snooping
+
+        Args:
+            values: dict(propertyName: value) of values to set
+        """
+        super().set_byClient(values=values)
+        if self.parent.config.getboolean("driver", "DoSnooping", fallback=True):
+            for k, v in values.items():
+                if k == "ACTIVE_TELESCOPE":
+                    self.parent.stop_Snooping(kind="ACTIVE_TELESCOPE")
+                    if v != "":
+                        self.parent.start_Snooping(
+                            kind="ACTIVE_TELESCOPE",
+                            device=v,
+                            names=[
+                                "GEOGRAPHIC_COORD",  # observer site coordinates
+                                "EQUATORIAL_EOD_COORD",
+                                "EQUATORIAL_COORD",
+                                "TELESCOPE_PIER_SIDE",
+                                "TELESCOPE_INFO",
+                            ]
+                        )
+
+
+class PrintSnoopedValuesVector(ISwitchVector):
+    """Button that prints all snooped values as INFO in log
+    """
+
+    def __init__(self, parent):
+        self.parent = parent
+        super().__init__(
+            device=self.parent.device, timestamp=self.parent.timestamp, name="PRINT_SNOOPED_VALUES",
+            elements=[
+                ISwitch(name="PRINT_SNOOPED", label="Print", value=ISwitchState.OFF),
+            ],
+            label="Print snooped values", group="Options",
+            rule=ISwitchRule.ATMOST1,
+        )
+
+    def set_byClient(self, values: dict):
+        """called when vector gets set by client
+        special version to print snooped values
+
+        Args:
+            values: dict(propertyName: value) of values to set
+        """
+        logging.debug(f"logging level action: {values}")
+        logging.info(str(self.parent.SnoopingManager))
+        self.state = IVectorState.OK
+        self.send_setVector()
+
+
 # the device driver
 
 class indi_pylibcamera(indidevice):
@@ -320,7 +404,8 @@ class indi_pylibcamera(indidevice):
             config: driver configuration
         """
         super().__init__(device=config.get("driver", "DeviceName", fallback="indi_pylibcamera"))
-        self.timestamp = config.getboolean("driver", "SendTimeStamps", fallback=False)
+        self.config = config
+        self.timestamp = self.config.getboolean("driver", "SendTimeStamps", fallback=False)
         # camera
         self.CameraThread = CameraControl(
             parent=self,
@@ -414,7 +499,7 @@ class indi_pylibcamera(indidevice):
             RawFormatVector(
                 parent=self,
                 CameraThread=self.CameraThread,
-                do_CameraAdjustments=config.getboolean("driver", "CameraAdjustments", fallback=True),
+                do_CameraAdjustments=self.config.getboolean("driver", "CameraAdjustments", fallback=True),
             ),
             send_defVector=True,
         )
@@ -491,7 +576,7 @@ class indi_pylibcamera(indidevice):
             BinningVector(
                 parent=self,
                 CameraThread=self.CameraThread,
-                do_CameraAdjustments=config.getboolean("driver", "CameraAdjustments", fallback=True),
+                do_CameraAdjustments=self.config.getboolean("driver", "CameraAdjustments", fallback=True),
             ),
             send_defVector=True,
         )
@@ -626,6 +711,19 @@ class indi_pylibcamera(indidevice):
         self.CameraVectorNames.append("UPLOAD_SETTINGS")
         #
         self.checkin(
+            INumberVector(
+                device=self.device, timestamp=self.timestamp, name="SCOPE_INFO",
+                elements=[
+                    INumber(name="FOCAL_LENGTH", label="Focal Length (mm)", min=10, max=10000, step=10, value=0, format="%.2f"),
+                    INumber(name="APERTURE", label="Aperture (mm)", min=10, max=3000, step=10, value=0, format="%.2f"),
+                ],
+                label="Scope", group="Options",
+            ),
+            send_defVector=True,
+        )
+        self.CameraVectorNames.append("SCOPE_INFO")
+        #
+        self.checkin(
             ISwitchVector(
                 device=self.device, timestamp=self.timestamp, name="CCD_FAST_TOGGLE",
                 elements=[
@@ -683,24 +781,18 @@ class indi_pylibcamera(indidevice):
         #
         # Maybe needed: CCD_COOLER
         #
-        #  TODO: snooping
-        # needed for field solver?
-        # self.checkin(
-        #     ITextVector(
-        #         device=self.device, timestamp=self.timestamp, name="ACTIVE_DEVICES",
-        #         elements=[
-        #             IText(name="ACTIVE_TELESCOPE", label="Telescope", value="Telescope Simulator"),
-        #             IText(name="ACTIVE_ROTATOR", label="Rotator", value="Rotator Simulator"),
-        #             IText(name="ACTIVE_FOCUSER", label="Focuser", value="Focuser Simulator"),
-        #             IText(name="ACTIVE_FILTER", label="Filter", value="CCD Simulator"),
-        #             IText(name="ACTIVE_SKYQUALITY", label="Sky Quality", value="SQM"),
-        #
-        #         ],
-        #         label="Snoop devices", group="Options",
-        #     ),
-        #     send_defVector=True,
-        # )
-        # self.CameraVectorNames.append("ACTIVE_DEVICES")
+        # snooping
+        self.checkin(
+            SnoopingVector(parent=self,),
+            send_defVector=True,
+        )
+        self.CameraVectorNames.append("ACTIVE_DEVICES")
+        if self.config.getboolean("driver", "PrintSnoopedValuesButton", fallback=False):
+            self.checkin(
+                PrintSnoopedValuesVector(parent=self,),
+                send_defVector=True,
+            )
+            self.CameraVectorNames.append("PRINT_SNOOPED_VALUES")
         # needed for field solver?
         # self.checkin(
         #     ISwitchVector(
