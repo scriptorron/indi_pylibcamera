@@ -452,7 +452,6 @@ class indi_pylibcamera(indidevice):
         self.checkin(
             LoggingVector(parent=self),
         )
-        # FIXME: teste Snooping in init
         # snooping
         self.checkin(
             SnoopingVector(parent=self,),
@@ -792,20 +791,6 @@ class indi_pylibcamera(indidevice):
         #
         # Maybe needed: CCD_COOLER
         #
-        # FIXME: teste Snooping in init
-        if False:
-            # snooping
-            self.checkin(
-                SnoopingVector(parent=self,),
-                send_defVector=True,
-            )
-            self.CameraVectorNames.append("ACTIVE_DEVICES")
-            if self.config.getboolean("driver", "PrintSnoopedValuesButton", fallback=False):
-                self.checkin(
-                    PrintSnoopedValuesVector(parent=self,),
-                    send_defVector=True,
-                )
-                self.CameraVectorNames.append("PRINT_SNOOPED_VALUES")
         # needed for field solver?
         # self.checkin(
         #     ISwitchVector(

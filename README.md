@@ -44,9 +44,17 @@ a V1 camera for auto guiding.
 - `SendTimeStamps` (`yes`, `no`, `on`, `off`, `true`, `false`, `1`, `0`): Add a timestamp to the messages send from
 the device to the client. Such timestamps are needed in very seldom cases only, and usually it is okay to set this 
 to `no`. If you really need timestamps make sure that the system clock is correct. 
+- `force_UnitCellSize_X`, `force_UnitCellSize_Y` and `force_Rotation`: Some cameras are not fully supported by
+libcamera and do not provide all needed information. The configuration file allows to force pixel size and Bayer
+pattern rotation for such cameras.
+- `LoggingLevel`: The driver has buttons to set the logging level. But sometimes you need a higher logging level right
+at the beginning of the driver initialization. This can be done here in the INI file.
+- `DoSnooping`: The INDI protocol allows a driver to ask other drivers for information. This is called "snooping". The
+indi_pylibcamera driver uses this feature to get observer location, telescope information and telescope direction
+from the mount driver. It writes these information as metadata in the FITS images. This function got newly implemented
+and may make trouble in some setups. With the `DoSnooping` you can disable this function.
 
-Some cameras are not fully supported by libcamera and do not provide all needed information. The configuration
-file allows to force pixel size and Bayer pattern rotation for such cameras.
+There are more settings, mostly to support debugging.
 
 An example for a configuration file can be found in this repository.
 
@@ -111,11 +119,45 @@ Furthermore, send one raw image for each available raw mode. Make pictures of a 
 blue areas. Do not change camera position between taking these pictures. It must be possible to measure and compare
 object dimensions.
 
+## Snooping
+The indi_pylibcamera driver uses snooping to get information from the mount driver. This information is used to add
+more metadata to the FITS images, similar to this:
+```
+FOCALLEN=            2.000E+03 / Focal Length (mm)
+APTDIA  =            2.000E+02 / Telescope diameter (mm)
+SCALE   =         1.598825E-01 / arcsecs per pixel
+SITELAT =         5.105000E+01 / Latitude of the imaging site in degrees
+SITELONG=         1.375000E+01 / Longitude of the imaging site in degrees
+AIRMASS =         1.643007E+00 / Airmass
+OBJCTAZ =         1.121091E+02 / Azimuth of center of image in Degrees
+OBJCTALT=         3.744145E+01 / Altitude of center of image in Degrees
+OBJCTRA = ' 4 36 07.37'        / Object J2000 RA in Hours
+OBJCTDEC= '16 30 26.02'        / Object J2000 DEC in Degrees
+RA      =         6.903072E+01 / Object J2000 RA in Degrees
+DEC     =         1.650723E+01 / Object J2000 DEC in Degrees
+PIERSIDE= 'WEST    '           / West, looking East
+EQUINOX =                 2000 / Equinox
+DATE-OBS= '2023-04-05T11:27:53.655' / UTC start date of observation
+```
+This function is newly implemented. It is tested with the indi_simulator_telescope and the indi_synscan_telescope
+mount drivers. If you get trouble with this function you can disable snooping in the INI file.
+
+A correct system time on you Raspberry Pi is absolutely needed for the calculation of the metadata. The Raspberry Pi
+does not have a battery powered realtime clock. It adjusts its system time from a time-server in the internet. If your
+Pi does not have internet access you will need to take care for setting the date and time. For instance, you can 
+install a realtime clock or a GPS hardware. You can also copy date and time from one Linux computer (or Raspberry Pi)
+to another with:
+```commandline
+ssh -t YourUserName@YourPiName sudo date --set=`date -Iseconds`
+```
+The driver uses "astropy" (https://www.astropy.org/) for coordinate transformations. When processing of the first image
+you make the "astropy" library needs a few seconds for initialization. This will not happen anymore for the next images.
+
+Snooping takes telescope focal length and aperture from the mount driver. It picks there the values of the main
+telescope. When your camera is on a different optic you can force aperture and focal length with the "Scope" setting 
+in the "Options" tap of the indi_pylibcamera driver.
+
 ## Known Limitations
-- Snoopying is not supported.
-Snooping is an INDI feature which allows a driver to get information from an other driver. For instance the camera
-driver can ask the mount driver for the actual position to write these data as metadata in the images. The present
-implementation of the indi_pylibcamera driver does not support this.
 - The maximum exposure time of the V1 camera is about 1 second. This limitation is caused by libcamera and the kernel
 driver. The indi_pylibcamera can not work around this.
 - Libcamera reports a maximum exposure time for HQ camera of 694.4 seconds. But when trying an exposure of 690 seconds

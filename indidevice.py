@@ -711,7 +711,7 @@ class indidevice:
             elif (device is None) or (device == self.device):
                 if xml.tag in ["newNumberVector", "newTextVector", "newSwitchVector"]:
                     vectorName = xml.attrib["name"]
-                    values = {ele.attrib["name"]: ele.text.strip() for ele in xml}
+                    values = {ele.attrib["name"]: (ele.text.strip() if type(ele.text) is str else "") for ele in xml}
                     try:
                         vector = self.knownVectors[vectorName]
                     except ValueError as e:
@@ -726,7 +726,7 @@ class indidevice:
                 # can be a snooped device
                 if xml.tag in ["setNumberVector", "setTextVector", "setSwitchVector", "defNumberVector", "defTextVector", "defSwitchVector"]:
                     vectorName = xml.attrib["name"]
-                    values = {ele.attrib["name"]: ele.text.strip() for ele in xml}
+                    values = {ele.attrib["name"]: (ele.text.strip() if type(ele.text) is str else "") for ele in xml}
                     self.SnoopingManager.catching(device=device, name=vectorName, values=values)
                 elif xml.tag == "delProperty":
                     # snooped device got closed
