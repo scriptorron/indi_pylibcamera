@@ -27,6 +27,12 @@ Finally, after installation, you need to have a working INDI server: `indiserver
 ## Installation
 Currently, the `indi_pylibcamera` driver does not has a setup or installation tool. Just copy the files in a folder.
 
+The script `install.sh` creates a file `indi_pylibcamera.xml` in `/usr/share/indi` to get the driver listed in EKOS profile editor.
+Furthermore it creates a soft link `/usr/bin/indi_pylibcamera` so that the driver can be used without prior changing to its directory.
+The script requires sudo premissions. Usage: 
+```install.sh <path>/indy_pylibcamera.py```
+
+
 ## Running
 You can start the INDI server with `indiserver -v ./indi_pylibcamer.py` after changing to the folder where you stored
 `indi_pylibcamera.py`. When the server is running you can connect to the server from another computer with an INDI
