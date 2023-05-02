@@ -464,7 +464,6 @@ class indi_pylibcamera(indidevice):
             ),
             send_defVector=True,
         )
-        self.CameraVectorNames.append("POLLING_PERIOD")
         # snooping
         self.checkin(
             SnoopingVector(parent=self,),
