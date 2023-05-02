@@ -452,6 +452,18 @@ class indi_pylibcamera(indidevice):
         self.checkin(
             LoggingVector(parent=self),
         )
+        self.checkin(
+            INumberVector(
+                device=self.device, timestamp=self.timestamp, name="POLLING_PERIOD",
+                elements=[
+                    INumber(name="PERIOD_MS", label="Period (ms)", min=10, max=600000,
+                            step=1000, value=1000, format="%.f"),
+                ],
+                label="Polling", group="Options",
+                perm=IPermission.RW,
+            ),
+            send_defVector=True,
+        )
         # snooping
         self.checkin(
             SnoopingVector(parent=self,),

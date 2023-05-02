@@ -702,7 +702,9 @@ class CameraControl:
                     ["raw" if self.present_CameraSettings.DoRaw else "main"],
                     wait=False, signal_function=self.on_CaptureFinished,
                 )
-                while ExpectedEndOfExposure - time.time() > 0.5:
+                with self.parent.knownVectorsLock:
+                    PollingPeriod_s = self.parent.knownVectors["POLLING_PERIOD"]["PERIOD_MS"].value / 1e3
+                while ExpectedEndOfExposure - time.time() > PollingPeriod_s:
                     # exposure count down
                     self.parent.setVector(
                         "CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=ExpectedEndOfExposure - time.time(),
@@ -721,7 +723,7 @@ class CameraControl:
                     # allow exposure to finish earlier than expected (for instance when in fast exposure mode)
                     if self.Sig_CaptureDone.is_set():
                         break
-                    time.sleep(0.5)
+                    time.sleep(PollingPeriod_s)
                 # get frame and its metadata
                 if not Abort:
                     (array, ), metadata =  self.picam2.wait(job)
