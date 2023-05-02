@@ -495,8 +495,17 @@ class CameraControl:
                 ("XBAYROFF", 0, "X offset of Bayer array"),
                 ("YBAYROFF", 0, "Y offset of Bayer array"),
                 ("BAYERPAT", self.present_CameraSettings.RawMode["FITS_format"], "Bayer color pattern"),
-                ("Gain", metadata.get("AnalogueGain", 0.0), "Gain"),
             ]
+        FitsHeader += [("Gain", metadata.get("AnalogueGain", 0.0), "Gain"),]
+        if "SensorBlackLevels" in metadata:
+            SensorBlackLevels = metadata["SensorBlackLevels"]
+            if len(SensorBlackLevels) == 4:
+                FitsHeader += [
+                    ("SBLK_0", SensorBlackLevels[0], "Sensor Black Level 0"),
+                    ("SBLK_1", SensorBlackLevels[1], "Sensor Black Level 1"),
+                    ("SBLK_2", SensorBlackLevels[2], "Sensor Black Level 2"),
+                    ("SBLK_3", SensorBlackLevels[3], "Sensor Black Level 3"),
+                ]
         for FHdr in FitsHeader:
             if len(FHdr) > 2:
                 hdu.header[FHdr[0]] = (FHdr[1], FHdr[2])
