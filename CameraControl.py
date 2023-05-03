@@ -495,8 +495,28 @@ class CameraControl:
                 ("XBAYROFF", 0, "X offset of Bayer array"),
                 ("YBAYROFF", 0, "Y offset of Bayer array"),
                 ("BAYERPAT", self.present_CameraSettings.RawMode["FITS_format"], "Bayer color pattern"),
-                ("Gain", metadata.get("AnalogueGain", 0.0), "Gain"),
             ]
+        FitsHeader += [("Gain", metadata.get("AnalogueGain", 0.0), "Gain"), ]
+        if "SensorBlackLevels" in metadata:
+            SensorBlackLevels = metadata["SensorBlackLevels"]
+            if len(SensorBlackLevels) == 4:
+                # according to pylibcamera2 documentation:
+                #   "The black levels of the raw sensor image. This
+                #    control appears only in captured image
+                #    metadata and is read-only. One value is
+                #    reported for each of the four Bayer channels,
+                #    scaled up as if the full pixel range were 16 bits
+                #    (so 4096 represents a black level of 16 in 10-
+                #    bit raw data)."
+                # When image data is stored as 16bit it is not needed to scale SensorBlackLevels again.
+                # But when we store image with 8bit/pixel we need to divide by 2**8.
+                SensorBlackLevelScaling = 2 ** (bit_pix - 16)
+                FitsHeader += [
+                    ("OFFSET_0", SensorBlackLevels[0] * SensorBlackLevelScaling, "Sensor Black Level 0"),
+                    ("OFFSET_1", SensorBlackLevels[1] * SensorBlackLevelScaling, "Sensor Black Level 1"),
+                    ("OFFSET_2", SensorBlackLevels[2] * SensorBlackLevelScaling, "Sensor Black Level 2"),
+                    ("OFFSET_3", SensorBlackLevels[3] * SensorBlackLevelScaling, "Sensor Black Level 3"),
+                ]
         for FHdr in FitsHeader:
             if len(FHdr) > 2:
                 hdu.header[FHdr[0]] = (FHdr[1], FHdr[2])
