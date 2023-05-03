@@ -360,7 +360,7 @@ class CameraControl:
             if FocalLength is not None:
                 FitsHeader += [(
                     "SCALE",
-                    206.265 * self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0] / FocalLength,
+                    0.206265 * self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0] / FocalLength,
                     "arcsecs per pixel"
                 ), ]
             #### SITELAT, SITELONG ####
