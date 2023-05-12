@@ -4,6 +4,8 @@ import sys
 import os
 import os.path
 from pathlib import Path
+import subprocess
+import signal
 
 from picamera2 import Picamera2
 
@@ -391,6 +393,36 @@ class PrintSnoopedValuesVector(ISwitchVector):
         self.send_setVector()
 
 
+def kill_oldDriver():
+    """test if another instance of driver is already running and kill it
+
+    This relies on the output of "ps ax" system command.
+    Alternative would be 3rd party library psutil which may need to be installed.
+    """
+    my_PID = os.getpid()
+    logging.info(f'my PID: {my_PID}')
+    my_fileName = os.path.basename(__file__)
+    logging.info(f'my file name: {my_fileName}')
+    ps_ax = subprocess.check_output(["ps", "ax"]).decode(sys.stdout.encoding)
+    ps_ax = ps_ax.split("\n")
+    pids_oldDriver = []
+    for processInfo in ps_ax:
+        if ("python3" in processInfo) and (my_fileName in processInfo):
+            PID = int(processInfo.split(" ", maxsplit=1)[0])
+            if PID != my_PID:
+                logging.info(f'found old driver with PID {PID} ({processInfo})')
+                pids_oldDriver.append(PID)
+    for pid_oldDriver in pids_oldDriver:
+        try:
+            os.kill(pid_oldDriver, signal.SIGINT)
+        except ProcessLookupError:
+            # process does not exist anymore
+            pass
+        except PermissionError:
+            # not allowed to kill
+            logging.error(f'Do not have permission to kill old driver with PID {pid_oldDriver}.')
+
+
 # the device driver
 
 class indi_pylibcamera(indidevice):
@@ -403,6 +435,7 @@ class indi_pylibcamera(indidevice):
         Args:
             config: driver configuration
         """
+        kill_oldDriver()
         super().__init__(device=config.get("driver", "DeviceName", fallback="indi_pylibcamera"))
         self.config = config
         self.timestamp = self.config.getboolean("driver", "SendTimeStamps", fallback=False)
