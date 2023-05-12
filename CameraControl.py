@@ -140,7 +140,7 @@ class CameraControl:
         self.Sig_ActionExit.clear()
         self.Sig_ActionExpose.clear()
         self.Sig_Do.clear()
-        self.ExposureThread = threading.Thread(target=self.__ExposureLoop)
+        self.ExposureThread = None
 
 
     def closeCamera(self):
@@ -148,14 +148,16 @@ class CameraControl:
         """
         logging.info('closing camera')
         # stop exposure loop
-        if self.ExposureThread.is_alive():
-            self.Sig_ActionExit.set()
-            self.Sig_Do.set()
-            self.ExposureThread.join()  # wait until exposure loop exits
+        if self.ExposureThread is not None:
+            if self.ExposureThread.is_alive():
+                self.Sig_ActionExit.set()
+                self.Sig_Do.set()
+                self.ExposureThread.join()  # wait until exposure loop exits
         # close picam2
         if self.picam2 is not None:
             if self.picam2.started:
                 self.picam2.stop_()
+            self.picam2.close()
         # reset states
         self.picam2 = None
         self.present_CameraSettings = CameraSettings()
@@ -303,6 +305,7 @@ class CameraControl:
         self.Sig_ActionExit.clear()
         self.Sig_ActionExpose.clear()
         self.Sig_Do.clear()
+        self.ExposureThread = threading.Thread(target=self.__ExposureLoop)
         self.ExposureThread.start()
 
     def getProp(self, name):
