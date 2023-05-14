@@ -6,6 +6,7 @@ import os.path
 from pathlib import Path
 import subprocess
 import signal
+import traceback
 
 from picamera2 import Picamera2
 
@@ -444,6 +445,9 @@ class indi_pylibcamera(indidevice):
             parent=self,
             config=config,
         )
+        # handle SIGINT and SIGTERM gracefully
+        signal.signal(signal.SIGINT, self.exit_gracefully)
+        signal.signal(signal.SIGTERM, self.exit_gracefully)
         # get connected cameras
         cameras = Picamera2.global_camera_info()
         logging.info(f'found cameras: {cameras}')
@@ -507,6 +511,12 @@ class indi_pylibcamera(indidevice):
                 PrintSnoopedValuesVector(parent=self,),
                 send_defVector=True,
             )
+
+    def exit_gracefully(self, sig, frame):
+        logging.info("Exit triggered by SIGINT or SIGTERM")
+        self.CameraThread.closeCamera()
+        traceback.print_stack(frame)
+        sys.exit(0)
 
     def closeCamera(self):
         """close camera and tell client to remove camera vectors from GUI
