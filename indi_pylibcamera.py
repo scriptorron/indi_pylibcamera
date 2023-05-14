@@ -27,7 +27,7 @@ config = ConfigParser()
 config.read(str(configpath))
 logging.debug(f"ConfigParser: {configpath}, {config}")
 
-__version__ = "1.8.0"
+__version__ = "1.9.0"
 
 
 # INDI vectors with immediate actions
