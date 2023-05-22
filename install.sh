@@ -13,7 +13,6 @@ INDI_SERVER=$(which indiserver)
 INDI_SERVER_BIN=$(dirname "$INDI_SERVER")
 INDI_SERVER_USR=$(dirname "$INDI_SERVER_BIN")
 
-
 echo "Installing required packages for indi_pylibcamera"
 sudo apt-get update
 sudo apt-get install \
@@ -22,13 +21,15 @@ sudo apt-get install \
     python3-astropy
 
 
+VERSION="$(grep -Po '^__version__ = \"\K(.*[^\"])' ${PWD}/indi_pylibcamera.py)"
+
 echo "Creating ${INDI_SERVER_USR}/share/indi/indi_pylibcamera.xml"
 sudo tee "${INDI_SERVER_USR}/share/indi/indi_pylibcamera.xml" >/dev/null <<EOL
 <driversList>
   <devGroup group="CCDs">
     <device label="INDI pylibcamera">
       <driver name="INDI pylibcamera">indi_pylibcamera</driver>
-      <version>1.7.0</version>
+      <version>${VERSION}</version>
     </device>
   </devGroup>
 </driversList>
@@ -47,4 +48,3 @@ cd "$OLDPWD"
 echo "You may now start the indiserver"
 echo ""
 echo "  indiserver indi_pylibcamera"
-
