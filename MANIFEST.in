@@ -1,0 +1,3 @@
+
+include src/indi_pylibcamera/CameraInfos/*
+include src/indi_pylibcamera/testpattern/*
