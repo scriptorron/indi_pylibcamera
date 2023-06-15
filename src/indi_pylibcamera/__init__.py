@@ -1,2 +1,5 @@
+"""
+INDI driver for libcamera supported cameras
+"""
 
-from indi_pylibcamera import __version__
+__version__ = "2.0.0"

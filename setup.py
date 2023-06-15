@@ -2,33 +2,30 @@
 from setuptools import setup
 from setuptools.command.develop import develop
 from setuptools.command.install import install
-from subprocess import check_output
 import os.path
+from src.indi_pylibcamera.make_driver_xml import write_driver_xml
 
-def create_indi_pylibcamera_xml():
+
+def store_driver_xml(filename="/usr/share/indi/indi_pylibcamera.xml"):
     try:
-        indi_server = check_output("which indiserver".split())
-    except CalledProcessError:
-        print(f'ERROR: Can not find indiserver. Install indiserver first!')
-    else:
-        indi_server_bin = os.path.dirname(indi_server)
-        
-        # FIXME: implement this!
-        pass
+        write_driver_xml(filename=filename)
+    except FileNotFoundError as e:
+        print(f'ERROR: Can not write driver XML:')
+        print(f'    {str(e)}')
 
 
 class PostDevelopCommand(develop):
     """Post-installation for development mode."""
     def run(self):
         develop.run(self)
-        create_indi_pylibcamera_xml()
+        store_driver_xml()
 
 
 class PostInstallCommand(install):
     """Post-installation for installation mode."""
     def run(self):
         install.run(self)
-        create_indi_pylibcamera_xml()
+        store_driver_xml()
 
 
 setup(

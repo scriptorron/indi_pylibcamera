@@ -41,9 +41,12 @@ You can start the INDI server with `indiserver -v ./indi_pylibcamer.py` after ch
 client (for instance KStars/EKOS).
 
 ## Global Configuration
-The driver uses configuration files to set global parameter. If environment variable `INDI_PYLIBCAMERA_CONFIG_PATH`
-exists the file `$INDI_PYLIBCAMERA_CONFIG_PATH/indi_pylibcamera.ini` is loaded. Otherwise, it tries to load
-`$HOME/.indi_pylibcamera/indi_pylibcamera.ini`.
+The driver uses a hierarchy of configuration files to set global parameter. These configuration files are loaded in the
+following order:
+- `indi_pylibcamera.ini` in the program installation directory (typically in `/usr/lib/python*/site_packages`)
+- `$INDI_PYLIBCAMERA_CONFIG_PATH/indi_pylibcamera.ini`
+- `$HOME/.indi_pylibcamera/indi_pylibcamera.ini`
+- `./.indi_pylibcamera/indi_pylibcamera.ini`
 
 The configuration file must have the section `[driver]`. The most important keys are:
 - `DeviceName` (string): INDI name of the device. This allows to distinguish indi_pylibcamera devices in your setup.

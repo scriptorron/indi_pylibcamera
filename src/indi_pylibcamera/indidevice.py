@@ -6,7 +6,6 @@ based on INDI protocol v1.7
 not supported:
 - Light
 - LightVector
-- snooping
 """
 
 from lxml import etree

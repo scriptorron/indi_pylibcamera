@@ -12,6 +12,7 @@ from picamera2 import Picamera2
 
 from configparser import ConfigParser
 
+from . import __version__
 from indidevice import *
 from CameraControl import CameraControl
 
@@ -19,15 +20,18 @@ from CameraControl import CameraControl
 logging.basicConfig(filename=None, level=logging.INFO, format='%(name)s-%(levelname)s- %(message)s')
 
 
-if "INDI_PYLIBCAMERA_CONFIG_PATH" in os.environ:
-    configpath = Path(os.environ["INDI_PYLIBCAMERA_CONFIG_PATH"]) / Path("indi_pylibcamera.ini")
-else:
-    configpath = Path(os.environ["HOME"]) / Path(".indi_pylibcamera") / Path("indi_pylibcamera.ini")
-config = ConfigParser()
-config.read(str(configpath))
-logging.debug(f"ConfigParser: {configpath}, {config}")
-
-__version__ = "2.0.0"
+def read_config():
+    # iterative list of INI files to load
+    configfiles = [Path(__file__) / Path("indi_pylibcamera.ini")]
+    if "INDI_PYLIBCAMERA_CONFIG_PATH" in os.environ:
+        configfiles += [Path(os.environ["INDI_PYLIBCAMERA_CONFIG_PATH"]) / Path("indi_pylibcamera.ini")]
+    configfiles += [Path(os.environ["HOME"]) / Path(".indi_pylibcamera") / Path("indi_pylibcamera.ini")]
+    configfiles += [Path(os.getcwd()) / Path("indi_pylibcamera.ini")]
+    # create config parser instance
+    config = ConfigParser()
+    config.read(configfiles)
+    logging.debug(f"ConfigParser: {config}")
+    return config
 
 
 # INDI vectors with immediate actions
@@ -896,5 +900,5 @@ class indi_pylibcamera(indidevice):
 # main entry point
 
 if __name__ == "__main__":
-    device = indi_pylibcamera(config=config)
+    device = indi_pylibcamera(config=read_config())
     device.run()
