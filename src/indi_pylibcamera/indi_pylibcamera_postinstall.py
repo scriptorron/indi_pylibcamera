@@ -36,6 +36,12 @@ script once after installing INDI (KStars) and indi_pylibcamera.
 Please run this script with root privileges (sudo).
 
         """)
+        while True:
+            inp_cont = input("Do you want to continue? (y/n): ").lower()
+            if inp_cont in ["y", "yes"]:
+                break
+            elif inp_count in ["n", "no"]:
+                return
         inp_indi_path = input(
             f'Path to INDI driver XMLs (must contain "driver.xml") (press ENTER to leave default {indi_path}): '
         )
