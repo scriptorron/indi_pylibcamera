@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 make indi_pylibcamera.xml for integration in EKOS
 """
