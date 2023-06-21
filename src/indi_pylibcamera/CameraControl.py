@@ -18,7 +18,7 @@ from picamera2 import Picamera2
 from libcamera import controls, Rectangle
 
 
-from indidevice import *
+from .indidevice import *
 
 
 class CameraSettings:

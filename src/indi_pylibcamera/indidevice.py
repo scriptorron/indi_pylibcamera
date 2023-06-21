@@ -6,7 +6,6 @@ based on INDI protocol v1.7
 not supported:
 - Light
 - LightVector
-- snooping
 """
 
 from lxml import etree
@@ -19,7 +18,7 @@ import threading
 import fcntl
 import datetime
 
-import SnoopingManager
+from . import SnoopingManager
 
 
 # helping functions

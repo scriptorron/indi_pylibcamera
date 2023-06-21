@@ -1,0 +1,5 @@
+
+include src/indi_pylibcamera/CameraInfos/*
+include src/indi_pylibcamera/testpattern/*
+include src/indi_pylibcamera/indi_pylibcamera.ini
+include src/indi_pylibcamera/indi_pylibcamera.xml

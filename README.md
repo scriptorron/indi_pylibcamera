@@ -1,49 +1,57 @@
 # indi_pylibcamera
-INDI library (https://indilib.org/) is an open source software to control astronomical equipment.
+This project implements a Raspberry Pi camera driver for INDI (https://indilib.org/). 
 
 Raspberry Pi cameras allow the amateur astronomer to make astonishing pictures with small budget. Especially the
 Raspberry Pi HQ camera can compete with expensive astro cameras.
 
-This project implements a Raspberry Pi camera driver for INDI. It is based on the new camera framework
-"libcamera" (https://github.com/raspberrypi/libcamera) which is already part of many Raspberry Pi operating systems.
-
-The driver is made and optimized to run on a Raspberry Pi Zero wih HQ camera. Ofcourse it will also run on a more
-capable Raspberry Pi.
+The driver is based on the new camera framework "libcamera" (https://github.com/raspberrypi/libcamera) which is
+already part of many Raspberry Pi operating systems. It is made and optimized to run on a Raspberry Pi Zero with
+HQ camera connected. Of course, it will also run on a more capable Raspberry Pi.
 
 The "indi_pylibcamera" may support all cameras supported by "libcamera". But not all cameras will provide image data
 in the required formats (raw Bayer or at least RGB). So it is not guaranteed that the driver will work with all
 cameras you can connect to a Raspberry Pi.
 
 ## Requirements
-- Python 3 and some libraries:
-```sudo apt-get install python3 python3-lxml python3-astropy python3-picamera2```
-- Libcamera (if not already installed:) `sudo apt-get install libcamera`. You can test libcamera and the support
+Some packages need to be installed with apt-get:
+- `libcamera` (if not already installed). You can test libcamera and the support
 for your camera with: `libcamera-hello --list-cameras`
 - Install INDI core library. If there is no pre-compiled package for your hardware you will need to compile it
 by yourself. Instructions can be found here: https://github.com/indilib/indi. A Raspberry Pi Zero does not
 have enough RAM to compile with 4 threads in parallel: you need to do `make -j1` instead of `make -j4`. 
 Finally, after installation, you need to have a working INDI server: `indiserver -v indi_simulator_telescope`
+- The Python packages `picamera2`, `lxml` and `astropy`. Theoretically these packages can be installed with `pip`. 
+But at least the version of `picamera2` must fit to the `libcamera` you installed with `apt-get`. Therefore it is
+safer to install these Python packages with `apt-get` too. 
+
+The command line to install all is:
+```commandline
+sudo apt-get install libcamera-apps indi-bin python3-picamera2 python3-lxml python3-astropy
+```
 
 ## Installation
-Currently, the `indi_pylibcamera` driver does not has a setup or installation tool. Just copy the files in a folder.
+The `indi_pylibcamera` driver package is available on PyPi. Please install with:
+```commandline
+sudo pip3 install indi_pylibcamera
+sudo indi_pylibcamera_postinstall
+```
 
-The script `install.sh` installs the requirements and creates a file `indi_pylibcamera.xml` in `/usr/share/indi` to get the driver listed in EKOS profile editor.
-Furthermore it creates a soft link `/usr/bin/indi_pylibcamera` so that the driver can be used without prior changing to its directory.
-The script will ask you for sudo premissions to create the file in `/usr/bin`.
-
-Usage: 
-```install.sh```
+The `indi_pylibcamera_postinstall` script creates in `/usr/share/indi` a symbolic link to the driver XML. That makes
+the driver available in the KStars/EKOS profile editor in "CCD"->"OTHERS". Not all versions ov KStars/ECOS support this
+(for instance it works with KStars 3.6.5 but not with KStars 3.4.3).
 
 
 ## Running
-You can start the INDI server with `indiserver -v ./indi_pylibcamer.py` after changing to the folder where you stored
-`indi_pylibcamera.py`. When the server is running you can connect to the server from another computer with an INDI
-client (for instance KStars/EKOS).
+You can start the INDI server with `indiserver -v indi_pylibcamer`. When the server is running you can connect to
+the server from another computer with an INDI client (for instance KStars/EKOS).
 
 ## Global Configuration
-The driver uses configuration files to set global parameter. If environment variable `INDI_PYLIBCAMERA_CONFIG_PATH`
-exists the file `$INDI_PYLIBCAMERA_CONFIG_PATH/indi_pylibcamera.ini` is loaded. Otherwise, it tries to load
-`$HOME/.indi_pylibcamera/indi_pylibcamera.ini`.
+The driver uses a hierarchy of configuration files to set global parameter. These configuration files are loaded in the
+following order:
+- `indi_pylibcamera.ini` in the program installation directory (typically in `/usr/lib/python*/site_packages`)
+- `$INDI_PYLIBCAMERA_CONFIG_PATH/indi_pylibcamera.ini`
+- `$HOME/.indi_pylibcamera/indi_pylibcamera.ini`
+- `./.indi_pylibcamera/indi_pylibcamera.ini`
 
 The configuration file must have the section `[driver]`. The most important keys are:
 - `DeviceName` (string): INDI name of the device. This allows to distinguish indi_pylibcamera devices in your setup.
@@ -119,7 +127,7 @@ This camera has auto-focus capabilities which are not supported by this driver. 
 In case you have trouble, or you see unexpected behavior it will help debugging when you give more information about
 your camera. Please run:
 
-`./print_camera_information.py > MyCam.txt`
+`indi_pylibcamera_print_camera_information > MyCam.txt`
 
 and send the generated "MyCam.txt" file.
 
@@ -128,7 +136,7 @@ blue areas. Do not change camera position between taking these pictures. It must
 object dimensions.
 
 ## Snooping
-The indi_pylibcamera driver uses snooping to get information from the mount driver. This information is used to add
+The `indi_pylibcamera` driver uses snooping to get information from the mount driver. This information is used to add
 more metadata to the FITS images, similar to this:
 ```
 FOCALLEN=            2.000E+03 / Focal Length (mm)
