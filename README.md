@@ -26,7 +26,7 @@ safer to install these Python packages with `apt-get` too.
 
 The command line to install all is:
 ```commandline
-sudo apt-get install libcamera indi-bin python3-picamera2 python3-lxml python3-astropy
+sudo apt-get install libcamera-apps indi-bin python3-picamera2 python3-lxml python3-astropy
 ```
 
 ## Installation
