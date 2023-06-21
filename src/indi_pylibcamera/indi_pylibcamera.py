@@ -13,8 +13,8 @@ from picamera2 import Picamera2
 from configparser import ConfigParser
 
 from . import __version__
-from indidevice import *
-from CameraControl import CameraControl
+from .indidevice import *
+from .CameraControl import CameraControl
 
 
 logging.basicConfig(filename=None, level=logging.INFO, format='%(name)s-%(levelname)s- %(message)s')
@@ -406,7 +406,7 @@ def kill_oldDriver():
     """
     my_PID = os.getpid()
     logging.info(f'my PID: {my_PID}')
-    my_fileName = os.path.basename(__file__)
+    my_fileName = os.path.basename(__file__)[:-3]
     logging.info(f'my file name: {my_fileName}')
     ps_ax = subprocess.check_output(["ps", "ax"]).decode(sys.stdout.encoding)
     ps_ax = ps_ax.split("\n")
@@ -419,7 +419,7 @@ def kill_oldDriver():
                 pids_oldDriver.append(PID)
     for pid_oldDriver in pids_oldDriver:
         try:
-            os.kill(pid_oldDriver, signal.SIGINT)
+            os.kill(pid_oldDriver, signal.SIGKILL)
         except ProcessLookupError:
             # process does not exist anymore
             pass
@@ -898,7 +898,11 @@ class indi_pylibcamera(indidevice):
 
 
 # main entry point
-
-if __name__ == "__main__":
+def main():
     device = indi_pylibcamera(config=read_config())
     device.run()
+    return 0
+
+
+if __name__ == "__main__":
+    main()

@@ -1,26 +1,33 @@
 # indi_pylibcamera
-INDI library (https://indilib.org/) is an open source software to control astronomical equipment.
+This project implements a Raspberry Pi camera driver for INDI (https://indilib.org/). 
 
 Raspberry Pi cameras allow the amateur astronomer to make astonishing pictures with small budget. Especially the
 Raspberry Pi HQ camera can compete with expensive astro cameras.
 
-This project implements a Raspberry Pi camera driver for INDI. It is based on the new camera framework
-"libcamera" (https://github.com/raspberrypi/libcamera) which is already part of many Raspberry Pi operating systems.
-
-The driver is made and optimized to run on a Raspberry Pi Zero wih HQ camera. Ofcourse it will also run on a more
-capable Raspberry Pi.
+The driver is based on the new camera framework "libcamera" (https://github.com/raspberrypi/libcamera) which is
+already part of many Raspberry Pi operating systems. It is made and optimized to run on a Raspberry Pi Zero with
+HQ camera connected. Of course, it will also run on a more capable Raspberry Pi.
 
 The "indi_pylibcamera" may support all cameras supported by "libcamera". But not all cameras will provide image data
 in the required formats (raw Bayer or at least RGB). So it is not guaranteed that the driver will work with all
 cameras you can connect to a Raspberry Pi.
 
 ## Requirements
-- Libcamera (if not already installed:) `sudo apt-get install libcamera`. You can test libcamera and the support
+Some packages need to be installed with apt-get:
+- `libcamera` (if not already installed). You can test libcamera and the support
 for your camera with: `libcamera-hello --list-cameras`
 - Install INDI core library. If there is no pre-compiled package for your hardware you will need to compile it
 by yourself. Instructions can be found here: https://github.com/indilib/indi. A Raspberry Pi Zero does not
 have enough RAM to compile with 4 threads in parallel: you need to do `make -j1` instead of `make -j4`. 
 Finally, after installation, you need to have a working INDI server: `indiserver -v indi_simulator_telescope`
+- The Python packages `picamera2`, `lxml` and `astropy`. Theoretically these packages can be installed with `pip`. 
+But at least the version of `picamera2` must fit to the `libcamera` you installed with `apt-get`. Therefore it is
+safer to install these Python packages with `apt-get` too. 
+
+The command line to install all is:
+```commandline
+sudo apt-get install libcamera indi-bin python3-picamera2 python3-lxml python3-astropy
+```
 
 ## Installation
 The `indi_pylibcamera` driver package is available on PyPi. Please install with:
@@ -29,7 +36,9 @@ sudo pip3 install indi_pylibcamera
 sudo indi_pylibcamera_postinstall
 ```
 
-The `indi_pylibcamera_postinstall` script makes the driver available in KStars/EKOS profile editor.
+The `indi_pylibcamera_postinstall` script creates in `/usr/share/indi` a symbolic link to the driver XML. That makes
+the driver available in the KStars/EKOS profile editor in "CCD"->"OTHERS". Not all versions ov KStars/ECOS support this
+(for instance it works with KStars 3.6.5 but not with KStars 3.4.3).
 
 
 ## Running
