@@ -42,7 +42,7 @@ the driver available in the KStars/EKOS profile editor in "CCD"->"OTHERS". Not a
 
 
 ## Running
-You can start the INDI server with `indiserver -v indi_pylibcamer`. When the server is running you can connect to
+You can start the INDI server with `indiserver -v indi_pylibcamera`. When the server is running you can connect to
 the server from another computer with an INDI client (for instance KStars/EKOS).
 
 ## Global Configuration
