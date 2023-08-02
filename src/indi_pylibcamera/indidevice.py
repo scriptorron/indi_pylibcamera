@@ -692,7 +692,13 @@ class indidevice:
         """
         inp = ""
         while self.running:
-            inp += sys.stdin.readline()
+
+            new_inp = sys.stdin.readline()
+            # detect termination of indiserver
+            if len(new_inp) == 0:
+                return
+            inp += new_inp
+
             # maybe XML is complete
             try:
                 xml = etree.fromstring(inp)
