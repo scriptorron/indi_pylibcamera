@@ -12,7 +12,7 @@ The "indi_pylibcamera" may support all cameras supported by "libcamera". But not
 in the required formats (raw Bayer or at least RGB). So it is not guaranteed that the driver will work with all
 cameras you can connect to a Raspberry Pi.
 
-## Requirements
+## Requirements and installation
 Some packages need to be installed with apt-get:
 - `libcamera` (if not already installed). You can test libcamera and the support
 for your camera with: `libcamera-hello --list-cameras`
@@ -20,16 +20,15 @@ for your camera with: `libcamera-hello --list-cameras`
 by yourself. Instructions can be found here: https://github.com/indilib/indi. A Raspberry Pi Zero does not
 have enough RAM to compile with 4 threads in parallel: you need to do `make -j1` instead of `make -j4`. 
 Finally, after installation, you need to have a working INDI server: `indiserver -v indi_simulator_telescope`
-- The Python packages `picamera2`, `lxml` and `astropy`. Theoretically these packages can be installed with `pip`. 
+- The Python packages `picamera2`, `numpy`, `lxml` and `astropy`. Theoretically these packages can be installed with `pip`. 
 But at least the version of `picamera2` must fit to the `libcamera` you installed with `apt-get`. Therefore it is
 safer to install these Python packages with `apt-get` too. 
 
 The command line to install all is:
 ```commandline
-sudo apt-get install libcamera-apps indi-bin python3-picamera2 python3-lxml python3-astropy
+sudo apt-get install libcamera-apps indi-bin python3-picamera2 python3-lxml python3-astropy python3-numpy
 ```
 
-## Installation
 The `indi_pylibcamera` driver package is available on PyPi. Please install with:
 ```commandline
 sudo pip3 install indi_pylibcamera
@@ -124,16 +123,48 @@ This camera has auto-focus capabilities which are not supported by this driver. 
 * **1536x864 BGGR 10bit:** provided frame size 1536x864, 2x2 binning, no garbage columns, final image size is 1536x864
 
 ## When you need support for a different camera
-In case you have trouble, or you see unexpected behavior it will help debugging when you give more information about
-your camera. Please run:
+There are many cameras you can connect to a Raspberry Pi. We can not test the driver with all of them. But we can try 
+to support. For that we will need more information about your camera. Please run:
 
-`indi_pylibcamera_print_camera_information > MyCam.txt`
+```commandline
+libcamera-hello --list-cameras
+
+indi_pylibcamera_print_camera_information > MyCam.txt
+```
 
 and send the generated "MyCam.txt" file.
 
 Furthermore, send one raw image for each available raw mode. Make pictures of a terrestrial object with red, green and
 blue areas. Do not change camera position between taking these pictures. It must be possible to measure and compare
 object dimensions.
+
+## When you see strange behavior or errors
+In case you have trouble or you see unexpected behavior it will help debugging when you give more information about
+your system and camera. Please run:
+```commandline
+cat /etc/os-release
+
+uname -a
+
+apt list --installed | grep numpy
+
+apt list --installed | grep astropy
+
+apt list --installed | grep libcamera
+
+apt list --installed | grep picamera
+
+libcamera-hello --list-cameras
+
+indi_pylibcamera_print_camera_information
+```
+
+and send the outputs in your issue report.
+
+Please also try to get raw images with `libcamera-still`:
+```commandline
+libcamera-still -r -o test.jpg --shutter 1000000 --gain 1 --awbgains 1,1 --immediate
+```
 
 ## Snooping
 The `indi_pylibcamera` driver uses snooping to get information from the mount driver. This information is used to add

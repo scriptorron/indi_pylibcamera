@@ -4,8 +4,25 @@ import sys
 from picamera2 import Picamera2
 import pprint
 
-
 def main():
+    # important libraries and their versions
+    print("Testing numpy:")
+    try:
+        import numpy
+    except BaseException as e:
+        print(e)
+    else:
+        print(f'  numpy {numpy.__version__}')
+    print()
+    print("Testing astropy:")
+    try:
+        import astropy
+    except BaseException as e:
+        print(e)
+    else:
+        print(f'  astropy {astropy.__version__}')
+    print()
+
     # list of available cameras:
     cameras = Picamera2.global_camera_info()
     print(f'Found {len(cameras)} cameras.')
