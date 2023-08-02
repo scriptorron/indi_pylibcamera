@@ -360,7 +360,7 @@ class CameraControl:
                         ("APTDIA", Aperture, "Telescope diameter (mm)"),
                     ]
             #### SCALE ####
-            if FocalLength is not None:
+            if (FocalLength is not None) and (FocalLength > 0):
                 FitsHeader += [(
                     "SCALE",
                     0.206265 * self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0] / FocalLength,
