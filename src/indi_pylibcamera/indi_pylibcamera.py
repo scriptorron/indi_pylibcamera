@@ -83,16 +83,8 @@ class LoggingVector(ISwitchVector):
             values: dict(propertyName: value) of values to set
         """
         logging.debug(f"logging level action: {values}")
-        self.message = self.update_SwitchStates(values=values)
-        # send updated property values
-        if len(self.message) > 0:
-            self.state = IVectorState.ALERT
-            self.send_setVector()
-            self.message = ""
-            return
+        super().set_byClient(values = values)
         self.configure_logger()
-        self.state = IVectorState.OK
-        self.send_setVector()
 
 
 class ConnectionVector(ISwitchVector):
