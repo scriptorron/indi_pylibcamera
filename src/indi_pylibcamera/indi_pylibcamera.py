@@ -339,9 +339,8 @@ class SnoopingVector(ITextVector):
                 #IText(name="ACTIVE_FOCUSER", label="Focuser", value=""),
                 #IText(name="ACTIVE_FILTER", label="Filter", value=""),
                 #IText(name="ACTIVE_SKYQUALITY", label="Sky Quality", value=""),
-
             ],
-            label="Snoop devices", group="Options",
+            label="Snoop devices", group="Snooping",
         )
 
     def set_byClient(self, values: dict):
@@ -381,7 +380,7 @@ class PrintSnoopedValuesVector(ISwitchVector):
             elements=[
                 ISwitch(name="PRINT_SNOOPED", label="Print", value=ISwitchState.OFF),
             ],
-            label="Print snooped values", group="Options",
+            label="Print snooped values", group="Snooping",
             rule=ISwitchRule.ATMOST1,
         )
 
@@ -506,6 +505,95 @@ class indi_pylibcamera(indidevice):
             send_defVector=True,
         )
         # snooping
+        self.checkin(
+            INumberVector(
+                device=self.device, timestamp=self.timestamp, name="GEOGRAPHIC_COORD",
+                elements=[
+                    INumber(name="LAT", label="Lat (dd:mm:ss.s)", min=-90, max=90, step=0, value=0, format="%012.8m"),
+                    INumber(name="LONG", label="Lon (dd:mm:ss.s)", min=0, max=360, step=0, value=0, format="%012.8m"),
+                    INumber(name="ELEV", label="Elevation (m)", min=-200, max=10000, step=0, value=0, format="%g"),
+                ],
+                label="Scope Location", group="Snooping",
+                perm=IPermission.RW,
+            ),
+            send_defVector=True,
+        )
+        self.checkin(
+            INumberVector(
+                device=self.device, timestamp=self.timestamp, name="EQUATORIAL_EOD_COORD",
+                elements=[
+                    INumber(name="RA", label="RA (hh:mm:ss)", min=0, max=24, step=0, value=0, format="%010.6m"),
+                    INumber(name="DEC", label="DEC (dd:mm:ss)", min=-90, max=90, step=0, value=0, format="%010.6m"),
+                ],
+                label="Eq. Coordinates", group="Snooping",
+                perm=IPermission.RW,
+            ),
+            send_defVector=True,
+        )
+        # TODO: "EQUATORIAL_COORD" (J2000 coordinates from mount) are not used!
+        if False:
+            self.checkin(
+                INumberVector(
+                    device=self.device, timestamp=self.timestamp, name="EQUATORIAL_COORD",
+                    elements=[
+                        INumber(name="RA", label="RA (hh:mm:ss)", min=0, max=24, step=0, value=0, format="%010.6m"),
+                        INumber(name="DEC", label="DEC (dd:mm:ss)", min=-90, max=90, step=0, value=0, format="%010.6m"),
+                    ],
+                    label="Eq. J2000 Coordinates", group="Snooping",
+                    perm=IPermission.RW,
+                ),
+                send_defVector=True,
+            )
+        self.checkin(
+            ISwitchVector(
+                device=self.device, timestamp=self.timestamp, name="TELESCOPE_PIER_SIDE",
+                elements=[
+                    ISwitch(name="PIER_WEST", value=ISwitchState.ON, label="West (pointing east)"),
+                    ISwitch(name="PIER_EAST", value=ISwitchState.OFF, label="East (pointing west)"),
+                ],
+                label="Pier Side", group="Snooping",
+                rule=ISwitchRule.ONEOFMANY,
+            )
+        )
+        self.checkin(
+            INumberVector(
+                device=self.device, timestamp=self.timestamp, name="TELESCOPE_INFO",
+                elements=[
+                    INumber(name="TELESCOPE_APERTURE", label="Aperture (mm)", min=10, max=5000, step=0, value=0, format="%g"),
+                    INumber(name="TELESCOPE_FOCAL_LENGTH", label="Focal Length (mm)", min=10, max=10000, step=0, value=0, format="%g"),
+                    INumber(name="GUIDER_APERTURE", label="Guider Aperture (mm)", min=10, max=5000, step=0, value=0, format="%g"),
+                    INumber(name="GUIDER_FOCAL_LENGTH", label="Guider Focal Length (mm)", min=10, max=10000, step=0, value=0, format="%g"),
+                ],
+                label="Scope Properties", group="Snooping",
+                perm=IPermission.RW,
+            ),
+            send_defVector=True,
+        )
+        self.checkin(
+            ISwitchVector(
+                device=self.device, timestamp=self.timestamp, name="CAMERA_LENS",
+                elements=[
+                    ISwitch(name="PRIMARY_LENS", value=ISwitchState.ON, label="Primary"),
+                    ISwitch(name="GUIDER_LENS", value=ISwitchState.OFF, label="Guide"),
+                ],
+                label="Camera lens", group="Snooping",
+                rule=ISwitchRule.ONEOFMANY,
+            )
+        )
+        self.checkin(
+            ISwitchVector(
+                device=self.device, timestamp=self.timestamp, name="DO_SNOOPING",
+                elements=[
+                    ISwitch(name="SNOOP", label="Yes",
+                            value=ISwitchState.ON if self.config.getboolean("driver", "DoSnooping", fallback=True) else ISwitchState.OFF),
+                    ISwitch(name="NO_SNOOP", label="No",
+                            value=ISwitchState.OFF if self.config.getboolean("driver", "DoSnooping", fallback=True) else ISwitchState.ON),
+                ],
+                label="Do snooping", group="Snooping",
+                rule=ISwitchRule.ONEOFMANY,
+            )
+        )
+        # FIXME: changing "SNOOP_MOUNT" must start/stop snooping
         self.checkin(
             SnoopingVector(parent=self,),
             send_defVector=True,
@@ -778,19 +866,6 @@ class indi_pylibcamera(indidevice):
             send_defVector=True,
         )
         self.CameraVectorNames.append("UPLOAD_SETTINGS")
-        #
-        self.checkin(
-            INumberVector(
-                device=self.device, timestamp=self.timestamp, name="SCOPE_INFO",
-                elements=[
-                    INumber(name="FOCAL_LENGTH", label="Focal Length (mm)", min=10, max=10000, step=10, value=0, format="%.2f"),
-                    INumber(name="APERTURE", label="Aperture (mm)", min=10, max=3000, step=10, value=0, format="%.2f"),
-                ],
-                label="Scope", group="Options",
-            ),
-            send_defVector=True,
-        )
-        self.CameraVectorNames.append("SCOPE_INFO")
         #
         self.checkin(
             ISwitchVector(

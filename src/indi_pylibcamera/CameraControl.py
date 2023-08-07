@@ -338,110 +338,68 @@ class CameraControl:
         if self.parent.config.getboolean("driver", "DoSnooping", fallback=True):
             logging.info("Collecting snooped data.")
             #### FOCALLEN, APTDIA ####
-            # values in SCOPE_INFO vector have higher priority than snooped values from mount
-            if self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value > 0:
-                logging.debug("Taking focal length and aperture from SCOPE_INFO vector.")
-                FocalLength = self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value
-                FitsHeader += [
-                    ("FOCALLEN", FocalLength, "Focal Length (mm)"),
-                    ("APTDIA", self.parent.knownVectors["SCOPE_INFO"]["APERTURE"].value, "Telescope diameter (mm)"),
-                ]
+            if "PRIMARY_LENS" in self.parent.knownVectors["CAMERA_LENS"].get_OnSwitches():
+                Aperture = self.parent.knownVectors["TELESCOPE_INFO"]["TELESCOPE_APERTURE"].value
+                FocalLength = self.parent.knownVectors["TELESCOPE_INFO"]["TELESCOPE_FOCAL_LENGTH"].value
             else:
-                TelescopeInfo = self.parent.SnoopingManager.get_Elements("ACTIVE_TELESCOPE", "TELESCOPE_INFO")
-                try:
-                    FocalLength = float(TelescopeInfo["TELESCOPE_FOCAL_LENGTH"])
-                    Aperture = float(TelescopeInfo["TELESCOPE_APERTURE"])
-                except (ValueError, KeyError):
-                    # not float values or not in data!
-                    FocalLength = None  # invalid value for SCALE calculation
-                else:
-                    FitsHeader += [
-                        ("FOCALLEN", FocalLength, "Focal Length (mm)"),
-                        ("APTDIA", Aperture, "Telescope diameter (mm)"),
-                    ]
+                Aperture = self.parent.knownVectors["GUIDER_INFO"]["TELESCOPE_APERTURE"].value
+                FocalLength = self.parent.knownVectors["GUIDER_INFO"]["TELESCOPE_FOCAL_LENGTH"].value
+            FitsHeader += [
+                ("FOCALLEN", FocalLength, "Focal Length (mm)"),
+                ("APTDIA", Aperture, "Telescope diameter (mm)"),
+            ]
             #### SCALE ####
-            if (FocalLength is not None) and (FocalLength > 0):
+            if FocalLength > 0:
                 FitsHeader += [(
                     "SCALE",
                     0.206265 * self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0] / FocalLength,
                     "arcsecs per pixel"
                 ), ]
             #### SITELAT, SITELONG ####
-            ObsSite = self.parent.SnoopingManager.get_Elements("ACTIVE_TELESCOPE", "GEOGRAPHIC_COORD")
-            try:
-                Lat = float(ObsSite["LAT"])
-                Long = float(ObsSite["LONG"])
-                Height = float(ObsSite["ELEV"])
-            except (ValueError, KeyError):
-                # values are not float or not in data!
-                Lat = None
-                Long = None
-                Height = None
-            else:
-                FitsHeader += [
-                    ("SITELAT", Lat, "Latitude of the imaging site in degrees"),
-                    ("SITELONG", Long, "Longitude of the imaging site in degrees"),
-                ]
+            Lat = self.parent.knownVectors["GEOGRAPHIC_COORD"]["LAT"]
+            Long = self.parent.knownVectors["GEOGRAPHIC_COORD"]["LONG"]
+            Height = self.parent.knownVectors["GEOGRAPHIC_COORD"]["ELEV"]
+            FitsHeader += [
+                ("SITELAT", Lat, "Latitude of the imaging site in degrees"),
+                ("SITELONG", Long, "Longitude of the imaging site in degrees"),
+            ]
             ####
-            Coord = self.parent.SnoopingManager.get_Elements("ACTIVE_TELESCOPE", "EQUATORIAL_COORD")  # J2000 RA DEC
-            try:
-                J2000RA = float(Coord["RA"])
-                J2000DEC = float(Coord["DEC"])
-            except (ValueError, KeyError):
-                # values are not float or not in data!
-                J2000RA = None
-                J2000DEC = None
-            if J2000RA is not None:
-                # got J2000 coordinates from mount!
-                FitsHeade += [
-                    ("OBJCTRA", J2000.ra.to_string(unit=astropy.units.hour).replace("h", " ").replace("m", " ").replace("s", " "),
-                     "Object J2000 RA in Hours"),
-                    ("OBJCTDEC", J2000.dec.to_string(unit=astropy.units.deg).replace("d", " ").replace("m", " ").replace("s", " "),
-                     "Object J2000 DEC in Degrees"),
-                    ("RA", float(J2000.ra.degree), "Object J2000 RA in Degrees"),
-                    ("DEC", float(J2000.dec.degree), "Object J2000 DEC in Degrees")
+            # TODO: "EQUATORIAL_COORD" (J2000 coordinates from mount) are not used!
+            if False:
+                J2000RA = self.parent.knownVectors["EQUATORIAL_COORD"]["RA"]
+                J2000DEC = self.parent.knownVectors["EQUATORIAL_COORD"]["DEC"]
+                FitsHeader += [
+                    #("OBJCTRA", J2000.ra.to_string(unit=astropy.units.hour).replace("h", " ").replace("m", " ").replace("s", " "),
+                    # "Object J2000 RA in Hours"),
+                    #("OBJCTDEC", J2000.dec.to_string(unit=astropy.units.deg).replace("d", " ").replace("m", " ").replace("s", " "),
+                    # "Object J2000 DEC in Degrees"),
+                    ("RA", J2000RA, "Object J2000 RA in Degrees"),
+                    ("DEC", J2000DEC, "Object J2000 DEC in Degrees")
                 ]
                 # TODO: What about AIRMASS, OBJCTAZ and OBJCTALT?
-            else:
-                EodCoord = self.parent.SnoopingManager.get_Elements("ACTIVE_TELESCOPE", "EQUATORIAL_EOD_COORD")
-                try:
-                    RA = float(EodCoord["RA"])
-                    DEC = float(EodCoord["DEC"])
-                except (ValueError, KeyError):
-                    # values are not float or not in data!
-                    RA = None
-                    DEC = None
-                #### AIRMASS, OBJCTAZ, OBJCTALT, OBJCTRA, OBJCTDEC, RA, DEC ####
-                if (Lat is not None) and (RA is not None):
-                    ObsLoc = astropy.coordinates.EarthLocation(
-                        lon=Long * astropy.units.deg, lat=Lat * astropy.units.deg, height=Height * astropy.units.meter
-                    )
-                    c = astropy.coordinates.SkyCoord(ra=RA * astropy.units.hourangle, dec=DEC * astropy.units.deg)
-                    cAltAz = c.transform_to(astropy.coordinates.AltAz(obstime=astropy.time.Time(datetime.datetime.utcnow()), location=ObsLoc))
-                    J2000 = cAltAz.transform_to(astropy.coordinates.ICRS())
-                    #
-                    FitsHeader += [
-                        ("AIRMASS", float(cAltAz.secz), "Airmass"),
-                        ("OBJCTAZ", float(cAltAz.az/astropy.units.deg), "Azimuth of center of image in Degrees"),
-                        ("OBJCTALT", float(cAltAz.alt/astropy.units.deg), "Altitude of center of image in Degrees"),
-                        ("OBJCTRA", J2000.ra.to_string(unit=astropy.units.hour).replace("h", " ").replace("m", " ").replace("s", " "), "Object J2000 RA in Hours"),
-                        ("OBJCTDEC", J2000.dec.to_string(unit=astropy.units.deg).replace("d", " ").replace("m", " ").replace("s", " "), "Object J2000 DEC in Degrees"),
-                        ("RA", float(J2000.ra.degree), "Object J2000 RA in Degrees"),
-                        ("DEC", float(J2000.dec.degree), "Object J2000 DEC in Degrees")
-                    ]
+            #### AIRMASS, OBJCTAZ, OBJCTALT, OBJCTRA, OBJCTDEC, RA, DEC ####
+            RA = self.parent.knownVectors["EQUATORIAL_EOD_COORD"]["RA"]
+            DEC = self.parent.knownVectors["EQUATORIAL_EOD_COORD"]["DEC"]
+            ObsLoc = astropy.coordinates.EarthLocation(
+                lon=Long * astropy.units.deg, lat=Lat * astropy.units.deg, height=Height * astropy.units.meter
+            )
+            c = astropy.coordinates.SkyCoord(ra=RA * astropy.units.hourangle, dec=DEC * astropy.units.deg)
+            cAltAz = c.transform_to(astropy.coordinates.AltAz(obstime=astropy.time.Time(datetime.datetime.utcnow()), location=ObsLoc))
+            J2000 = cAltAz.transform_to(astropy.coordinates.ICRS())
+            FitsHeader += [
+                ("AIRMASS", float(cAltAz.secz), "Airmass"),
+                ("OBJCTAZ", float(cAltAz.az/astropy.units.deg), "Azimuth of center of image in Degrees"),
+                ("OBJCTALT", float(cAltAz.alt/astropy.units.deg), "Altitude of center of image in Degrees"),
+                ("OBJCTRA", J2000.ra.to_string(unit=astropy.units.hour).replace("h", " ").replace("m", " ").replace("s", " "), "Object J2000 RA in Hours"),
+                ("OBJCTDEC", J2000.dec.to_string(unit=astropy.units.deg).replace("d", " ").replace("m", " ").replace("s", " "), "Object J2000 DEC in Degrees"),
+                ("RA", float(J2000.ra.degree), "Object J2000 RA in Degrees"),
+                ("DEC", float(J2000.dec.degree), "Object J2000 DEC in Degrees")
+            ]
             #### PIERSIDE ####
-            PierSide = self.parent.SnoopingManager.get_Elements("ACTIVE_TELESCOPE", "TELESCOPE_PIER_SIDE")
-            try:
-                PierWest = PierSide["PIER_WEST"] == "On"
-                PierEast = PierSide["PIER_EAST"] == "On"
-            except KeyError:
-                # value not snooped
-                PierWest = False
-                PierEast = False
-            if PierEast:
+            if "PIER_WEST" in self.parent.knownVectors["TELESCOPE_PIER_SIDE"].get_OnSwitches():
                 FitsHeader += [("PIERSIDE", "WEST", "West, looking East"),]
-            elif PierWest:
-                FitsHeader += [("PIERSIDE", "EAST", "East, looking West"),]
+            else:
+                FitsHeader += [("PIERSIDE", "EAST", "East, looking West"), ]
             #### EQUINOX and DATE-OBS ####
             FitsHeader += [
                 ("EQUINOX", 2000, "Equinox"),
