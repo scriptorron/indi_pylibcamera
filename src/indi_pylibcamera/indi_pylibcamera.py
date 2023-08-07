@@ -502,7 +502,6 @@ class indi_pylibcamera(indidevice):
                 label="Polling", group="Options",
                 perm=IPermission.RW,
             ),
-            send_defVector=True,
         )
         # snooping
         self.checkin(
@@ -516,7 +515,6 @@ class indi_pylibcamera(indidevice):
                 label="Scope Location", group="Snooping",
                 perm=IPermission.RW,
             ),
-            send_defVector=True,
         )
         self.checkin(
             INumberVector(
@@ -528,7 +526,6 @@ class indi_pylibcamera(indidevice):
                 label="Eq. Coordinates", group="Snooping",
                 perm=IPermission.RW,
             ),
-            send_defVector=True,
         )
         # TODO: "EQUATORIAL_COORD" (J2000 coordinates from mount) are not used!
         if False:
@@ -542,7 +539,6 @@ class indi_pylibcamera(indidevice):
                     label="Eq. J2000 Coordinates", group="Snooping",
                     perm=IPermission.RW,
                 ),
-                send_defVector=True,
             )
         self.checkin(
             ISwitchVector(
@@ -567,7 +563,6 @@ class indi_pylibcamera(indidevice):
                 label="Scope Properties", group="Snooping",
                 perm=IPermission.RW,
             ),
-            send_defVector=True,
         )
         self.checkin(
             ISwitchVector(
@@ -601,7 +596,6 @@ class indi_pylibcamera(indidevice):
         if self.config.getboolean("driver", "PrintSnoopedValuesButton", fallback=False):
             self.checkin(
                 PrintSnoopedValuesVector(parent=self,),
-                send_defVector=True,
             )
 
     def exit_gracefully(self, sig, frame):
