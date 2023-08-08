@@ -3,6 +3,7 @@
 - more transparent implementation of snooping; snooped values are now also available as driver parameter
   (in tab "Snooping")
 - removed empty line and XML declaration from driver XML
+- added driver vectors for camera controls (allows to enable automatic exposure control and AWB)
 - minor improvements
 
 2.0.0
