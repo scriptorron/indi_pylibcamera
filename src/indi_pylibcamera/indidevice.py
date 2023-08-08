@@ -784,6 +784,24 @@ class indidevice:
         """
         self.knownVectors.checkout(name)
 
+    def setVector(self, name: str, element: str, value = None, state: IVectorState = None, send: bool = True):
+        """update vector value and/or state
+
+        Args:
+            name: vector name
+            element: element name in vector
+            value: new element value or None if unchanged
+            state: vector state or None if unchanged
+            send: send update to server
+        """
+        v = self.knownVectors[name]
+        if value is not None:
+            v[element] = value
+        if state is not None:
+            v.state = state
+        if send:
+            v.send_setVector()
+
     def run(self):
         """start device
         """

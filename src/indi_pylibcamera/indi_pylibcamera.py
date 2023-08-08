@@ -361,6 +361,24 @@ class SnoopingVector(ITextVector):
                         )
 
 
+class DoSnoopingVector(ISwitchVector):
+    """INDI SwitchVector to enable/disable snooping; gets initialized from config file
+    """
+
+    def __init__(self, parent):
+        self.parent = parent
+        config_DoSnooping = self.parent.config.getboolean("driver", "DoSnooping", fallback=True)
+        super().__init__(
+            device=self.parent.device, timestamp=self.parent.timestamp, name="DO_SNOOPING",
+            elements=[
+                ISwitch(name="SNOOP", label="Yes", value=ISwitchState.ON if config_DoSnooping else ISwitchState.OFF),
+                ISwitch(name="NO_SNOOP", label="No", value=ISwitchState.OFF if config_DoSnooping else ISwitchState.ON),
+            ],
+            label="Do snooping", group="Snooping",
+            rule=ISwitchRule.ONEOFMANY,
+        )
+
+
 class PrintSnoopedValuesVector(ISwitchVector):
     """Button that prints all snooped values as INFO in log
     """
@@ -568,29 +586,20 @@ class indi_pylibcamera(indidevice):
             )
         )
         self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, name="DO_SNOOPING",
-                elements=[
-                    ISwitch(name="SNOOP", label="Yes",
-                            value=ISwitchState.ON if self.config.getboolean("driver", "DoSnooping", fallback=True) else ISwitchState.OFF),
-                    ISwitch(name="NO_SNOOP", label="No",
-                            value=ISwitchState.OFF if self.config.getboolean("driver", "DoSnooping", fallback=True) else ISwitchState.ON),
-                ],
-                label="Do snooping", group="Snooping",
-                rule=ISwitchRule.ONEOFMANY,
-            )
+            DoSnoopingVector(parent=self, ),
         )
-        # FIXME: changing "SNOOP_MOUNT" must start/stop snooping
         self.checkin(
             SnoopingVector(parent=self,),
             send_defVector=True,
         )
         if self.config.getboolean("driver", "PrintSnoopedValuesButton", fallback=False):
             self.checkin(
-                PrintSnoopedValuesVector(parent=self,),
+                PrintSnoopedValuesVector(parent=self, ),
             )
 
     def exit_gracefully(self, sig, frame):
+        """exit driver on system signals
+        """
         logging.info("Exit triggered by SIGINT or SIGTERM")
         self.CameraThread.closeCamera()
         traceback.print_stack(frame)
@@ -930,24 +939,6 @@ class indi_pylibcamera(indidevice):
         self.knownVectors["RAW_FORMAT"].update_Binning()  # set binning according to frame type and raw format
         # finish
         return True
-
-    def setVector(self, name: str, element: str, value = None, state: IVectorState = None, send: bool = True):
-        """update vector value and/or state
-
-        Args:
-            name: vector name
-            element: element name in vector
-            value: new element value or None if unchanged
-            state: vector state or None if unchanged
-            send: send update to server
-        """
-        v = self.knownVectors[name]
-        if value is not None:
-            v[element] = value
-        if state is not None:
-            v.state = state
-        if send:
-            v.send_setVector()
 
     def startExposure(self, exposuretime):
         """start single or fast exposure
