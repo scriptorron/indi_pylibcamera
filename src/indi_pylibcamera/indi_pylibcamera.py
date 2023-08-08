@@ -200,8 +200,7 @@ class RawFormatVector(ISwitchVector):
 
     def update_Binning(self):
         if self.do_CameraAdjustments:
-            selectedFormat = self.parent.knownVectors["FRAME_TYPE"].get_OnSwitches()[0]
-            if selectedFormat == "FRAMETYPE_RAW":
+            if self.parent.knownVectors["FRAME_TYPE"]["FRAMETYPE_RAW"].value == ISwitchState.ON:
                 # set binning according to raw format
                 selectedRawMode = self.CameraThread.RawModes[self.get_OnSwitchesIdxs()[0]]
                 binning = selectedRawMode["binning"]
@@ -300,9 +299,8 @@ class BinningVector(INumberVector):
         """
         if self.do_CameraAdjustments:
             # allowed binning depends on FRAME_TYPE (raw or processed) and raw mode
-            selectedFormat = self.parent.knownVectors["FRAME_TYPE"].get_OnSwitches()[0]
             bestRawIdx = 1
-            if selectedFormat == "FRAMETYPE_RAW":
+            if self.parent.knownVectors["FRAME_TYPE"]["FRAMETYPE_RAW"].value == ISwitchState.ON:
                 # select best matching frame type
                 bestError = 1000000
                 for binning, RawIdx in self.RawBinningModes.items():

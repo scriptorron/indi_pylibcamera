@@ -249,6 +249,7 @@ class CameraControl:
                         logging.warning(f'Unsupported frame size {size} for imx708!')
             # add to list of raw formats
             raw_mode = {
+                "label": f'{size[0]}x{size[1]} {FITS_format} {sensor_mode["bit_depth"]}bit',
                 "size": size,
                 "true_size": true_size,
                 "camera_format": sensor_format,
@@ -256,7 +257,6 @@ class CameraControl:
                 "FITS_format": FITS_format,
                 "binning": binning,
             }
-            raw_mode["label"] = f'{raw_mode["size"][0]}x{raw_mode["size"][1]} {raw_mode["FITS_format"]} {raw_mode["bit_depth"]}bit'
             raw_modes.append(raw_mode)
         # sort list of raw formats by size in descending order
         raw_modes.sort(key=lambda k: k["size"][0] * k["size"][1], reverse=True)
@@ -335,77 +335,75 @@ class CameraControl:
             DATE-OBS= '2023-04-05T11:27:53.655' / UTC start date of observation
         """
         FitsHeader = []
-        if self.parent.config.getboolean("driver", "DoSnooping", fallback=True):
-            logging.info("Collecting snooped data.")
-            #### FOCALLEN, APTDIA ####
-            if "PRIMARY_LENS" in self.parent.knownVectors["CAMERA_LENS"].get_OnSwitches():
-                Aperture = self.parent.knownVectors["TELESCOPE_INFO"]["TELESCOPE_APERTURE"].value
-                FocalLength = self.parent.knownVectors["TELESCOPE_INFO"]["TELESCOPE_FOCAL_LENGTH"].value
-            else:
-                Aperture = self.parent.knownVectors["GUIDER_INFO"]["TELESCOPE_APERTURE"].value
-                FocalLength = self.parent.knownVectors["GUIDER_INFO"]["TELESCOPE_FOCAL_LENGTH"].value
+        #### FOCALLEN, APTDIA ####
+        if self.parent.knownVectors["CAMERA_LENS"]["PRIMARY_LENS"].value == ISwitchState.ON:
+            Aperture = self.parent.knownVectors["TELESCOPE_INFO"]["TELESCOPE_APERTURE"].value
+            FocalLength = self.parent.knownVectors["TELESCOPE_INFO"]["TELESCOPE_FOCAL_LENGTH"].value
+        else:
+            Aperture = self.parent.knownVectors["GUIDER_INFO"]["TELESCOPE_APERTURE"].value
+            FocalLength = self.parent.knownVectors["GUIDER_INFO"]["TELESCOPE_FOCAL_LENGTH"].value
+        FitsHeader += [
+            ("FOCALLEN", FocalLength, "Focal Length (mm)"),
+            ("APTDIA", Aperture, "Telescope diameter (mm)"),
+        ]
+        #### SCALE ####
+        if FocalLength > 0:
+            FitsHeader += [(
+                "SCALE",
+                0.206265 * self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0] / FocalLength,
+                "arcsecs per pixel"
+            ), ]
+        #### SITELAT, SITELONG ####
+        Lat = self.parent.knownVectors["GEOGRAPHIC_COORD"]["LAT"]
+        Long = self.parent.knownVectors["GEOGRAPHIC_COORD"]["LONG"]
+        Height = self.parent.knownVectors["GEOGRAPHIC_COORD"]["ELEV"]
+        FitsHeader += [
+            ("SITELAT", Lat, "Latitude of the imaging site in degrees"),
+            ("SITELONG", Long, "Longitude of the imaging site in degrees"),
+        ]
+        ####
+        # TODO: "EQUATORIAL_COORD" (J2000 coordinates from mount) are not used!
+        if False:
+            J2000RA = self.parent.knownVectors["EQUATORIAL_COORD"]["RA"]
+            J2000DEC = self.parent.knownVectors["EQUATORIAL_COORD"]["DEC"]
             FitsHeader += [
-                ("FOCALLEN", FocalLength, "Focal Length (mm)"),
-                ("APTDIA", Aperture, "Telescope diameter (mm)"),
+                #("OBJCTRA", J2000.ra.to_string(unit=astropy.units.hour).replace("h", " ").replace("m", " ").replace("s", " "),
+                # "Object J2000 RA in Hours"),
+                #("OBJCTDEC", J2000.dec.to_string(unit=astropy.units.deg).replace("d", " ").replace("m", " ").replace("s", " "),
+                # "Object J2000 DEC in Degrees"),
+                ("RA", J2000RA, "Object J2000 RA in Degrees"),
+                ("DEC", J2000DEC, "Object J2000 DEC in Degrees")
             ]
-            #### SCALE ####
-            if FocalLength > 0:
-                FitsHeader += [(
-                    "SCALE",
-                    0.206265 * self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0] / FocalLength,
-                    "arcsecs per pixel"
-                ), ]
-            #### SITELAT, SITELONG ####
-            Lat = self.parent.knownVectors["GEOGRAPHIC_COORD"]["LAT"]
-            Long = self.parent.knownVectors["GEOGRAPHIC_COORD"]["LONG"]
-            Height = self.parent.knownVectors["GEOGRAPHIC_COORD"]["ELEV"]
-            FitsHeader += [
-                ("SITELAT", Lat, "Latitude of the imaging site in degrees"),
-                ("SITELONG", Long, "Longitude of the imaging site in degrees"),
-            ]
-            ####
-            # TODO: "EQUATORIAL_COORD" (J2000 coordinates from mount) are not used!
-            if False:
-                J2000RA = self.parent.knownVectors["EQUATORIAL_COORD"]["RA"]
-                J2000DEC = self.parent.knownVectors["EQUATORIAL_COORD"]["DEC"]
-                FitsHeader += [
-                    #("OBJCTRA", J2000.ra.to_string(unit=astropy.units.hour).replace("h", " ").replace("m", " ").replace("s", " "),
-                    # "Object J2000 RA in Hours"),
-                    #("OBJCTDEC", J2000.dec.to_string(unit=astropy.units.deg).replace("d", " ").replace("m", " ").replace("s", " "),
-                    # "Object J2000 DEC in Degrees"),
-                    ("RA", J2000RA, "Object J2000 RA in Degrees"),
-                    ("DEC", J2000DEC, "Object J2000 DEC in Degrees")
-                ]
-                # TODO: What about AIRMASS, OBJCTAZ and OBJCTALT?
-            #### AIRMASS, OBJCTAZ, OBJCTALT, OBJCTRA, OBJCTDEC, RA, DEC ####
-            RA = self.parent.knownVectors["EQUATORIAL_EOD_COORD"]["RA"]
-            DEC = self.parent.knownVectors["EQUATORIAL_EOD_COORD"]["DEC"]
-            ObsLoc = astropy.coordinates.EarthLocation(
-                lon=Long * astropy.units.deg, lat=Lat * astropy.units.deg, height=Height * astropy.units.meter
-            )
-            c = astropy.coordinates.SkyCoord(ra=RA * astropy.units.hourangle, dec=DEC * astropy.units.deg)
-            cAltAz = c.transform_to(astropy.coordinates.AltAz(obstime=astropy.time.Time(datetime.datetime.utcnow()), location=ObsLoc))
-            J2000 = cAltAz.transform_to(astropy.coordinates.ICRS())
-            FitsHeader += [
-                ("AIRMASS", float(cAltAz.secz), "Airmass"),
-                ("OBJCTAZ", float(cAltAz.az/astropy.units.deg), "Azimuth of center of image in Degrees"),
-                ("OBJCTALT", float(cAltAz.alt/astropy.units.deg), "Altitude of center of image in Degrees"),
-                ("OBJCTRA", J2000.ra.to_string(unit=astropy.units.hour).replace("h", " ").replace("m", " ").replace("s", " "), "Object J2000 RA in Hours"),
-                ("OBJCTDEC", J2000.dec.to_string(unit=astropy.units.deg).replace("d", " ").replace("m", " ").replace("s", " "), "Object J2000 DEC in Degrees"),
-                ("RA", float(J2000.ra.degree), "Object J2000 RA in Degrees"),
-                ("DEC", float(J2000.dec.degree), "Object J2000 DEC in Degrees")
-            ]
-            #### PIERSIDE ####
-            if "PIER_WEST" in self.parent.knownVectors["TELESCOPE_PIER_SIDE"].get_OnSwitches():
-                FitsHeader += [("PIERSIDE", "WEST", "West, looking East"),]
-            else:
-                FitsHeader += [("PIERSIDE", "EAST", "East, looking West"), ]
-            #### EQUINOX and DATE-OBS ####
-            FitsHeader += [
-                ("EQUINOX", 2000, "Equinox"),
-                ("DATE-OBS", datetime.datetime.utcnow().isoformat(timespec="milliseconds"), "UTC start date of observation"),  # FIXME: this is end and not start time!
-            ]
-            logging.info("Finished collecting snooped data.")
+            # TODO: What about AIRMASS, OBJCTAZ and OBJCTALT?
+        #### AIRMASS, OBJCTAZ, OBJCTALT, OBJCTRA, OBJCTDEC, RA, DEC ####
+        RA = self.parent.knownVectors["EQUATORIAL_EOD_COORD"]["RA"]
+        DEC = self.parent.knownVectors["EQUATORIAL_EOD_COORD"]["DEC"]
+        ObsLoc = astropy.coordinates.EarthLocation(
+            lon=Long * astropy.units.deg, lat=Lat * astropy.units.deg, height=Height * astropy.units.meter
+        )
+        c = astropy.coordinates.SkyCoord(ra=RA * astropy.units.hourangle, dec=DEC * astropy.units.deg)
+        cAltAz = c.transform_to(astropy.coordinates.AltAz(obstime=astropy.time.Time(datetime.datetime.utcnow()), location=ObsLoc))
+        J2000 = cAltAz.transform_to(astropy.coordinates.ICRS())
+        FitsHeader += [
+            ("AIRMASS", float(cAltAz.secz), "Airmass"),
+            ("OBJCTAZ", float(cAltAz.az/astropy.units.deg), "Azimuth of center of image in Degrees"),
+            ("OBJCTALT", float(cAltAz.alt/astropy.units.deg), "Altitude of center of image in Degrees"),
+            ("OBJCTRA", J2000.ra.to_string(unit=astropy.units.hour).replace("h", " ").replace("m", " ").replace("s", " "), "Object J2000 RA in Hours"),
+            ("OBJCTDEC", J2000.dec.to_string(unit=astropy.units.deg).replace("d", " ").replace("m", " ").replace("s", " "), "Object J2000 DEC in Degrees"),
+            ("RA", float(J2000.ra.degree), "Object J2000 RA in Degrees"),
+            ("DEC", float(J2000.dec.degree), "Object J2000 DEC in Degrees")
+        ]
+        #### PIERSIDE ####
+        if self.parent.knownVectors["TELESCOPE_PIER_SIDE"]["PIER_WEST"].value == ISwitchState.ON:
+            FitsHeader += [("PIERSIDE", "WEST", "West, looking East"),]
+        else:
+            FitsHeader += [("PIERSIDE", "EAST", "East, looking West"), ]
+        #### EQUINOX and DATE-OBS ####
+        FitsHeader += [
+            ("EQUINOX", 2000, "Equinox"),
+            ("DATE-OBS", datetime.datetime.utcnow().isoformat(timespec="milliseconds"), "UTC start date of observation"),  # FIXME: this is end and not start time!
+        ]
+        logging.info("Finished collecting snooped data.")
         ####
         return FitsHeader
 
@@ -756,7 +754,7 @@ class CameraControl:
                         # make BLOB
                         logging.info(f"preparing frame as BLOB: {size} bytes")
                         bv = self.parent.knownVectors["CCD1"]
-                        compress = self.parent.knownVectors["CCD_COMPRESSION"].get_OnSwitches()[0] == "CCD_COMPRESS"
+                        compress = self.parent.knownVectors["CCD_COMPRESSION"]["CCD_COMPRESS"].value == ISwitchState.ON
                         bv["CCD1"].set_data(data=bstream.getbuffer(), format=".fits", compress=compress)
                         logging.info(f"sending BLOB")
                         bv.send_setVector()
