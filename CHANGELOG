@@ -2,6 +2,7 @@
 - improved driver exit when indiserver is closed (to avoid driver continue to run)
 - more transparent implementation of snooping; snooped values are now also available as driver parameter
   (in tab "Snooping")
+- removed empty line and XML declaration from driver XML
 - minor improvements
 
 2.0.0
