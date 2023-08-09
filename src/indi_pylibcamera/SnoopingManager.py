@@ -5,9 +5,9 @@ import logging
 
 
 class SnoopingManager:
-    def __init__(self, to_server_func, knownVectors):
+    def __init__(self, parent, to_server_func):
         self.to_server = to_server_func
-        self.knownVectors = knownVectors
+        self.parent = parent
         # snooped values: dict(device->dict(name->dict(elements)))
         self.snoopedValues = dict()
         # kind->device table
@@ -55,9 +55,9 @@ class SnoopingManager:
             if name in self.snoopedValues[device]:
                 self.snoopedValues[device][name] = values
                 logging.debug(f'snooped "{device}" - "{name}": {values}')
-                if ("DO_SNOOPING" in self.knownVectors) and ("SNOOP" in self.knownVectors["DO_SNOOPING"].get_OnSwitches()):
-                    if name in self.knownVectors:
-                        self.knownVectors[name].set_byClient(values)
+                if ("DO_SNOOPING" in self.parent.knownVectors) and ("SNOOP" in self.parent.knownVectors["DO_SNOOPING"].get_OnSwitches()):
+                    if name in self.parent.knownVectors:
+                        self.parent.knownVectors[name].set_byClient(values)
 
     def get_Elements(self, kind: str, name: str):
         """get elements of snooped vector with given kind

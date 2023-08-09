@@ -640,6 +640,11 @@ class IVectorList:
         for element in self.elements:
             yield element
 
+    def __contains__(self, name):
+        for element in self.elements:
+            if element.name == name:
+                return True
+
     def pop(self, name: str) -> IVector:
         """return and remove named vector
         """
@@ -693,7 +698,7 @@ class indidevice:
         # lock for device parameter
         self.knownVectorsLock = threading.Lock()
         # snooping
-        self.SnoopingManager = SnoopingManager.SnoopingManager(to_server_func=to_server, knownVectors=self.knownVectors)
+        self.SnoopingManager = SnoopingManager.SnoopingManager(parent=self, to_server_func=to_server)
 
 
     def send_Message(self, message: str, severity: str = "INFO", timestamp: bool = False):

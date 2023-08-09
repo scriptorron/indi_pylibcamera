@@ -792,11 +792,11 @@ class indi_pylibcamera(indidevice):
                 elements=[
                     # The CCD Simulator has here other names which are not conform to protocol specification:
                     # INDI_ENABLED and INDI_DISABLED
-                    ISwitch(name="INDI_ENABLED", label="Compressed", value=ISwitchState.OFF),
-                    ISwitch(name="INDI_DISABLED", label="Uncompressed", value=ISwitchState.ON),
+                    #ISwitch(name="INDI_ENABLED", label="Compressed", value=ISwitchState.OFF),
+                    #ISwitch(name="INDI_DISABLED", label="Uncompressed", value=ISwitchState.ON),
                     # Specification conform names are: CCD_COMPRESS and CCD_RAW
-                    #ISwitch(name="CCD_COMPRESS", label="Compressed", value=ISwitchState.OFF),
-                    #ISwitch(name="CCD_RAW", label="Uncompressed", value=ISwitchState.ON),
+                    ISwitch(name="CCD_COMPRESS", label="Compressed", value=ISwitchState.OFF),
+                    ISwitch(name="CCD_RAW", label="Uncompressed", value=ISwitchState.ON),
                 ],
                 label="Image compression", group="Image Settings",
                 rule=ISwitchRule.ONEOFMANY,
@@ -946,256 +946,275 @@ class indi_pylibcamera(indidevice):
         See picamera2 manual for details. Default values are set for manual exposure control.
         """
         # automatic exposure control
-        self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_AEENABLE", label="AeEnable", rule=ISwitchRule.ONEOFMANY,
-                elements=[
-                    ISwitch(name="INDI_ENABLED", label="Enabled", value=ISwitchState.OFF),
-                    ISwitch(name="INDI_DISABLED", label="Disabled", value=ISwitchState.ON),
-                ],
-            ),
-            send_defVector=send_defVector,
-        )
-        self.CameraVectorNames.append("CAMCTRL_AEENABLE")
+        if "AeEnable" in self.CameraThread.camera_controls:
+            self.checkin(
+                ISwitchVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_AEENABLE", label="AeEnable", rule=ISwitchRule.ONEOFMANY,
+                    elements=[
+                        ISwitch(name="INDI_ENABLED", label="Enabled", value=ISwitchState.OFF),
+                        ISwitch(name="INDI_DISABLED", label="Disabled", value=ISwitchState.ON),
+                    ],
+                ),
+                send_defVector=send_defVector,
+            )
+            self.CameraVectorNames.append("CAMCTRL_AEENABLE")
         #
-        self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_AECONSTRAINTMODE", label="AeConstraintMode", rule=ISwitchRule.ONEOFMANY,
-                elements=[
-                    ISwitch(name="NORMAL", label="Normal", value=ISwitchState.ON),
-                    ISwitch(name="HIGHLIGHT", label="Highlight", value=ISwitchState.OFF),
-                    ISwitch(name="SHADOWS", label="Shadows", value=ISwitchState.OFF),
-                    ISwitch(name="CUSTOM", label="Custom", value=ISwitchState.OFF),
-                ],
-            ),
-            send_defVector=send_defVector,
-        )
-        self.CameraVectorNames.append("CAMCTRL_AECONSTRAINTMODE")
+        if "AeConstraintMode" in self.CameraThread.camera_controls:
+            self.checkin(
+                ISwitchVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_AECONSTRAINTMODE", label="AeConstraintMode", rule=ISwitchRule.ONEOFMANY,
+                    elements=[
+                        ISwitch(name="NORMAL", label="Normal", value=ISwitchState.ON),
+                        ISwitch(name="HIGHLIGHT", label="Highlight", value=ISwitchState.OFF),
+                        ISwitch(name="SHADOWS", label="Shadows", value=ISwitchState.OFF),
+                        ISwitch(name="CUSTOM", label="Custom", value=ISwitchState.OFF),
+                    ],
+                ),
+                send_defVector=send_defVector,
+            )
+            self.CameraVectorNames.append("CAMCTRL_AECONSTRAINTMODE")
         #
-        self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_AEEXPOSUREMODE", label="AeExposureMode", rule=ISwitchRule.ONEOFMANY,
-                elements=[
-                    ISwitch(name="NORMAL", label="Normal", value=ISwitchState.ON),
-                    ISwitch(name="SHORT", label="Short", value=ISwitchState.OFF),
-                    ISwitch(name="LONG", label="Long", value=ISwitchState.OFF),
-                    ISwitch(name="CUSTOM", label="Custom", value=ISwitchState.OFF),
-                ],
-            ),
-            send_defVector=send_defVector,
-        )
-        self.CameraVectorNames.append("CAMCTRL_AEEXPOSUREMODE")
+        if "AeExposureMode" in self.CameraThread.camera_controls:
+            self.checkin(
+                ISwitchVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_AEEXPOSUREMODE", label="AeExposureMode", rule=ISwitchRule.ONEOFMANY,
+                    elements=[
+                        ISwitch(name="NORMAL", label="Normal", value=ISwitchState.ON),
+                        ISwitch(name="SHORT", label="Short", value=ISwitchState.OFF),
+                        ISwitch(name="LONG", label="Long", value=ISwitchState.OFF),
+                        ISwitch(name="CUSTOM", label="Custom", value=ISwitchState.OFF),
+                    ],
+                ),
+                send_defVector=send_defVector,
+            )
+            self.CameraVectorNames.append("CAMCTRL_AEEXPOSUREMODE")
         #
-        self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_AEMETERINGMODE", label="AeMeteringMode", rule=ISwitchRule.ONEOFMANY,
-                elements=[
-                    ISwitch(name="CENTREWEIGHTED", label="CentreWeighted", value=ISwitchState.ON),
-                    ISwitch(name="SPOT", label="Spot", value=ISwitchState.OFF),
-                    ISwitch(name="MATRIX", label="Matrix", value=ISwitchState.OFF),
-                    ISwitch(name="CUSTOM", label="Custom", value=ISwitchState.OFF),
-                ],
-            ),
-            send_defVector=send_defVector,
-        )
-        self.CameraVectorNames.append("CAMCTRL_AEMETERINGMODE")
+        if "AeMeteringMode" in self.CameraThread.camera_controls:
+            self.checkin(
+                ISwitchVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_AEMETERINGMODE", label="AeMeteringMode", rule=ISwitchRule.ONEOFMANY,
+                    elements=[
+                        ISwitch(name="CENTREWEIGHTED", label="CentreWeighted", value=ISwitchState.ON),
+                        ISwitch(name="SPOT", label="Spot", value=ISwitchState.OFF),
+                        ISwitch(name="MATRIX", label="Matrix", value=ISwitchState.OFF),
+                        ISwitch(name="CUSTOM", label="Custom", value=ISwitchState.OFF),
+                    ],
+                ),
+                send_defVector=send_defVector,
+            )
+            self.CameraVectorNames.append("CAMCTRL_AEMETERINGMODE")
         # automatic focus control
-        self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_AFMODE", label="AfMode", rule=ISwitchRule.ONEOFMANY,
-                elements=[
-                    ISwitch(name="MANUAL", label="Manual", value=ISwitchState.ON),
-                    ISwitch(name="AUTO", label="Auto", value=ISwitchState.OFF),
-                    ISwitch(name="CONTINUOUS", label="Continuous", value=ISwitchState.OFF),
-                ],
-            ),
-            send_defVector=send_defVector,
-        )
-        self.CameraVectorNames.append("CAMCTRL_AFMODE")
+        if "AfMode" in self.CameraThread.camera_controls:
+            self.checkin(
+                ISwitchVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_AFMODE", label="AfMode", rule=ISwitchRule.ONEOFMANY,
+                    elements=[
+                        ISwitch(name="MANUAL", label="Manual", value=ISwitchState.ON),
+                        ISwitch(name="AUTO", label="Auto", value=ISwitchState.OFF),
+                        ISwitch(name="CONTINUOUS", label="Continuous", value=ISwitchState.OFF),
+                    ],
+                ),
+                send_defVector=send_defVector,
+            )
+            self.CameraVectorNames.append("CAMCTRL_AFMODE")
         #
-        self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_AFMETERING", label="AfMetering", rule=ISwitchRule.ONEOFMANY,
-                elements=[
-                    ISwitch(name="AUTO", label="Auto", value=ISwitchState.ON),
-                    ISwitch(name="WINDOWS", label="Windows", value=ISwitchState.OFF),
-                ],
-            ),
-            send_defVector=send_defVector,
-        )
-        self.CameraVectorNames.append("CAMCTRL_AFMETERING")
+        if "AfMetering" in self.CameraThread.camera_controls:
+            self.checkin(
+                ISwitchVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_AFMETERING", label="AfMetering", rule=ISwitchRule.ONEOFMANY,
+                    elements=[
+                        ISwitch(name="AUTO", label="Auto", value=ISwitchState.ON),
+                        ISwitch(name="WINDOWS", label="Windows", value=ISwitchState.OFF),
+                    ],
+                ),
+                send_defVector=send_defVector,
+            )
+            self.CameraVectorNames.append("CAMCTRL_AFMETERING")
         #
-        self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_AFPAUSE", label="AfPause", rule=ISwitchRule.ONEOFMANY,
-                elements=[
-                    ISwitch(name="DEFERRED", label="Deferred", value=ISwitchState.ON),
-                    ISwitch(name="IMMEDIATE", label="Immediate", value=ISwitchState.OFF),
-                    ISwitch(name="RESUME", label="Resume", value=ISwitchState.OFF),
-                ],
-            ),
-            send_defVector=send_defVector,
-        )
-        self.CameraVectorNames.append("CAMCTRL_AFPAUSE")
+        if "AfPause" in self.CameraThread.camera_controls:
+            self.checkin(
+                ISwitchVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_AFPAUSE", label="AfPause", rule=ISwitchRule.ONEOFMANY,
+                    elements=[
+                        ISwitch(name="DEFERRED", label="Deferred", value=ISwitchState.ON),
+                        ISwitch(name="IMMEDIATE", label="Immediate", value=ISwitchState.OFF),
+                        ISwitch(name="RESUME", label="Resume", value=ISwitchState.OFF),
+                    ],
+                ),
+                send_defVector=send_defVector,
+            )
+            self.CameraVectorNames.append("CAMCTRL_AFPAUSE")
         #
-        self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_AFRANGE", label="AfRange", rule=ISwitchRule.ONEOFMANY,
-                elements=[
-                    ISwitch(name="NORMAL", label="Normal", value=ISwitchState.ON),
-                    ISwitch(name="MACRO", label="Macro", value=ISwitchState.OFF),
-                    ISwitch(name="FULL", label="Full", value=ISwitchState.OFF),
-                ],
-            ),
-            send_defVector=send_defVector,
-        )
-        self.CameraVectorNames.append("CAMCTRL_AFRANGE")
+        if "AfRange" in self.CameraThread.camera_controls:
+            self.checkin(
+                ISwitchVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_AFRANGE", label="AfRange", rule=ISwitchRule.ONEOFMANY,
+                    elements=[
+                        ISwitch(name="NORMAL", label="Normal", value=ISwitchState.ON),
+                        ISwitch(name="MACRO", label="Macro", value=ISwitchState.OFF),
+                        ISwitch(name="FULL", label="Full", value=ISwitchState.OFF),
+                    ],
+                ),
+                send_defVector=send_defVector,
+            )
+            self.CameraVectorNames.append("CAMCTRL_AFRANGE")
         #
-        self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_AFSPEED", label="AfSpeed", rule=ISwitchRule.ONEOFMANY,
-                elements=[
-                    ISwitch(name="NORMAL", label="Normal", value=ISwitchState.ON),
-                    ISwitch(name="FAST", label="Fast", value=ISwitchState.OFF),
-                ],
-            ),
-            send_defVector=send_defVector,
-        )
-        self.CameraVectorNames.append("CAMCTRL_AFSPEED")
+        if "AfSpeed" in self.CameraThread.camera_controls:
+            self.checkin(
+                ISwitchVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_AFSPEED", label="AfSpeed", rule=ISwitchRule.ONEOFMANY,
+                    elements=[
+                        ISwitch(name="NORMAL", label="Normal", value=ISwitchState.ON),
+                        ISwitch(name="FAST", label="Fast", value=ISwitchState.OFF),
+                    ],
+                ),
+                send_defVector=send_defVector,
+            )
+            self.CameraVectorNames.append("CAMCTRL_AFSPEED")
         #
-        self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_AFTRIGGER", label="AfTrigger", rule=ISwitchRule.ONEOFMANY,
-                elements=[
-                    ISwitch(name="START", label="Start", value=ISwitchState.ON),
-                    ISwitch(name="CANCEL", label="Cancel", value=ISwitchState.OFF),
-                ],
-            ),
-            send_defVector=send_defVector,
-        )
-        self.CameraVectorNames.append("CAMCTRL_AFTRIGGER")
+        if "AfTrigger" in self.CameraThread.camera_controls:
+            self.checkin(
+                ISwitchVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_AFTRIGGER", label="AfTrigger", rule=ISwitchRule.ONEOFMANY,
+                    elements=[
+                        ISwitch(name="START", label="Start", value=ISwitchState.ON),
+                        ISwitch(name="CANCEL", label="Cancel", value=ISwitchState.OFF),
+                    ],
+                ),
+                send_defVector=send_defVector,
+            )
+            self.CameraVectorNames.append("CAMCTRL_AFTRIGGER")
         # automatic white balance
-        self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_AWBENABLE", label="AwbEnable", rule=ISwitchRule.ONEOFMANY,
-                elements=[
-                    ISwitch(name="INDI_ENABLED", label="Enabled", value=ISwitchState.OFF),
-                    ISwitch(name="INDI_DISABLED", label="Disabled", value=ISwitchState.ON),
-                ],
-            ),
-            send_defVector=send_defVector,
-        )
-        self.CameraVectorNames.append("CAMCTRL_AWBENABLE")
+        if "AwbEnable" in self.CameraThread.camera_controls:
+            self.checkin(
+                ISwitchVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_AWBENABLE", label="AwbEnable", rule=ISwitchRule.ONEOFMANY,
+                    elements=[
+                        ISwitch(name="INDI_ENABLED", label="Enabled", value=ISwitchState.OFF),
+                        ISwitch(name="INDI_DISABLED", label="Disabled", value=ISwitchState.ON),
+                    ],
+                ),
+                send_defVector=send_defVector,
+            )
+            self.CameraVectorNames.append("CAMCTRL_AWBENABLE")
         #
-        self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_AWBMODE", label="AwbMode", rule=ISwitchRule.ONEOFMANY,
-                elements=[
-                    ISwitch(name="AUTO", label="Auto", value=ISwitchState.ON),
-                    ISwitch(name="TUNGSTEN", label="Tungsten", value=ISwitchState.OFF),
-                    ISwitch(name="FLUORESCENT", label="Fluorescent", value=ISwitchState.OFF),
-                    ISwitch(name="INDOOR", label="Indoor", value=ISwitchState.OFF),
-                    ISwitch(name="DAYLIGHT", label="Daylight", value=ISwitchState.OFF),
-                    ISwitch(name="CLOUDY", label="Cloudy", value=ISwitchState.OFF),
-                    ISwitch(name="CUSTOM", label="Custom", value=ISwitchState.OFF),
-                ],
-            ),
-            send_defVector=send_defVector,
-        )
-        self.CameraVectorNames.append("CAMCTRL_AWBMODE")
+        if "AwbMode" in self.CameraThread.camera_controls:
+            self.checkin(
+                ISwitchVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_AWBMODE", label="AwbMode", rule=ISwitchRule.ONEOFMANY,
+                    elements=[
+                        ISwitch(name="AUTO", label="Auto", value=ISwitchState.ON),
+                        ISwitch(name="TUNGSTEN", label="Tungsten", value=ISwitchState.OFF),
+                        ISwitch(name="FLUORESCENT", label="Fluorescent", value=ISwitchState.OFF),
+                        ISwitch(name="INDOOR", label="Indoor", value=ISwitchState.OFF),
+                        ISwitch(name="DAYLIGHT", label="Daylight", value=ISwitchState.OFF),
+                        ISwitch(name="CLOUDY", label="Cloudy", value=ISwitchState.OFF),
+                        ISwitch(name="CUSTOM", label="Custom", value=ISwitchState.OFF),
+                    ],
+                ),
+                send_defVector=send_defVector,
+            )
+            self.CameraVectorNames.append("CAMCTRL_AWBMODE")
         # brightness, contrast and color adjustments
-        self.checkin(
-            INumberVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_BRIGHTNESS", label="Brightness",
-                elements=[
-                    INumber(name="BRIGHTNESS", label="Brightness", min=-1.0, max=1.0, step=0.1, value=0.0, format="%.1f"),
-                ],
-            ),
-        )
-        self.CameraVectorNames.append("CAMCTRL_BRIGHTNESS")
+        if "Brightness" in self.CameraThread.camera_controls:
+            self.checkin(
+                INumberVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_BRIGHTNESS", label="Brightness",
+                    elements=[
+                        INumber(name="BRIGHTNESS", label="Brightness", min=-1.0, max=1.0, step=0.1, value=0.0, format="%.1f"),
+                    ],
+                ),
+            )
+            self.CameraVectorNames.append("CAMCTRL_BRIGHTNESS")
         #
-        self.checkin(
-            INumberVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_COLOURGAINS", label="ColourGains",  # only used when CAMCTRL_AWBENABLE disabled
-                elements=[
-                    INumber(name="REDGAIN", label="Red gain", min=0.0, max=32.0, step=0, value=2.0, format="%.2f"),
-                    INumber(name="BLUEGAIN", label="Blue gain", min=0.0, max=32.0, step=0, value=2.0, format="%.2f"),
-                ],
-            ),
-        )
-        self.CameraVectorNames.append("CAMCTRL_COLOURGAINS")
+        if "ColourGains" in self.CameraThread.camera_controls:
+            self.checkin(
+                INumberVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_COLOURGAINS", label="ColourGains",  # only used when CAMCTRL_AWBENABLE disabled
+                    elements=[
+                        INumber(name="REDGAIN", label="Red gain", min=0.0, max=32.0, step=0.1, value=2.0, format="%.2f"),
+                        INumber(name="BLUEGAIN", label="Blue gain", min=0.0, max=32.0, step=0.1, value=2.0, format="%.2f"),
+                    ],
+                ),
+            )
+            self.CameraVectorNames.append("CAMCTRL_COLOURGAINS")
         #
-        self.checkin(
-            INumberVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_CONTRAST", label="Contrast",
-                elements=[
-                    INumber(name="CONTRAST", label="Contrast", min=0.0, max=32.0, step=0, value=1.0, format="%.2f"),
-                ],
-            ),
-        )
-        self.CameraVectorNames.append("CAMCTRL_CONTRAST")
+        if "Contrast" in self.CameraThread.camera_controls:
+            self.checkin(
+                INumberVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_CONTRAST", label="Contrast",
+                    elements=[
+                        INumber(name="CONTRAST", label="Contrast", min=0.0, max=32.0, step=0.1, value=1.0, format="%.2f"),
+                    ],
+                ),
+            )
+            self.CameraVectorNames.append("CAMCTRL_CONTRAST")
         #
-        self.checkin(
-            INumberVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_EXPOSUREVALUE", label="ExposureValue",
-                elements=[
-                    INumber(name="EXPOSUREVALUE", label="ExposureValue", min=-8.0, max=8.0, step=0, value=0.0, format="%.1f"),
-                ],
-            ),
-        )
-        self.CameraVectorNames.append("CAMCTRL_EXPOSUREVALUE")
+        if "ExposureValue" in self.CameraThread.camera_controls:
+            self.checkin(
+                INumberVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_EXPOSUREVALUE", label="ExposureValue",
+                    elements=[
+                        INumber(name="EXPOSUREVALUE", label="ExposureValue", min=-8.0, max=8.0, step=0.1, value=0.0, format="%.1f"),
+                    ],
+                ),
+            )
+            self.CameraVectorNames.append("CAMCTRL_EXPOSUREVALUE")
         # misc
-        self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_NOISEREDUCTIONMODE", label="NoiseReductionMode", rule=ISwitchRule.ONEOFMANY,
-                elements=[
-                    ISwitch(name="OFF", label="Off", value=ISwitchState.ON),
-                    ISwitch(name="FAST", label="Fast", value=ISwitchState.OFF),
-                    ISwitch(name="HIGHQUALITY", label="HighQuality", value=ISwitchState.OFF),
-                ],
-            ),
-            send_defVector=send_defVector,
-        )
-        self.CameraVectorNames.append("CAMCTRL_NOISEREDUCTIONMODE")
+        if "NoiseReductionMode" in self.CameraThread.camera_controls:
+            self.checkin(
+                ISwitchVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_NOISEREDUCTIONMODE", label="NoiseReductionMode", rule=ISwitchRule.ONEOFMANY,
+                    elements=[
+                        ISwitch(name="OFF", label="Off", value=ISwitchState.ON),
+                        ISwitch(name="FAST", label="Fast", value=ISwitchState.OFF),
+                        ISwitch(name="HIGHQUALITY", label="HighQuality", value=ISwitchState.OFF),
+                    ],
+                ),
+                send_defVector=send_defVector,
+            )
+            self.CameraVectorNames.append("CAMCTRL_NOISEREDUCTIONMODE")
         #
-        self.checkin(
-            INumberVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_SATURATION", label="Saturation",
-                elements=[
-                    INumber(name="SATURATION", label="Saturation", min=0.0, max=32.0, step=0, value=1.0, format="%.2f"),
-                ],
-            ),
-        )
-        self.CameraVectorNames.append("CAMCTRL_SATURATION")
+        if "Saturation" in self.CameraThread.camera_controls:
+            self.checkin(
+                INumberVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_SATURATION", label="Saturation",
+                    elements=[
+                        INumber(name="SATURATION", label="Saturation", min=0.0, max=32.0, step=0.1, value=1.0, format="%.2f"),
+                    ],
+                ),
+            )
+            self.CameraVectorNames.append("CAMCTRL_SATURATION")
         #
-        self.checkin(
-            INumberVector(
-                device=self.device, timestamp=self.timestamp, group=group,
-                name="CAMCTRL_SHARPNESS", label="Sharpness",
-                elements=[
-                    INumber(name="SHARPNESS", label="Sharpness", min=0.0, max=16.0, step=0, value=1.0, format="%.2f"),
-                ],
-            ),
-        )
-        self.CameraVectorNames.append("CAMCTRL_SHARPNESS")
+        if "Sharpness" in self.CameraThread.camera_controls:
+            self.checkin(
+                INumberVector(
+                    device=self.device, timestamp=self.timestamp, group=group,
+                    name="CAMCTRL_SHARPNESS", label="Sharpness",
+                    elements=[
+                        INumber(name="SHARPNESS", label="Sharpness", min=0.0, max=16.0, step=0.1, value=0.0, format="%.2f"),
+                    ],
+                ),
+            )
+            self.CameraVectorNames.append("CAMCTRL_SHARPNESS")
 
 
     def startExposure(self, exposuretime):

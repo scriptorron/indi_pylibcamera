@@ -25,79 +25,131 @@ class CameraSettings:
     """exposure settings
     """
 
-    def __init__(
-            self,
-            ExposureTime=None, AGain=None, DoFastExposure=None, DoRaw=None, ProcSize=None, RawMode=None, Binning=None,
-            AeEnable=None, AeConstraintMode=None, AeExposureMode=None, AeMeteringMode=None,
-            AfMode=None, AfMetering=None, AfPause=None, AfRange=None, AfSpeed=None, AfTrigger=None,
-            AwbEnable=None, AwbMode=None, Brightness=None, ColourGains=None, Contrast=None, ExposureValue=None,
-            NoiseReductionMode=None, Saturation=None, Sharpness=None
-    ):
-        """constructor
+    def __init__(self):
+        self.ExposureTime = None
+        self.DoFastExposure = None
+        self.DoRaw = None
+        self.ProcSize = None
+        self.RawMode = None
+        self.Binning = None
+        self.camera_controls = None
 
-        Args:
-            ExposureTime: exposure time in seconds
-            AGain: analogue gain
-            DoFastExposure: enable fast exposure were next exposure starts immediately after previous
-            DoRaw: enable RAW captures
-            ProcSize: size (X,Y)) of processed frame
-            RawMode: RAW mode to use for RAW capture
-            ...
-        """
+    def update(self, ExposureTime, knownVectors, advertised_camera_controls, has_RawModes):
         self.ExposureTime = ExposureTime
-        self.AGain = AGain
-        self.DoFastExposure = DoFastExposure
-        self.DoRaw = DoRaw
-        self.ProcSize = ProcSize
-        self.RawMode = RawMode
-        self.Binning = Binning
-        self.AeEnable = AeEnable
-        self.AeConstraintMode = AeConstraintMode
-        self.AeExposureMode = AeExposureMode
-        self.AeMeteringMode = AeMeteringMode
-        self.AfMode = AfMode
-        self.AfMetering = AfMetering
-        self.AfPause = AfPause
-        self.AfRange = AfRange
-        self.AfSpeed = AfSpeed
-        self.AfTrigger = AfTrigger
-        self.AwbEnable = AwbEnable
-        self.AwbMode = AwbMode
-        self.Brightness = Brightness
-        self.ColourGains = ColourGains
-        self.Contrast = Contrast
-        self.ExposureValue = ExposureValue
-        self.NoiseReductionMode = NoiseReductionMode
-        self.Saturation = Saturation
-        self.Sharpness = Sharpness
+        self.DoFastExposure = knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON
+        self.DoRaw = knownVectors["FRAME_TYPE"]["FRAMETYPE_RAW"].value == ISwitchState.ON if has_RawModes else False
+        self.ProcSize = (
+            int(knownVectors["CCD_PROCFRAME"]["WIDTH"].value),
+            int(knownVectors["CCD_PROCFRAME"]["HEIGHT"].value)
+        )
+        self.RawMode = knownVectors["RAW_FORMAT"].get_SelectedRawMode() if has_RawModes else None
+        self.Binning = (int(knownVectors["CCD_BINNING"]["HOR_BIN"].value), int(knownVectors["CCD_BINNING"]["VER_BIN"].value)
+        )
+        self.camera_controls = {
+            "ExposureTime": int(ExposureTime * 1e6),
+            "AnalogueGain": knownVectors["CCD_GAIN"]["GAIN"].value,
+        }
+        if "AeEnable" in advertised_camera_controls:
+            self.camera_controls["AeEnable"] = knownVectors["CAMCTRL_AEENABLE"]["INDI_ENABLED"].value == ISwitchState.ON
+        if "AeConstraintMode" in advertised_camera_controls:
+            self.camera_controls["AeConstraintMode"] = {
+                "NORMAL": controls.AeConstraintModeEnum.Normal,
+                "HIGHLIGHT": controls.AeConstraintModeEnum.Highlight,
+                "SHADOWS": controls.AeConstraintModeEnum.Shadows,
+                "CUSTOM": controls.AeConstraintModeEnum.Custom,
+            }[knownVectors["CAMCTRL_AECONSTRAINTMODE"].get_OnSwitches()[0]]
+        if "AeExposureMode" in advertised_camera_controls:
+            self.camera_controls["AeExposureMode"] = {
+                "NORMAL": controls.AeExposureModeEnum.Normal,
+                "SHORT": controls.AeExposureModeEnum.Short,
+                "LONG": controls.AeExposureModeEnum.Long,
+                "CUSTOM": controls.AeExposureModeEnum.Custom,
+            }[knownVectors["CAMCTRL_AEEXPOSUREMODE"].get_OnSwitches()[0]]
+        if "AeMeteringMode" in advertised_camera_controls:
+            self.camera_controls["AeMeteringMode"] = {
+                "CENTREWEIGHTED": controls.AeMeteringModeEnum.CentreWeighted,
+                "SPOT": controls.AeMeteringModeEnum.Spot,
+                "MATRIX": controls.AeMeteringModeEnum.Matrix,
+                "CUSTOM": controls.AeMeteringModeEnum.Custom,
+            }[knownVectors["CAMCTRL_AEMETERINGMODE"].get_OnSwitches()[0]]
+        if "AfMode" in advertised_camera_controls:
+            self.camera_controls["AfMode"] = {
+                "MANUAL": controls.AfModeEnum.Manual,
+                "AUTO": controls.AfModeEnum.Auto,
+                "CONTINUOUS": controls.AfModeEnum.Continuous,
+            }[knownVectors["CAMCTRL_AFMODE"].get_OnSwitches()[0]]
+        if "AfMetering" in advertised_camera_controls:
+            self.camera_controls["AfMetering"] = {
+                "AUTO": controls.AfMeteringEnum.Auto,
+                "WINDOWS": controls.AfMeteringEnum.Windows,
+            }[knownVectors["CAMCTRL_AFMETERING"].get_OnSwitches()[0]]
+        if "AfPause" in advertised_camera_controls:
+            self.camera_controls["AfPause"] = {
+                "DEFERRED": controls.AfPauseEnum.Deferred,
+                "IMMEDIATE": controls.AfPauseEnum.Immediate,
+                "RESUME": controls.AfPauseEnum.Resume,
+            }[knownVectors["CAMCTRL_AFPAUSE"].get_OnSwitches()[0]]
+        if "AfRange" in advertised_camera_controls:
+            self.camera_controls["AfRange"] = {
+                "NORMAL": controls.AfRangeEnum.Normal,
+                "MACRO": controls.AfRangeEnum.Macro,
+                "FULL": controls.AfRangeEnum.Full,
+            }[knownVectors["CAMCTRL_AFRANGE"].get_OnSwitches()[0]]
+        if "AfSpeed" in advertised_camera_controls:
+            self.camera_controls["AfSpeed"] = {
+                "NORMAL": controls.AfSpeedEnum.Normal,
+                "FAST": controls.AfSpeedEnum.Fast,
+            }[knownVectors["CAMCTRL_AFSPEED"].get_OnSwitches()[0]]
+        if "AfTrigger " in advertised_camera_controls:
+            self.camera_controls["AfTrigger"] = {
+                "START": controls.AfTriggerEnum.Start,
+                "CANCEL": controls.AfTriggerEnum.Cancel,
+            }[knownVectors["CAMCTRL_AFTRIGGER"].get_OnSwitches()[0]]
+        if "AwbEnable" in advertised_camera_controls:
+            self.camera_controls["AwbEnable"] = knownVectors["CAMCTRL_AWBENABLE"]["INDI_ENABLED"].value == ISwitchState.ON
+        if "AwbMode" in advertised_camera_controls:
+            self.camera_controls["AwbMode"] = {
+                "AUTO": controls.AwbModeEnum.Auto,
+                "TUNGSTEN": controls.AwbModeEnum.Tungsten,
+                "FLUORESCENT": controls.AwbModeEnum.Fluorescent,
+                "INDOOR": controls.AwbModeEnum.Indoor,
+                "DAYLIGHT": controls.AwbModeEnum.Daylight,
+                "CLOUDY": controls.AwbModeEnum.Cloudy,
+                "CUSTOM": controls.AwbModeEnum.Custom,
+            }[knownVectors["CAMCTRL_AWBMODE"].get_OnSwitches()[0]]
+        if "Brightness" in advertised_camera_controls:
+            self.camera_controls["Brightness"] = knownVectors["CAMCTRL_BRIGHTNESS"]["BRIGHTNESS"].value
+        if "ColourGains" in advertised_camera_controls:
+            if not self.camera_controls["AwbEnable"]:
+                self.camera_controls["ColourGains"] = (
+                    knownVectors["CAMCTRL_COLOURGAINS"]["REDGAIN"].value,
+                    knownVectors["CAMCTRL_COLOURGAINS"]["BLUEGAIN"].value,
+                )
+        if "Contrast" in advertised_camera_controls:
+            self.camera_controls["Contrast"] = knownVectors["CAMCTRL_CONTRAST"]["CONTRAST"].value
+        if "ExposureValue" in advertised_camera_controls:
+            self.camera_controls["ExposureValue"] = knownVectors["CAMCTRL_EXPOSUREVALUE"]["EXPOSUREVALUE"].value
+        if "NoiseReductionMode" in advertised_camera_controls:
+                self.camera_controls["NoiseReductionMode"] = {
+                "OFF": controls.draft.NoiseReductionModeEnum.Off,
+                "FAST": controls.draft.NoiseReductionModeEnum.Fast,
+                "HIGHQUALITY": controls.draft.NoiseReductionModeEnum.HighQuality,
+            }[knownVectors["CAMCTRL_NOISEREDUCTIONMODE"].get_OnSwitches()[0]]
+        if "Saturation" in advertised_camera_controls:
+            self.camera_controls["Saturation"] = knownVectors["CAMCTRL_SATURATION"]["SATURATION"].value
+        if "Sharpness" in advertised_camera_controls:
+            self.camera_controls["Sharpness"] = knownVectors["CAMCTRL_SHARPNESS"]["SHARPNESS"].value
+
+    def get_controls(self):
+        return self.camera_controls
 
     def is_RestartNeeded(self, NewCameraSettings):
         """would using NewCameraSettings need a camera restart?
         """
         is_RestartNeeded = (
             self.is_ReconfigurationNeeded(NewCameraSettings)
-            or (self.ExposureTime != NewCameraSettings.ExposureTime)
-            or (self.AGain != NewCameraSettings.AGain)
-            or (self.AeEnable != NewCameraSettings.AeEnable)
-            or (self.AeConstraintMode != NewCameraSettings.AeConstraintMode)
-            or (self.AeExposureMode != NewCameraSettings.AeExposureMode)
-            or (self.AeMeteringMode != NewCameraSettings.AeMeteringMode)
-            or (self.AfMode != NewCameraSettings.AfMode)
-            or (self.AfMetering != NewCameraSettings.AfMetering)
-            or (self.AfPause != NewCameraSettings.AfPause)
-            or (self.AfRange != NewCameraSettings.AfRange)
-            or (self.AfSpeed != NewCameraSettings.AfSpeed)
-            or (self.AfTrigger != NewCameraSettings.AfTrigger)
-            or (self.AwbEnable != NewCameraSettings.AwbEnable)
-            or (self.AwbMode != NewCameraSettings.AwbMode)
-            or (self.Brightness != NewCameraSettings.Brightness)
-            or (self.ColourGains != NewCameraSettings.ColourGains)
-            or (self.Contrast != NewCameraSettings.Contrast)
-            or (self.ExposureValue != NewCameraSettings.ExposureValue)
-            or (self.NoiseReductionMode != NewCameraSettings.NoiseReductionMode)
-            or (self.Saturation != NewCameraSettings.Saturation)
-            or (self.Sharpness != NewCameraSettings.Sharpness)
-        )
+            or (self.camera_controls != NewCameraSettings.camera_controls)
+         )
         return is_RestartNeeded
 
     def is_ReconfigurationNeeded(self, NewCameraSettings):
@@ -112,8 +164,8 @@ class CameraSettings:
         return is_ReconfigurationNeeded
 
     def __str__(self):
-        return f'CameraSettings ExposureTime={self.ExposureTime}s, AGain={self.AGain}, ' + \
-            f'FastExposure={self.DoFastExposure}, DoRaw={self.DoRaw}, ProcSize={self.ProcSize}, RawMode={self.RawMode}'
+        return f'CameraSettings: FastExposure={self.DoFastExposure}, DoRaw={self.DoRaw}, ProcSize={self.ProcSize}, ` +\
+        `RawMode={self.RawMode}, CameraControls={self.camera_controls}'
 
     def __repr__(self):
         return str(self)
@@ -173,6 +225,7 @@ class CameraControl:
         self.max_ExposureTime = None
         self.min_AnalogueGain = None
         self.max_AnalogueGain = None
+        self.camera_controls = dict()
         # exposure loop control
         self.ExposureTime = 0.0
         self.Sig_Do = threading.Event() # do an action
@@ -210,6 +263,8 @@ class CameraControl:
         self.max_ExposureTime = None
         self.min_AnalogueGain = None
         self.max_AnalogueGain = None
+        self.camera_controls = dict()
+
 
     def getRawCameraModes(self):
         """get list of usable raw camera modes
@@ -341,9 +396,11 @@ class CameraControl:
         self.RawModes = self.getRawCameraModes()
         if self.IgnoreRawModes:
             self.RawModes = []
+        # camera controls
+        self.camera_controls = self.picam2.camera_controls
         # exposure time range
-        self.min_ExposureTime, self.max_ExposureTime, default_exp = self.picam2.camera_controls["ExposureTime"]
-        self.min_AnalogueGain, self.max_AnalogueGain, default_again = self.picam2.camera_controls["AnalogueGain"]
+        self.min_ExposureTime, self.max_ExposureTime, default_exp = self.camera_controls["ExposureTime"]
+        self.min_AnalogueGain, self.max_AnalogueGain, default_again = self.camera_controls["AnalogueGain"]
         # start exposure loop
         self.Sig_ActionExit.clear()
         self.Sig_ActionExpose.clear()
@@ -397,9 +454,9 @@ class CameraControl:
                 "arcsecs per pixel"
             ), ]
         #### SITELAT, SITELONG ####
-        Lat = self.parent.knownVectors["GEOGRAPHIC_COORD"]["LAT"]
-        Long = self.parent.knownVectors["GEOGRAPHIC_COORD"]["LONG"]
-        Height = self.parent.knownVectors["GEOGRAPHIC_COORD"]["ELEV"]
+        Lat = self.parent.knownVectors["GEOGRAPHIC_COORD"]["LAT"].value
+        Long = self.parent.knownVectors["GEOGRAPHIC_COORD"]["LONG"].value
+        Height = self.parent.knownVectors["GEOGRAPHIC_COORD"]["ELEV"].value
         FitsHeader += [
             ("SITELAT", Lat, "Latitude of the imaging site in degrees"),
             ("SITELONG", Long, "Longitude of the imaging site in degrees"),
@@ -407,8 +464,8 @@ class CameraControl:
         ####
         # TODO: "EQUATORIAL_COORD" (J2000 coordinates from mount) are not used!
         if False:
-            J2000RA = self.parent.knownVectors["EQUATORIAL_COORD"]["RA"]
-            J2000DEC = self.parent.knownVectors["EQUATORIAL_COORD"]["DEC"]
+            J2000RA = self.parent.knownVectors["EQUATORIAL_COORD"]["RA"].value
+            J2000DEC = self.parent.knownVectors["EQUATORIAL_COORD"]["DEC"].value
             FitsHeader += [
                 #("OBJCTRA", J2000.ra.to_string(unit=astropy.units.hour).replace("h", " ").replace("m", " ").replace("s", " "),
                 # "Object J2000 RA in Hours"),
@@ -419,8 +476,8 @@ class CameraControl:
             ]
             # TODO: What about AIRMASS, OBJCTAZ and OBJCTALT?
         #### AIRMASS, OBJCTAZ, OBJCTALT, OBJCTRA, OBJCTDEC, RA, DEC ####
-        RA = self.parent.knownVectors["EQUATORIAL_EOD_COORD"]["RA"]
-        DEC = self.parent.knownVectors["EQUATORIAL_EOD_COORD"]["DEC"]
+        RA = self.parent.knownVectors["EQUATORIAL_EOD_COORD"]["RA"].value
+        DEC = self.parent.knownVectors["EQUATORIAL_EOD_COORD"]["DEC"].value
         ObsLoc = astropy.coordinates.EarthLocation(
             lon=Long * astropy.units.deg, lat=Lat * astropy.units.deg, height=Height * astropy.units.meter
         )
@@ -642,85 +699,13 @@ class CameraControl:
                 raise RuntimeError("trying to make an exposure without camera opened")
             # get new camera settings for exposure
             has_RawModes = len(self.RawModes) > 0
+            NewCameraSettings = CameraSettings()
             with self.parent.knownVectorsLock:
-                NewCameraSettings = CameraSettings(
+                NewCameraSettings.update(
                     ExposureTime=self.ExposureTime,
-                    AGain=self.parent.knownVectors["CCD_GAIN"]["GAIN"].value,
-                    DoFastExposure=self.parent.knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON,
-                    DoRaw=self.parent.knownVectors["FRAME_TYPE"]["FRAMETYPE_RAW"].value == ISwitchState.ON if has_RawModes else False,
-                    ProcSize=(int(self.parent.knownVectors["CCD_PROCFRAME"]["WIDTH"].value), int(self.parent.knownVectors["CCD_PROCFRAME"]["HEIGHT"].value)),
-                    RawMode=self.parent.knownVectors["RAW_FORMAT"].get_SelectedRawMode() if has_RawModes else None,
-                    Binning=(int(self.parent.knownVectors["CCD_BINNING"]["HOR_BIN"].value), int(self.parent.knownVectors["CCD_BINNING"]["VER_BIN"].value)),
-                    AeEnable=self.parent.knownVectors["CAMCTRL_AEENABLE"]["INDI_ENABLED"].value == ISwitchState.ON,
-                    AeConstraintMode={
-                        "NORMAL": controls.draft.AeConstraintModeEnum.Normal,
-                        "HIGHLIGHT": controls.draft.AeConstraintModeEnum.Highlight,
-                        "SHADOWS": controls.draft.AeConstraintModeEnum.Shadows,
-                        "CUSTOM": controls.draft.AeConstraintModeEnum.Custom,
-                    }[self.parent.knownVectors["CAMCTRL_AECONSTRAINTMODE"].get_OnSwitches()[0]],
-                    AeExposureMode={
-                        "NORMAL": controls.draft.AeExposureModeEnum.Normal,
-                        "SHORT": controls.draft.AeExposureModeEnum.Short,
-                        "LONG": controls.draft.AeExposureModeEnum.Long,
-                        "CUSTOM": controls.draft.AeExposureModeEnum.Custom,
-                    }[self.parent.knownVectors["CAMCTRL_AEEXPOSUREMODE"].get_OnSwitches()[0]],
-                    AeMeteringMode={
-                        "CENTREWEIGHTED": controls.draft.AeMeteringModeEnum.CentreWeighted,
-                        "SPOT": controls.draft.AeMeteringModeEnum.Spot,
-                        "MATRIX": controls.draft.AeMeteringModeEnum.Matrix,
-                        "CUSTOM": controls.draft.AeMeteringModeEnum.Custom,
-                    }[self.parent.knownVectors["CAMCTRL_AEMETERINGMODE"].get_OnSwitches()[0]],
-                    AfMode={
-                        "MANUAL": controls.draft.AfModeEnum .Manual,
-                        "AUTO": controls.draft.AfModeEnum .Auto,
-                        "CONTINUOUS": controls.draft.AfModeEnum.Continuous,
-                    }[self.parent.knownVectors["CAMCTRL_AFMODE"].get_OnSwitches()[0]],
-                    AfMetering={
-                        "AUTO": controls.draft.AfMeteringEnum.Auto,
-                        "WINDOWS": controls.draft.AfMeteringEnum.Windows,
-                    }[self.parent.knownVectors["CAMCTRL_AFMETERING"].get_OnSwitches()[0]],
-                    AfPause={
-                        "DEFERRED": controls.draft.AfPauseEnum.Deferred,
-                        "IMMEDIATE": controls.draft.AfPauseEnum.Immediate,
-                        "RESUME": controls.draft.AfPauseEnum.Resume,
-                    }[self.parent.knownVectors["CAMCTRL_AFPAUSE"].get_OnSwitches()[0]],
-                    AfRange={
-                        "NORMAL": controls.draft.AfRangeEnum.Normal,
-                        "MACRO": controls.draft.AfRangeEnum.Macro,
-                        "FULL": controls.draft.AfRangeEnum.Full,
-                    }[self.parent.knownVectors["CAMCTRL_AFRANGE"].get_OnSwitches()[0]],
-                    AfSpeed={
-                        "NORMAL": controls.draft.AfSpeedEnum.Normal,
-                        "FAST": controls.draft.AfSpeedEnum.Fast,
-                    }[self.parent.knownVectors["CAMCTRL_AFSPEED"].get_OnSwitches()[0]],
-                    AfTrigger={
-                        "START": controls.draft.AfTriggerEnum.Start,
-                        "CANCEL": controls.draft.AfTriggerEnum.Cancel,
-                    }[self.parent.knownVectors["CAMCTRL_AFTRIGGER"].get_OnSwitches()[0]],
-                    AwbEnable=self.parent.knownVectors["CAMCTRL_AWBENABLE"]["INDI_ENABLED"].value == ISwitchState.ON,
-                    AwbMode={
-                        "AUTO": controls.draft.AwbModeEnum.Auto,
-                        "TUNGSTEN": controls.draft.AwbModeEnum.Tungsten,
-                        "FLUORESCENT": controls.draft.AwbModeEnum.Fluorescent,
-                        "INDOOR": controls.draft.AwbModeEnum.Indoor,
-                        "DAYLIGHT": controls.draft.AwbModeEnum.Daylight,
-                        "CLOUDY": controls.draft.AwbModeEnum.Cloudy,
-                        "CUSTOM": controls.draft.AwbModeEnum.Custom,
-                    }[self.parent.knownVectors["CAMCTRL_AWBMODE"].get_OnSwitches()[0]],
-                    Brightness=self.parent.knownVectors["CAMCTRL_BRIGHTNESS"]["BRIGHTNESS"].value,
-                    ColourGains=(
-                        self.parent.knownVectors["CAMCTRL_COLOURGAINS"]["REDGAIN"].value,
-                        self.parent.knownVectors["CAMCTRL_COLOURGAINS"]["BLUEGAIN"].value,
-                    ),
-                    Contrast=self.parent.knownVectors["CAMCTRL_CONTRAST"]["CONTRAST"].value,
-                    ExposureValue=self.parent.knownVectors["CAMCTRL_EXPOSUREVALUE"]["EXPOSUREVALUE"].value,
-                    NoiseReductionMode={
-                        "OFF": controls.draft.NoiseReductionModeEnum.Off,
-                        "FAST": controls.draft.NoiseReductionModeEnum.Fast,
-                        "HIGHQUALITY": controls.draft.NoiseReductionModeEnum.HighQuality,
-                    }[self.parent.knownVectors["CAMCTRL_NOISEREDUCTIONMODE"].get_OnSwitches()[0]],
-                    Saturation=self.parent.knownVectors["CAMCTRL_SATURATION"]["SATURATION"].value,
-                    Sharpness=self.parent.knownVectors["CAMCTRL_SHARPNESS"]["SHARPNESS"].value,
+                    knownVectors=self.parent.knownVectors,
+                    advertised_camera_controls=self.camera_controls,
+                    has_RawModes=has_RawModes,
                 )
             logging.info(f'exposure settings: {NewCameraSettings}')
             # need a camera stop/start when something has changed on exposure controls
@@ -757,35 +742,8 @@ class CameraControl:
                 self.picam2.configure(config)
             # changing exposure time or analogue gain needs a restart
             if IsRestartNeeded:
-                # exposure time and analog gain are controls
-                CameraControls = {
-                    "AeEnable": NewCameraSettings.AeEnable,  # AEC/AGC algorithm
-                    "AeConstraintMode": NewCameraSettings.AeConstraintMode,
-                    "AeExposureMode": NewCameraSettings.AeExposureMode,
-                    "AeMeteringMode": NewCameraSettings.AeMeteringMode,
-                    "AfMode": NewCameraSettings.AfMode,
-                    "AfMetering": NewCameraSettings.AfMetering,
-                    "AfPause": NewCameraSettings.AfPause,
-                    "AfRange": NewCameraSettings.AfRange,
-                    "AfSpeed": NewCameraSettings.AfSpeed,
-                    "AfTrigger": NewCameraSettings.AfTrigger,
-                    "AwbEnable": NewCameraSettings.AwbEnable,
-                    "AwbMode": NewCameraSettings.AwbMode,
-                    "Brightness": NewCameraSettings.Brightness,
-                    "Contrast": NewCameraSettings.Contrast,
-                    "ExposureValue": NewCameraSettings.ExposureValue,
-                    "NoiseReductionMode": NewCameraSettings.NoiseReductionMode,
-                    "Saturation": NewCameraSettings.Saturation,
-                    "Sharpness": NewCameraSettings.Sharpness,
-                    # controls for raw and main frames
-                    "AnalogueGain": NewCameraSettings.AGain,
-                    "ExposureTime": int(NewCameraSettings.ExposureTime * 1e6),
-                    # exposure time in us; needs to be integer!
-                }
-                if not NewCameraSettings.AwbEnable:
-                    # setting ColourGains automatically disables AWB, so we set it here only when AWB is disabled
-                    CameraControls["ColourGains"] = NewCameraSettings.ColourGains
-                self.picam2.set_controls(CameraControls)
+                # change camera controls
+                self.picam2.set_controls(NewCameraSettings.get_controls())
             # start camera if not already running in Fast Exposure mode
             if not self.picam2.started:
                 self.picam2.start()
