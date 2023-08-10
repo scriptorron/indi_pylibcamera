@@ -4,6 +4,7 @@
   (in tab "Snooping")
 - removed empty line and XML declaration from driver XML
 - added driver vectors for camera controls (allows to enable automatic exposure control and AWB)
+- added uninstall instructions in README.md
 - minor improvements
 
 2.0.0

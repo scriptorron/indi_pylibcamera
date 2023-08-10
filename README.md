@@ -39,6 +39,12 @@ The `indi_pylibcamera_postinstall` script creates in `/usr/share/indi` a symboli
 the driver available in the KStars/EKOS profile editor in "CCD"->"OTHERS". Not all versions ov KStars/ECOS support this
 (for instance it works with KStars 3.6.5 but not with KStars 3.4.3).
 
+## Uninstall
+For uninstalling the driver do:
+```commandline
+sudo rm -f /usr/share/indi/indi_pylibcamera.xml
+sudo pip uninstall install indi_pylibcamera
+```
 
 ## Running
 You can start the INDI server with `indiserver -v indi_pylibcamera`. When the server is running you can connect to
