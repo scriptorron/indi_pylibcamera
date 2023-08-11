@@ -15,7 +15,26 @@ cameras you can connect to a Raspberry Pi.
 ## Requirements and installation
 Some packages need to be installed with apt-get:
 - `libcamera` (if not already installed). You can test libcamera and the support
-for your camera with: `libcamera-hello --list-cameras`
+for your camera with: 
+  ```commandline
+  libcamera-hello --list-cameras
+  ```
+  You must be able to make RAW pictures in all modes. For instance `libcamera-hello` shows for the HQ camera:
+  ```
+  0 : imx477 [4056x3040] (/base/soc/i2c0mux/i2c@1/imx477@1a)
+    Modes: 'SRGGB10_CSI2P' : 1332x990 [120.05 fps - (696, 528)/2664x1980 crop]
+           'SRGGB12_CSI2P' : 2028x1080 [50.03 fps - (0, 440)/4056x2160 crop]
+                             2028x1520 [40.01 fps - (0, 0)/4056x3040 crop]
+                             4056x3040 [10.00 fps - (0, 0)/4056x3040 crop]
+  ```
+  and you must be able to run these commands without errors:
+  ```commandline
+  libcamera-still -r --mode 1332:990 --shutter 100000 --gain 1 --awbgains 1,1 --immediate -o test.jpg
+  libcamera-still -r --mode 2028:1080 --shutter 100000 --gain 1 --awbgains 1,1 --immediate -o test.jpg
+  libcamera-still -r --mode 2028:1520 --shutter 100000 --gain 1 --awbgains 1,1 --immediate -o test.jpg
+  libcamera-still -r --mode 4056:3040 --shutter 100000 --gain 1 --awbgains 1,1 --immediate -o test.jpg
+  ```
+  Something with your libcamera or kernel driver installation will be wrong if this does not work.
 - Install INDI core library. If there is no pre-compiled package for your hardware you will need to compile it
 by yourself. Instructions can be found here: https://github.com/indilib/indi. A Raspberry Pi Zero does not
 have enough RAM to compile with 4 threads in parallel: you need to do `make -j1` instead of `make -j4`. 
@@ -39,10 +58,17 @@ The `indi_pylibcamera_postinstall` script creates in `/usr/share/indi` a symboli
 the driver available in the KStars/EKOS profile editor in "CCD"->"OTHERS". Not all versions ov KStars/ECOS support this
 (for instance it works with KStars 3.6.5 but not with KStars 3.4.3).
 
+## Uninstall
+For uninstalling the driver do:
+```commandline
+sudo rm -f /usr/share/indi/indi_pylibcamera.xml
+sudo pip uninstall install indi_pylibcamera
+```
 
 ## Running
 You can start the INDI server with `indiserver -v indi_pylibcamera`. When the server is running you can connect to
-the server from another computer with an INDI client (for instance KStars/EKOS).
+the server from another computer with an INDI client (for instance KStars/EKOS). The camera name is the one
+you configure in `indi_pylibcamera.ini`.
 
 ## Global Configuration
 The driver uses a hierarchy of configuration files to set global parameter. These configuration files are loaded in the
@@ -79,7 +105,7 @@ When killing the indiserver sometimes the driver process continues to run. You c
 `ps ax | grep indi`
 
 
-If you get `python3 ././indi_pylibcamera.py` in the output the driver process is still running. In that case you must
+If you get a line containing `python3` and `indi_pylibcamera` in the output the driver process is still running. In that case you must
 kill the driver process manually before you restart the indiserver. Otherwise, you will get a libcamera error 
 when connecting to the camera.
 
@@ -186,8 +212,11 @@ PIERSIDE= 'WEST    '           / West, looking East
 EQUINOX =                 2000 / Equinox
 DATE-OBS= '2023-04-05T11:27:53.655' / UTC start date of observation
 ```
-This function is newly implemented. It is tested with the indi_simulator_telescope and the indi_synscan_telescope
-mount drivers. If you get trouble with this function you can disable snooping in the INI file.
+Snooping is configured on the "Snooping" tab of the driver. Here you can set the mount driver (ECOS should do this for
+you automatically). Furthermore you can set which lenses your camera uses (main or guide scope). When snooping is
+enabled the telescope location, sky coordinates and pier side should update automatically. With the buttons 
+"Do snooping" you can stop the updates. If you get trouble you can disable snooping in the INI file right from the
+driver start.
 
 A correct system time on you Raspberry Pi is absolutely needed for the calculation of the metadata. The Raspberry Pi
 does not have a battery powered realtime clock. It adjusts its system time from a time-server in the internet. If your
@@ -200,9 +229,16 @@ ssh -t YourUserName@YourPiName sudo date --set=`date -Iseconds`
 The driver uses "astropy" (https://www.astropy.org/) for coordinate transformations. When processing of the first image
 you make the "astropy" library needs a few seconds for initialization. This will not happen anymore for the next images.
 
-Snooping takes telescope focal length and aperture from the mount driver. It picks there the values of the main
-telescope. When your camera is on a different optic you can force aperture and focal length with the "Scope" setting 
-in the "Options" tap of the indi_pylibcamera driver.
+## Camera controls
+The driver tab "Camera controls" allows you to change low level camera settings. For instance you can enable the
+automatic exposure control (AeEnable) and the automatic white balance (AwbEnable) to get processed pictures in good
+light conditions.
+A detailed description of the camera controls can be found in appendix C of the `picamera2` manual
+(https://datasheets.raspberrypi.com/camera/picamera2-manual.pdf).
+
+Please be aware that most of the camera controls affect processed (RGB) pictures only. Do not use automatic exposure
+control or AWB when you plan to stack images.
+
 
 ## Known Limitations
 - The maximum exposure time of the V1 camera is about 1 second. This limitation is caused by libcamera and the kernel

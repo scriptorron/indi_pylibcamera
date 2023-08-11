@@ -25,36 +25,131 @@ class CameraSettings:
     """exposure settings
     """
 
-    def __init__(
-            self,
-            ExposureTime=None, AGain=None, DoFastExposure=None, DoRaw=None, ProcSize=None, RawMode=None, Binning=None
-    ):
-        """constructor
+    def __init__(self):
+        self.ExposureTime = None
+        self.DoFastExposure = None
+        self.DoRaw = None
+        self.ProcSize = None
+        self.RawMode = None
+        self.Binning = None
+        self.camera_controls = None
 
-        Args:
-            ExposureTime: exposure time in seconds
-            AGain: analogue gain
-            DoFastExposure: enable fast exposure were next exposure starts immediately after previous
-            DoRaw: enable RAW captures
-            ProcSize: size (X,Y)) of processed frame
-            RawMode: RAW mode to use for RAW capture
-        """
+    def update(self, ExposureTime, knownVectors, advertised_camera_controls, has_RawModes):
         self.ExposureTime = ExposureTime
-        self.AGain = AGain
-        self.DoFastExposure = DoFastExposure
-        self.DoRaw = DoRaw
-        self.ProcSize = ProcSize
-        self.RawMode = RawMode
-        self.Binning = Binning
+        self.DoFastExposure = knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON
+        self.DoRaw = knownVectors["FRAME_TYPE"]["FRAMETYPE_RAW"].value == ISwitchState.ON if has_RawModes else False
+        self.ProcSize = (
+            int(knownVectors["CCD_PROCFRAME"]["WIDTH"].value),
+            int(knownVectors["CCD_PROCFRAME"]["HEIGHT"].value)
+        )
+        self.RawMode = knownVectors["RAW_FORMAT"].get_SelectedRawMode() if has_RawModes else None
+        self.Binning = (int(knownVectors["CCD_BINNING"]["HOR_BIN"].value), int(knownVectors["CCD_BINNING"]["VER_BIN"].value)
+        )
+        self.camera_controls = {
+            "ExposureTime": int(ExposureTime * 1e6),
+            "AnalogueGain": knownVectors["CCD_GAIN"]["GAIN"].value,
+        }
+        if "AeEnable" in advertised_camera_controls:
+            self.camera_controls["AeEnable"] = knownVectors["CAMCTRL_AEENABLE"]["INDI_ENABLED"].value == ISwitchState.ON
+        if "AeConstraintMode" in advertised_camera_controls:
+            self.camera_controls["AeConstraintMode"] = {
+                "NORMAL": controls.AeConstraintModeEnum.Normal,
+                "HIGHLIGHT": controls.AeConstraintModeEnum.Highlight,
+                "SHADOWS": controls.AeConstraintModeEnum.Shadows,
+                "CUSTOM": controls.AeConstraintModeEnum.Custom,
+            }[knownVectors["CAMCTRL_AECONSTRAINTMODE"].get_OnSwitches()[0]]
+        if "AeExposureMode" in advertised_camera_controls:
+            self.camera_controls["AeExposureMode"] = {
+                "NORMAL": controls.AeExposureModeEnum.Normal,
+                "SHORT": controls.AeExposureModeEnum.Short,
+                "LONG": controls.AeExposureModeEnum.Long,
+                "CUSTOM": controls.AeExposureModeEnum.Custom,
+            }[knownVectors["CAMCTRL_AEEXPOSUREMODE"].get_OnSwitches()[0]]
+        if "AeMeteringMode" in advertised_camera_controls:
+            self.camera_controls["AeMeteringMode"] = {
+                "CENTREWEIGHTED": controls.AeMeteringModeEnum.CentreWeighted,
+                "SPOT": controls.AeMeteringModeEnum.Spot,
+                "MATRIX": controls.AeMeteringModeEnum.Matrix,
+                "CUSTOM": controls.AeMeteringModeEnum.Custom,
+            }[knownVectors["CAMCTRL_AEMETERINGMODE"].get_OnSwitches()[0]]
+        if "AfMode" in advertised_camera_controls:
+            self.camera_controls["AfMode"] = {
+                "MANUAL": controls.AfModeEnum.Manual,
+                "AUTO": controls.AfModeEnum.Auto,
+                "CONTINUOUS": controls.AfModeEnum.Continuous,
+            }[knownVectors["CAMCTRL_AFMODE"].get_OnSwitches()[0]]
+        if "AfMetering" in advertised_camera_controls:
+            self.camera_controls["AfMetering"] = {
+                "AUTO": controls.AfMeteringEnum.Auto,
+                "WINDOWS": controls.AfMeteringEnum.Windows,
+            }[knownVectors["CAMCTRL_AFMETERING"].get_OnSwitches()[0]]
+        if "AfPause" in advertised_camera_controls:
+            self.camera_controls["AfPause"] = {
+                "DEFERRED": controls.AfPauseEnum.Deferred,
+                "IMMEDIATE": controls.AfPauseEnum.Immediate,
+                "RESUME": controls.AfPauseEnum.Resume,
+            }[knownVectors["CAMCTRL_AFPAUSE"].get_OnSwitches()[0]]
+        if "AfRange" in advertised_camera_controls:
+            self.camera_controls["AfRange"] = {
+                "NORMAL": controls.AfRangeEnum.Normal,
+                "MACRO": controls.AfRangeEnum.Macro,
+                "FULL": controls.AfRangeEnum.Full,
+            }[knownVectors["CAMCTRL_AFRANGE"].get_OnSwitches()[0]]
+        if "AfSpeed" in advertised_camera_controls:
+            self.camera_controls["AfSpeed"] = {
+                "NORMAL": controls.AfSpeedEnum.Normal,
+                "FAST": controls.AfSpeedEnum.Fast,
+            }[knownVectors["CAMCTRL_AFSPEED"].get_OnSwitches()[0]]
+        if "AfTrigger " in advertised_camera_controls:
+            self.camera_controls["AfTrigger"] = {
+                "START": controls.AfTriggerEnum.Start,
+                "CANCEL": controls.AfTriggerEnum.Cancel,
+            }[knownVectors["CAMCTRL_AFTRIGGER"].get_OnSwitches()[0]]
+        if "AwbEnable" in advertised_camera_controls:
+            self.camera_controls["AwbEnable"] = knownVectors["CAMCTRL_AWBENABLE"]["INDI_ENABLED"].value == ISwitchState.ON
+        if "AwbMode" in advertised_camera_controls:
+            self.camera_controls["AwbMode"] = {
+                "AUTO": controls.AwbModeEnum.Auto,
+                "TUNGSTEN": controls.AwbModeEnum.Tungsten,
+                "FLUORESCENT": controls.AwbModeEnum.Fluorescent,
+                "INDOOR": controls.AwbModeEnum.Indoor,
+                "DAYLIGHT": controls.AwbModeEnum.Daylight,
+                "CLOUDY": controls.AwbModeEnum.Cloudy,
+                "CUSTOM": controls.AwbModeEnum.Custom,
+            }[knownVectors["CAMCTRL_AWBMODE"].get_OnSwitches()[0]]
+        if "Brightness" in advertised_camera_controls:
+            self.camera_controls["Brightness"] = knownVectors["CAMCTRL_BRIGHTNESS"]["BRIGHTNESS"].value
+        if "ColourGains" in advertised_camera_controls:
+            if not self.camera_controls["AwbEnable"]:
+                self.camera_controls["ColourGains"] = (
+                    knownVectors["CAMCTRL_COLOURGAINS"]["REDGAIN"].value,
+                    knownVectors["CAMCTRL_COLOURGAINS"]["BLUEGAIN"].value,
+                )
+        if "Contrast" in advertised_camera_controls:
+            self.camera_controls["Contrast"] = knownVectors["CAMCTRL_CONTRAST"]["CONTRAST"].value
+        if "ExposureValue" in advertised_camera_controls:
+            self.camera_controls["ExposureValue"] = knownVectors["CAMCTRL_EXPOSUREVALUE"]["EXPOSUREVALUE"].value
+        if "NoiseReductionMode" in advertised_camera_controls:
+                self.camera_controls["NoiseReductionMode"] = {
+                "OFF": controls.draft.NoiseReductionModeEnum.Off,
+                "FAST": controls.draft.NoiseReductionModeEnum.Fast,
+                "HIGHQUALITY": controls.draft.NoiseReductionModeEnum.HighQuality,
+            }[knownVectors["CAMCTRL_NOISEREDUCTIONMODE"].get_OnSwitches()[0]]
+        if "Saturation" in advertised_camera_controls:
+            self.camera_controls["Saturation"] = knownVectors["CAMCTRL_SATURATION"]["SATURATION"].value
+        if "Sharpness" in advertised_camera_controls:
+            self.camera_controls["Sharpness"] = knownVectors["CAMCTRL_SHARPNESS"]["SHARPNESS"].value
+
+    def get_controls(self):
+        return self.camera_controls
 
     def is_RestartNeeded(self, NewCameraSettings):
         """would using NewCameraSettings need a camera restart?
         """
         is_RestartNeeded = (
             self.is_ReconfigurationNeeded(NewCameraSettings)
-            or (self.ExposureTime != NewCameraSettings.ExposureTime)
-            or (self.AGain != NewCameraSettings.AGain)
-        )
+            or (self.camera_controls != NewCameraSettings.camera_controls)
+         )
         return is_RestartNeeded
 
     def is_ReconfigurationNeeded(self, NewCameraSettings):
@@ -69,8 +164,8 @@ class CameraSettings:
         return is_ReconfigurationNeeded
 
     def __str__(self):
-        return f'CameraSettings ExposureTime={self.ExposureTime}s, AGain={self.AGain}, ' + \
-            f'FastExposure={self.DoFastExposure}, DoRaw={self.DoRaw}, ProcSize={self.ProcSize}, RawMode={self.RawMode}'
+        return f'CameraSettings: FastExposure={self.DoFastExposure}, DoRaw={self.DoRaw}, ProcSize={self.ProcSize}, ` +\
+        `RawMode={self.RawMode}, CameraControls={self.camera_controls}'
 
     def __repr__(self):
         return str(self)
@@ -130,6 +225,7 @@ class CameraControl:
         self.max_ExposureTime = None
         self.min_AnalogueGain = None
         self.max_AnalogueGain = None
+        self.camera_controls = dict()
         # exposure loop control
         self.ExposureTime = 0.0
         self.Sig_Do = threading.Event() # do an action
@@ -167,6 +263,8 @@ class CameraControl:
         self.max_ExposureTime = None
         self.min_AnalogueGain = None
         self.max_AnalogueGain = None
+        self.camera_controls = dict()
+
 
     def getRawCameraModes(self):
         """get list of usable raw camera modes
@@ -249,6 +347,7 @@ class CameraControl:
                         logging.warning(f'Unsupported frame size {size} for imx708!')
             # add to list of raw formats
             raw_mode = {
+                "label": f'{size[0]}x{size[1]} {FITS_format} {sensor_mode["bit_depth"]}bit',
                 "size": size,
                 "true_size": true_size,
                 "camera_format": sensor_format,
@@ -256,7 +355,6 @@ class CameraControl:
                 "FITS_format": FITS_format,
                 "binning": binning,
             }
-            raw_mode["label"] = f'{raw_mode["size"][0]}x{raw_mode["size"][1]} {raw_mode["FITS_format"]} {raw_mode["bit_depth"]}bit'
             raw_modes.append(raw_mode)
         # sort list of raw formats by size in descending order
         raw_modes.sort(key=lambda k: k["size"][0] * k["size"][1], reverse=True)
@@ -298,9 +396,11 @@ class CameraControl:
         self.RawModes = self.getRawCameraModes()
         if self.IgnoreRawModes:
             self.RawModes = []
+        # camera controls
+        self.camera_controls = self.picam2.camera_controls
         # exposure time range
-        self.min_ExposureTime, self.max_ExposureTime, default_exp = self.picam2.camera_controls["ExposureTime"]
-        self.min_AnalogueGain, self.max_AnalogueGain, default_again = self.picam2.camera_controls["AnalogueGain"]
+        self.min_ExposureTime, self.max_ExposureTime, default_exp = self.camera_controls["ExposureTime"]
+        self.min_AnalogueGain, self.max_AnalogueGain, default_again = self.camera_controls["AnalogueGain"]
         # start exposure loop
         self.Sig_ActionExit.clear()
         self.Sig_ActionExpose.clear()
@@ -335,119 +435,75 @@ class CameraControl:
             DATE-OBS= '2023-04-05T11:27:53.655' / UTC start date of observation
         """
         FitsHeader = []
-        if self.parent.config.getboolean("driver", "DoSnooping", fallback=True):
-            logging.info("Collecting snooped data.")
-            #### FOCALLEN, APTDIA ####
-            # values in SCOPE_INFO vector have higher priority than snooped values from mount
-            if self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value > 0:
-                logging.debug("Taking focal length and aperture from SCOPE_INFO vector.")
-                FocalLength = self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value
-                FitsHeader += [
-                    ("FOCALLEN", FocalLength, "Focal Length (mm)"),
-                    ("APTDIA", self.parent.knownVectors["SCOPE_INFO"]["APERTURE"].value, "Telescope diameter (mm)"),
-                ]
-            else:
-                TelescopeInfo = self.parent.SnoopingManager.get_Elements("ACTIVE_TELESCOPE", "TELESCOPE_INFO")
-                try:
-                    FocalLength = float(TelescopeInfo["TELESCOPE_FOCAL_LENGTH"])
-                    Aperture = float(TelescopeInfo["TELESCOPE_APERTURE"])
-                except (ValueError, KeyError):
-                    # not float values or not in data!
-                    FocalLength = None  # invalid value for SCALE calculation
-                else:
-                    FitsHeader += [
-                        ("FOCALLEN", FocalLength, "Focal Length (mm)"),
-                        ("APTDIA", Aperture, "Telescope diameter (mm)"),
-                    ]
-            #### SCALE ####
-            if FocalLength is not None:
-                FitsHeader += [(
-                    "SCALE",
-                    0.206265 * self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0] / FocalLength,
-                    "arcsecs per pixel"
-                ), ]
-            #### SITELAT, SITELONG ####
-            ObsSite = self.parent.SnoopingManager.get_Elements("ACTIVE_TELESCOPE", "GEOGRAPHIC_COORD")
-            try:
-                Lat = float(ObsSite["LAT"])
-                Long = float(ObsSite["LONG"])
-                Height = float(ObsSite["ELEV"])
-            except (ValueError, KeyError):
-                # values are not float or not in data!
-                Lat = None
-                Long = None
-                Height = None
-            else:
-                FitsHeader += [
-                    ("SITELAT", Lat, "Latitude of the imaging site in degrees"),
-                    ("SITELONG", Long, "Longitude of the imaging site in degrees"),
-                ]
-            ####
-            Coord = self.parent.SnoopingManager.get_Elements("ACTIVE_TELESCOPE", "EQUATORIAL_COORD")  # J2000 RA DEC
-            try:
-                J2000RA = float(Coord["RA"])
-                J2000DEC = float(Coord["DEC"])
-            except (ValueError, KeyError):
-                # values are not float or not in data!
-                J2000RA = None
-                J2000DEC = None
-            if J2000RA is not None:
-                # got J2000 coordinates from mount!
-                FitsHeade += [
-                    ("OBJCTRA", J2000.ra.to_string(unit=astropy.units.hour).replace("h", " ").replace("m", " ").replace("s", " "),
-                     "Object J2000 RA in Hours"),
-                    ("OBJCTDEC", J2000.dec.to_string(unit=astropy.units.deg).replace("d", " ").replace("m", " ").replace("s", " "),
-                     "Object J2000 DEC in Degrees"),
-                    ("RA", float(J2000.ra.degree), "Object J2000 RA in Degrees"),
-                    ("DEC", float(J2000.dec.degree), "Object J2000 DEC in Degrees")
-                ]
-                # TODO: What about AIRMASS, OBJCTAZ and OBJCTALT?
-            else:
-                EodCoord = self.parent.SnoopingManager.get_Elements("ACTIVE_TELESCOPE", "EQUATORIAL_EOD_COORD")
-                try:
-                    RA = float(EodCoord["RA"])
-                    DEC = float(EodCoord["DEC"])
-                except (ValueError, KeyError):
-                    # values are not float or not in data!
-                    RA = None
-                    DEC = None
-                #### AIRMASS, OBJCTAZ, OBJCTALT, OBJCTRA, OBJCTDEC, RA, DEC ####
-                if (Lat is not None) and (RA is not None):
-                    ObsLoc = astropy.coordinates.EarthLocation(
-                        lon=Long * astropy.units.deg, lat=Lat * astropy.units.deg, height=Height * astropy.units.meter
-                    )
-                    c = astropy.coordinates.SkyCoord(ra=RA * astropy.units.hourangle, dec=DEC * astropy.units.deg)
-                    cAltAz = c.transform_to(astropy.coordinates.AltAz(obstime=astropy.time.Time(datetime.datetime.utcnow()), location=ObsLoc))
-                    J2000 = cAltAz.transform_to(astropy.coordinates.ICRS())
-                    #
-                    FitsHeader += [
-                        ("AIRMASS", float(cAltAz.secz), "Airmass"),
-                        ("OBJCTAZ", float(cAltAz.az/astropy.units.deg), "Azimuth of center of image in Degrees"),
-                        ("OBJCTALT", float(cAltAz.alt/astropy.units.deg), "Altitude of center of image in Degrees"),
-                        ("OBJCTRA", J2000.ra.to_string(unit=astropy.units.hour).replace("h", " ").replace("m", " ").replace("s", " "), "Object J2000 RA in Hours"),
-                        ("OBJCTDEC", J2000.dec.to_string(unit=astropy.units.deg).replace("d", " ").replace("m", " ").replace("s", " "), "Object J2000 DEC in Degrees"),
-                        ("RA", float(J2000.ra.degree), "Object J2000 RA in Degrees"),
-                        ("DEC", float(J2000.dec.degree), "Object J2000 DEC in Degrees")
-                    ]
-            #### PIERSIDE ####
-            PierSide = self.parent.SnoopingManager.get_Elements("ACTIVE_TELESCOPE", "TELESCOPE_PIER_SIDE")
-            try:
-                PierWest = PierSide["PIER_WEST"] == "On"
-                PierEast = PierSide["PIER_EAST"] == "On"
-            except KeyError:
-                # value not snooped
-                PierWest = False
-                PierEast = False
-            if PierEast:
-                FitsHeader += [("PIERSIDE", "WEST", "West, looking East"),]
-            elif PierWest:
-                FitsHeader += [("PIERSIDE", "EAST", "East, looking West"),]
-            #### EQUINOX and DATE-OBS ####
+        #### FOCALLEN, APTDIA ####
+        if self.parent.knownVectors["CAMERA_LENS"]["PRIMARY_LENS"].value == ISwitchState.ON:
+            Aperture = self.parent.knownVectors["TELESCOPE_INFO"]["TELESCOPE_APERTURE"].value
+            FocalLength = self.parent.knownVectors["TELESCOPE_INFO"]["TELESCOPE_FOCAL_LENGTH"].value
+        else:
+            Aperture = self.parent.knownVectors["GUIDER_INFO"]["TELESCOPE_APERTURE"].value
+            FocalLength = self.parent.knownVectors["GUIDER_INFO"]["TELESCOPE_FOCAL_LENGTH"].value
+        FitsHeader += [
+            ("FOCALLEN", FocalLength, "Focal Length (mm)"),
+            ("APTDIA", Aperture, "Telescope diameter (mm)"),
+        ]
+        #### SCALE ####
+        if FocalLength > 0:
+            FitsHeader += [(
+                "SCALE",
+                0.206265 * self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0] / FocalLength,
+                "arcsecs per pixel"
+            ), ]
+        #### SITELAT, SITELONG ####
+        Lat = self.parent.knownVectors["GEOGRAPHIC_COORD"]["LAT"].value
+        Long = self.parent.knownVectors["GEOGRAPHIC_COORD"]["LONG"].value
+        Height = self.parent.knownVectors["GEOGRAPHIC_COORD"]["ELEV"].value
+        FitsHeader += [
+            ("SITELAT", Lat, "Latitude of the imaging site in degrees"),
+            ("SITELONG", Long, "Longitude of the imaging site in degrees"),
+        ]
+        ####
+        # TODO: "EQUATORIAL_COORD" (J2000 coordinates from mount) are not used!
+        if False:
+            J2000RA = self.parent.knownVectors["EQUATORIAL_COORD"]["RA"].value
+            J2000DEC = self.parent.knownVectors["EQUATORIAL_COORD"]["DEC"].value
             FitsHeader += [
-                ("EQUINOX", 2000, "Equinox"),
-                ("DATE-OBS", datetime.datetime.utcnow().isoformat(timespec="milliseconds"), "UTC start date of observation"),  # FIXME: this is end and not start time!
+                #("OBJCTRA", J2000.ra.to_string(unit=astropy.units.hour).replace("h", " ").replace("m", " ").replace("s", " "),
+                # "Object J2000 RA in Hours"),
+                #("OBJCTDEC", J2000.dec.to_string(unit=astropy.units.deg).replace("d", " ").replace("m", " ").replace("s", " "),
+                # "Object J2000 DEC in Degrees"),
+                ("RA", J2000RA, "Object J2000 RA in Degrees"),
+                ("DEC", J2000DEC, "Object J2000 DEC in Degrees")
             ]
-            logging.info("Finished collecting snooped data.")
+            # TODO: What about AIRMASS, OBJCTAZ and OBJCTALT?
+        #### AIRMASS, OBJCTAZ, OBJCTALT, OBJCTRA, OBJCTDEC, RA, DEC ####
+        RA = self.parent.knownVectors["EQUATORIAL_EOD_COORD"]["RA"].value
+        DEC = self.parent.knownVectors["EQUATORIAL_EOD_COORD"]["DEC"].value
+        ObsLoc = astropy.coordinates.EarthLocation(
+            lon=Long * astropy.units.deg, lat=Lat * astropy.units.deg, height=Height * astropy.units.meter
+        )
+        c = astropy.coordinates.SkyCoord(ra=RA * astropy.units.hourangle, dec=DEC * astropy.units.deg)
+        cAltAz = c.transform_to(astropy.coordinates.AltAz(obstime=astropy.time.Time(datetime.datetime.utcnow()), location=ObsLoc))
+        J2000 = cAltAz.transform_to(astropy.coordinates.ICRS())
+        FitsHeader += [
+            ("AIRMASS", float(cAltAz.secz), "Airmass"),
+            ("OBJCTAZ", float(cAltAz.az/astropy.units.deg), "Azimuth of center of image in Degrees"),
+            ("OBJCTALT", float(cAltAz.alt/astropy.units.deg), "Altitude of center of image in Degrees"),
+            ("OBJCTRA", J2000.ra.to_string(unit=astropy.units.hour).replace("h", " ").replace("m", " ").replace("s", " "), "Object J2000 RA in Hours"),
+            ("OBJCTDEC", J2000.dec.to_string(unit=astropy.units.deg).replace("d", " ").replace("m", " ").replace("s", " "), "Object J2000 DEC in Degrees"),
+            ("RA", float(J2000.ra.degree), "Object J2000 RA in Degrees"),
+            ("DEC", float(J2000.dec.degree), "Object J2000 DEC in Degrees")
+        ]
+        #### PIERSIDE ####
+        if self.parent.knownVectors["TELESCOPE_PIER_SIDE"]["PIER_WEST"].value == ISwitchState.ON:
+            FitsHeader += [("PIERSIDE", "WEST", "West, looking East"),]
+        else:
+            FitsHeader += [("PIERSIDE", "EAST", "East, looking West"), ]
+        #### EQUINOX and DATE-OBS ####
+        FitsHeader += [
+            ("EQUINOX", 2000, "Equinox"),
+            ("DATE-OBS", datetime.datetime.utcnow().isoformat(timespec="milliseconds"), "UTC start date of observation"),  # FIXME: this is end and not start time!
+        ]
+        logging.info("Finished collecting snooped data.")
         ####
         return FitsHeader
 
@@ -643,15 +699,13 @@ class CameraControl:
                 raise RuntimeError("trying to make an exposure without camera opened")
             # get new camera settings for exposure
             has_RawModes = len(self.RawModes) > 0
+            NewCameraSettings = CameraSettings()
             with self.parent.knownVectorsLock:
-                NewCameraSettings = CameraSettings(
+                NewCameraSettings.update(
                     ExposureTime=self.ExposureTime,
-                    AGain=self.parent.knownVectors["CCD_GAIN"]["GAIN"].value,
-                    DoFastExposure=self.parent.knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON,
-                    DoRaw=self.parent.knownVectors["FRAME_TYPE"]["FRAMETYPE_RAW"].value == ISwitchState.ON if has_RawModes else False,
-                    ProcSize=(int(self.parent.knownVectors["CCD_PROCFRAME"]["WIDTH"].value), int(self.parent.knownVectors["CCD_PROCFRAME"]["HEIGHT"].value)),
-                    RawMode=self.parent.knownVectors["RAW_FORMAT"].get_SelectedRawMode() if has_RawModes else None,
-                    Binning=(int(self.parent.knownVectors["CCD_BINNING"]["HOR_BIN"].value), int(self.parent.knownVectors["CCD_BINNING"]["VER_BIN"].value))
+                    knownVectors=self.parent.knownVectors,
+                    advertised_camera_controls=self.camera_controls,
+                    has_RawModes=has_RawModes,
                 )
             logging.info(f'exposure settings: {NewCameraSettings}')
             # need a camera stop/start when something has changed on exposure controls
@@ -688,22 +742,8 @@ class CameraControl:
                 self.picam2.configure(config)
             # changing exposure time or analogue gain needs a restart
             if IsRestartNeeded:
-                # exposure time and analog gain are controls
-                self.picam2.set_controls(
-                    {
-                        # controls for main frame: disable all regulations
-                        "AeEnable": False,  # AEC/AGC algorithm
-                        # disable noise reduction in main frame because it eats stars
-                        "NoiseReductionMode": controls.draft.NoiseReductionModeEnum.Off,
-                        # disable automatic white balance algorithm and set colour gains manually
-                        "AwbEnable": False,
-                        "ColourGains": (2.0, 2.0),  # to compensate the 2 G pixel in Bayer pattern
-                        # controls for raw and main frames
-                        "AnalogueGain": NewCameraSettings.AGain,
-                        "ExposureTime": int(NewCameraSettings.ExposureTime * 1e6),
-                        # exposure time in us; needs to be integer!
-                    }
-                )
+                # change camera controls
+                self.picam2.set_controls(NewCameraSettings.get_controls())
             # start camera if not already running in Fast Exposure mode
             if not self.picam2.started:
                 self.picam2.start()
@@ -798,7 +838,7 @@ class CameraControl:
                         # make BLOB
                         logging.info(f"preparing frame as BLOB: {size} bytes")
                         bv = self.parent.knownVectors["CCD1"]
-                        compress = self.parent.knownVectors["CCD_COMPRESSION"].get_OnSwitches()[0] == "CCD_COMPRESS"
+                        compress = self.parent.knownVectors["CCD_COMPRESSION"]["CCD_COMPRESS"].value == ISwitchState.ON
                         bv["CCD1"].set_data(data=bstream.getbuffer(), format=".fits", compress=compress)
                         logging.info(f"sending BLOB")
                         bv.send_setVector()

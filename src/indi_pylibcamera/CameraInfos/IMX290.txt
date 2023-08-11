@@ -1,0 +1,74 @@
+Found 1 cameras.
+
+Camera 0:
+{'Id': '/base/soc/i2c0mux/i2c@1/imx290@1a',
+'Location': 2,
+'Model': 'imx290',
+'Rotation': 0}
+
+Camera properties:
+{'ColorFilterArrangement': 0,
+'Location': 2,
+'Model': 'imx290',
+'PixelArrayActiveAreas': [(12, 8, 1920, 1080)],
+'PixelArraySize': (1945, 1097),
+'Rotation': 0,
+'ScalerCropMaximum': (0, 0, 0, 0),
+'UnitCellSize': (2900, 2900)}
+
+Raw sensor modes:
+[{'bit_depth': 10,
+'crop_limits': (320, 180, 1280, 720),
+'exposure_limits': (22, 115686250, None),
+'format': SRGGB10_CSI2P,
+'fps': 60.0,
+'size': (1280, 720),
+'unpacked': 'SRGGB10'},
+{'bit_depth': 10,
+'crop_limits': (0, 0, 1920, 1080),
+'exposure_limits': (14, 115686258, None),
+'format': SRGGB10_CSI2P,
+'fps': 60.0,
+'size': (1920, 1080),
+'unpacked': 'SRGGB10'},
+{'bit_depth': 12,
+'crop_limits': (320, 180, 1280, 720),
+'exposure_limits': (22, 115686250, None),
+'format': SRGGB12_CSI2P,
+'fps': 60.0,
+'size': (1280, 720),
+'unpacked': 'SRGGB12'},
+{'bit_depth': 12,
+'crop_limits': (0, 0, 1920, 1080),
+'exposure_limits': (14, 115686258, None),
+'format': SRGGB12_CSI2P,
+'fps': 60.0,
+'size': (1920, 1080),
+'unpacked': 'SRGGB12'}]
+
+Camera controls:
+{'AeConstraintMode': (0, 3, 0),
+'AeEnable': (False, True, None),
+'AeExposureMode': (0, 3, 0),
+'AeMeteringMode': (0, 3, 0),
+'AnalogueGain': (1.0, 31.62277603149414, None),
+'AwbEnable': (False, True, None),
+'AwbMode': (0, 7, 0),
+'Brightness': (-1.0, 1.0, 0.0),
+'ColourCorrectionMatrix': (-16.0, 16.0, None),
+'ColourGains': (0.0, 32.0, None),
+'Contrast': (0.0, 32.0, 1.0),
+'ExposureTime': (14, 115686258, None),
+'ExposureValue': (-8.0, 8.0, 0.0),
+'FrameDurationLimits': (16666, 115687148, None),
+'NoiseReductionMode': (0, 4, 0),
+'Saturation': (0.0, 32.0, 1.0),
+'ScalerCrop': ((0, 0, 64, 64), (0, 0, 1920, 1080), (240, 0, 1440, 1080)),
+'Sharpness': (0.0, 16.0, 1.0)}
+
+Exposure time:
+min: 14, max: 115686258, default: None
+
+AnalogGain:
+min: 1.0, max: 31.62277603149414, default: None
+

@@ -135,16 +135,9 @@ class IProperty:
         Returns:
             error message if failed or empty string if okay
         """
-        if self._propertyType == "Number":
-            self.value = float(value)
-            return ""
-        elif self._propertyType in ["Text", "Switch"]:
-            self.value = value
-            return ""
-        else:
-            errmsg = f'setting property {self.name} not implemented'
-            logging.error(errmsg)
-            return errmsg
+        errmsg = f'setting property {self.name} not implemented'
+        logging.error(errmsg)
+        return errmsg
 
 
 class IVector:
@@ -343,6 +336,18 @@ class IText(IProperty):
         super().__init__(name=name, label=label, value=value)
         self._propertyType = "Text"
 
+    def set_byClient(self, value: str) -> str:
+        """called when value gets set by client
+
+        Args:
+            value: value to set
+
+        Returns:
+            error message if failed or empty string if okay
+        """
+        self.value = value
+        return ""
+
     def get_defProperty(self) -> str:
         """return XML for defText message
         """
@@ -382,6 +387,18 @@ class INumber(IProperty):
         self.step = step
         self.format = format
 
+    def set_byClient(self, value: str) -> str:
+        """called when value gets set by client
+
+        Args:
+            value: value to set
+
+        Returns:
+            error message if failed or empty string if okay
+        """
+        self.value = min(max(float(value), self.min), self.max)
+        return ""
+
     def get_defProperty(self) -> str:
         """return XML for defNumber message
         """
@@ -415,6 +432,18 @@ class ISwitch(IProperty):
     def __init__(self, name: str, label: str = None, value: str = ISwitchState.OFF):
         super().__init__(name=name, label=label, value=value)
         self._propertyType = "Switch"
+
+    def set_byClient(self, value: str) -> str:
+        """called when value gets set by client
+
+        Args:
+            value: value to set
+
+        Returns:
+            error message if failed or empty string if okay
+        """
+        self.value = value
+        return ""
 
     def get_defProperty(self) -> str:
         """return XML for defSwitch message
@@ -611,6 +640,11 @@ class IVectorList:
         for element in self.elements:
             yield element
 
+    def __contains__(self, name):
+        for element in self.elements:
+            if element.name == name:
+                return True
+
     def pop(self, name: str) -> IVector:
         """return and remove named vector
         """
@@ -664,7 +698,7 @@ class indidevice:
         # lock for device parameter
         self.knownVectorsLock = threading.Lock()
         # snooping
-        self.SnoopingManager = SnoopingManager.SnoopingManager(to_server_func=to_server)
+        self.SnoopingManager = SnoopingManager.SnoopingManager(parent=self, to_server_func=to_server)
 
 
     def send_Message(self, message: str, severity: str = "INFO", timestamp: bool = False):
@@ -692,7 +726,13 @@ class indidevice:
         """
         inp = ""
         while self.running:
-            inp += sys.stdin.readline()
+
+            new_inp = sys.stdin.readline()
+            # detect termination of indiserver
+            if len(new_inp) == 0:
+                return
+            inp += new_inp
+
             # maybe XML is complete
             try:
                 xml = etree.fromstring(inp)
@@ -726,7 +766,8 @@ class indidevice:
                 if xml.tag in ["setNumberVector", "setTextVector", "setSwitchVector", "defNumberVector", "defTextVector", "defSwitchVector"]:
                     vectorName = xml.attrib["name"]
                     values = {ele.attrib["name"]: (ele.text.strip() if type(ele.text) is str else "") for ele in xml}
-                    self.SnoopingManager.catching(device=device, name=vectorName, values=values)
+                    with self.knownVectorsLock:
+                        self.SnoopingManager.catching(device=device, name=vectorName, values=values)
                 elif xml.tag == "delProperty":
                     # snooped device got closed
                     pass
@@ -747,6 +788,24 @@ class indidevice:
         """remove named vector from knownVectors list and send del message to client
         """
         self.knownVectors.checkout(name)
+
+    def setVector(self, name: str, element: str, value = None, state: IVectorState = None, send: bool = True):
+        """update vector value and/or state
+
+        Args:
+            name: vector name
+            element: element name in vector
+            value: new element value or None if unchanged
+            state: vector state or None if unchanged
+            send: send update to server
+        """
+        v = self.knownVectors[name]
+        if value is not None:
+            v[element] = value
+        if state is not None:
+            v.state = state
+        if send:
+            v.send_setVector()
 
     def run(self):
         """start device

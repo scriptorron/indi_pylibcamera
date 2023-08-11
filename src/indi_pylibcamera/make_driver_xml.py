@@ -12,9 +12,7 @@ def make_driver_xml():
     Returns:
         string with contents of XML file
     """
-    return f"""
-<?xml version="1.0" encoding="UTF-8"?>
-<driversList>
+    return f"""<driversList>
   <devGroup group="CCDs">
     <device label="INDI pylibcamera">
       <driver name="INDI pylibcamera">indi_pylibcamera</driver>
