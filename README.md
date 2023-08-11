@@ -62,7 +62,7 @@ the driver available in the KStars/EKOS profile editor in "CCD"->"OTHERS". Not a
 For uninstalling the driver do:
 ```commandline
 sudo rm -f /usr/share/indi/indi_pylibcamera.xml
-sudo pip uninstall install indi_pylibcamera
+sudo pip3 uninstall indi_pylibcamera
 ```
 
 ## Running
