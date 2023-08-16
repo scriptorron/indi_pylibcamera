@@ -440,8 +440,8 @@ class CameraControl:
             Aperture = self.parent.knownVectors["TELESCOPE_INFO"]["TELESCOPE_APERTURE"].value
             FocalLength = self.parent.knownVectors["TELESCOPE_INFO"]["TELESCOPE_FOCAL_LENGTH"].value
         else:
-            Aperture = self.parent.knownVectors["GUIDER_INFO"]["TELESCOPE_APERTURE"].value
-            FocalLength = self.parent.knownVectors["GUIDER_INFO"]["TELESCOPE_FOCAL_LENGTH"].value
+            Aperture = self.parent.knownVectors["TELESCOPE_INFO"]["GUIDER_APERTURE"].value
+            FocalLength = self.parent.knownVectors["TELESCOPE_INFO"]["GUIDER_FOCAL_LENGTH"].value
         FitsHeader += [
             ("FOCALLEN", FocalLength, "Focal Length (mm)"),
             ("APTDIA", Aperture, "Telescope diameter (mm)"),
