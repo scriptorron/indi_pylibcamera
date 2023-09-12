@@ -359,6 +359,35 @@ class SnoopingVector(ITextVector):
                         )
 
 
+class FitsHeaderVector(ITextVector):
+    """INDI Text vector with other devices to snoop
+    """
+
+    def __init__(self, parent):
+        self.parent = parent
+        self.FitsHeader = {}
+        super().__init__(
+            device=self.parent.device, timestamp=self.parent.timestamp, name="FITS_HEADER",
+            # empty values mean do not snoop
+            elements=[
+                IText(name="KEYWORD_NAME", label="Name", value=""),
+                IText(name="KEYWORD_VALUE", label="Value", value=""),
+                IText(name="KEYWORD_COMMENT", label="Comment", value=""),
+            ],
+            label="FITS Header", group="General Info", perm=IPermission.WO,
+        )
+
+    def set_byClient(self, values: dict):
+        """called when vector gets set by client
+        special version for activating snooping
+
+        Args:
+            values: dict(propertyName: value) of values to set
+        """
+        super().set_byClient(values=values)
+        self.FitsHeader[values["KEYWORD_NAME"]] = (values["KEYWORD_VALUE"], values["KEYWORD_COMMENT"])
+
+
 class DoSnoopingVector(ISwitchVector):
     """INDI SwitchVector to enable/disable snooping; gets initialized from config file
     """
@@ -735,15 +764,7 @@ class indi_pylibcamera(indidevice):
         self.CameraVectorNames.append("CCD_BINNING")
         #
         self.checkin(
-            ITextVector(
-                device=self.device, timestamp=self.timestamp, name="FITS_HEADER",
-                elements=[
-                    IText(name="FITS_OBSERVER", label="Observer name", value="Unknown"),
-                    IText(name="FITS_OBJECT", label="Object name", value="Unknown"),
-                ],
-                label="FITS Header", group="General Info",
-                state=IVectorState.IDLE, perm=IPermission.RW,
-            ),
+            FitsHeaderVector(parent=self,),
             send_defVector=True,
         )
         self.CameraVectorNames.append("FITS_HEADER")
