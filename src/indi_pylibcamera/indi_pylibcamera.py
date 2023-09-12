@@ -738,8 +738,8 @@ class indi_pylibcamera(indidevice):
             ITextVector(
                 device=self.device, timestamp=self.timestamp, name="FITS_HEADER",
                 elements=[
-                    IText(name="FITS_OBSERVER", label="Observer", value="Unknown"),
-                    IText(name="FITS_OBJECT", label="Object", value="Unknown"),
+                    IText(name="FITS_OBSERVER", label="Observer name", value="Unknown"),
+                    IText(name="FITS_OBJECT", label="Object name", value="Unknown"),
                 ],
                 label="FITS Header", group="General Info",
                 state=IVectorState.IDLE, perm=IPermission.RW,

@@ -288,6 +288,10 @@ class CameraControl:
                 logging.warning(f'raw mode not supported: {sensor_mode}')
                 continue
             # it seems that self.CamProps["Rotation"] determines the orientation of the Bayer pattern
+            if self.do_CameraAdjustments:
+                # for any reason newer versions of pylibcamera report wrong Bayer pattern rotation for HQ camera
+                if self.CamProps["Model"] == 'imx477':
+                    self.CamProps["Rotation"] == 180
             if self.CamProps["Rotation"] == 0:
                 # at least V1 camera has this
                 FITS_format = sensor_format[1:5]
@@ -356,8 +360,8 @@ class CameraControl:
                 "binning": binning,
             }
             raw_modes.append(raw_mode)
-        # sort list of raw formats by size in descending order
-        raw_modes.sort(key=lambda k: k["size"][0] * k["size"][1], reverse=True)
+        # sort list of raw formats by size and bit depth in descending order
+        raw_modes.sort(key=lambda k: k["size"][0] * k["size"][1] * 100 + k["bit_depth"], reverse=True)
         return raw_modes
 
     def openCamera(self, idx: int):

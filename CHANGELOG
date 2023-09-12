@@ -1,3 +1,7 @@
+2.2.0
+- fixed Bayer pattern order for HQ camera (pycamera2 or libcamera reports wrong rotation in current version)
+- sorting raw modes by size and (!) bit depth
+
 2.1.0
 - fixed division by 0 when focal length equals 0
 - improved driver exit when indiserver is closed (to avoid driver continue to run)
