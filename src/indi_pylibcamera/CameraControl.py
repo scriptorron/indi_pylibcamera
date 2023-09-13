@@ -542,8 +542,7 @@ class CameraControl:
                 ("ROWORDER", "TOP-DOWN", "Row order"),
                 ("INSTRUME", self.parent.device, "CCD Name"),
                 ("TELESCOP", self.parent.knownVectors["ACTIVE_DEVICES"]["ACTIVE_TELESCOPE"].value, "Telescope name"),
-                ("OBSERVER", self.parent.knownVectors["FITS_HEADER"]["FITS_OBSERVER"].value, "Observer name"),
-                ("OBJECT", self.parent.knownVectors["FITS_HEADER"]["FITS_OBJECT"].value, "Object name"),
+            ] + self.parent.knownVectors["FITS_HEADER"].get_FitsHeaderList() + [
                 ("EXPTIME", metadata["ExposureTime"]/1e6, "Total Exposure Time (s)"),
                 ("CCD-TEMP", metadata.get('SensorTemperature', 0), "CCD Temperature (Celsius)"),
                 ("PIXSIZE1", self.getProp("UnitCellSize")[0] / 1e3, "Pixel Size 1 (microns)"),
@@ -611,8 +610,7 @@ class CameraControl:
                 #("ROWORDER", "TOP-DOWN", "Row Order"),
                 ("INSTRUME", self.parent.device, "CCD Name"),
                 ("TELESCOP", self.parent.knownVectors["ACTIVE_DEVICES"]["ACTIVE_TELESCOPE"].value, "Telescope name"),
-                ("OBSERVER", self.parent.knownVectors["FITS_HEADER"]["FITS_OBSERVER"].value, "Observer name"),
-                ("OBJECT", self.parent.knownVectors["FITS_HEADER"]["FITS_OBJECT"].value, "Object name"),
+            ] + self.parent.knownVectors["FITS_HEADER"].get_FitsHeaderList() + [
                 ("EXPTIME", metadata["ExposureTime"]/1e6, "Total Exposure Time (s)"),
                 ("CCD-TEMP", metadata.get('SensorTemperature', 0), "CCD Temperature (Celsius)"),
                 ("PIXSIZE1", self.getProp("UnitCellSize")[0] / 1e3, "Pixel Size 1 (microns)"),

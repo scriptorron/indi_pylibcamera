@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import signal
 import traceback
+from collections import OrderedDict
 
 from picamera2 import Picamera2
 
@@ -365,7 +366,7 @@ class FitsHeaderVector(ITextVector):
 
     def __init__(self, parent):
         self.parent = parent
-        self.FitsHeader = {}
+        self.FitsHeader = OrderedDict()
         super().__init__(
             device=self.parent.device, timestamp=self.parent.timestamp, name="FITS_HEADER",
             # empty values mean do not snoop
@@ -386,6 +387,12 @@ class FitsHeaderVector(ITextVector):
         """
         super().set_byClient(values=values)
         self.FitsHeader[values["KEYWORD_NAME"]] = (values["KEYWORD_VALUE"], values["KEYWORD_COMMENT"])
+
+    def get_FitsHeaderList(self):
+        FitsHeaderList = []
+        for name, value_comment in self.FitsHeader.items():
+            FitsHeaderList.append((name, value_comment[0], value_comment[1]))
+        return FitsHeaderList
 
 
 class DoSnoopingVector(ISwitchVector):
