@@ -1,6 +1,8 @@
 2.2.0
-- fixed Bayer pattern order for HQ camera (pycamera2 or libcamera reports wrong rotation in current version)
-- sorting raw modes by size and (!) bit depth
+- fixed Bayer pattern order for HQ camera (pycamera2 or libcamera have change they way they report Bayer pattern order),
+  BAYERPAT in FITS does not depend on "Rotation" property anymore (force_Rotation has no effect anymore),
+  but Bayer pattern can now be forced with force_BayerOrder
+- sorting raw modes by size and bit depth to make the mode with most pixel and most bits/pixel the default
 
 2.1.0
 - fixed division by 0 when focal length equals 0

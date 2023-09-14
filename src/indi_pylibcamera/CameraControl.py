@@ -353,12 +353,6 @@ class CameraControl:
         self.CamProps = self.picam2.camera_properties
         logging.info(f'camera properties: {self.CamProps}')
         # force properties with values from config file
-        if "Rotation" not in self.CamProps:
-            logging.warning("Camera properties do not have Rotation value. Need to force from config file!")
-        self.CamProps["Rotation"] = self.config.getint(
-            "driver", "force_Rotation",
-            fallback=self.CamProps["Rotation"] if "Rotation" in self.CamProps else 0
-        )
         if "UnitCellSize" not in self.CamProps:
             logging.warning("Camera properties do not have UnitCellSize value. Need to force from config file!")
         self.CamProps["UnitCellSize"] = (
@@ -514,6 +508,9 @@ class CameraControl:
         with self.parent.knownVectorsLock:
             # determine frame type
             FrameType = self.parent.knownVectors["CCD_FRAME_TYPE"].get_OnSwitchesLabels()[0]
+            # determine Bayer pattern order
+            BayerPattern = self.picam2.camera_configuration()["raw"]["format"][1:5]
+            BayerPattern = self.parent.config.get("driver", "force_BayerOrder", fallback=BayerPattern)
             # FITS header and metadata
             FitsHeader = [
                 ("BZERO", 2 ** (bit_pix - 1), "offset data range"),
@@ -535,7 +532,7 @@ class CameraControl:
             ] + self.snooped_FitsHeader() + [
                 ("XBAYROFF", 0, "X offset of Bayer array"),
                 ("YBAYROFF", 0, "Y offset of Bayer array"),
-                ("BAYERPAT", self.picam2.camera_configuration()["raw"]["format"][1:5], "Bayer color pattern"),
+                ("BAYERPAT", BayerPattern, "Bayer color pattern"),
             ]
         FitsHeader += [("Gain", metadata.get("AnalogueGain", 0.0), "Gain"), ]
         if "SensorBlackLevels" in metadata:
