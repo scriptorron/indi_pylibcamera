@@ -287,26 +287,6 @@ class CameraControl:
             if not re.match("S[RGB]{4}[0-9]+", sensor_format):
                 logging.warning(f'raw mode not supported: {sensor_mode}')
                 continue
-            # it seems that self.CamProps["Rotation"] determines the orientation of the Bayer pattern
-            if self.do_CameraAdjustments:
-                # for any reason newer versions of pylibcamera report wrong Bayer pattern rotation for HQ camera
-                if self.CamProps["Model"] == 'imx477':
-                    self.CamProps["Rotation"] == 180
-            if self.CamProps["Rotation"] == 0:
-                # at least V1 camera has this
-                FITS_format = sensor_format[1:5]
-            elif self.CamProps["Rotation"] == 180:
-                # at least HQ camera has this
-                FITS_format = sensor_format[4:0:-1]
-            elif self.CamProps["Rotation"] == 90:
-                # don't know if there is such a camera and if the following rotation is right
-                FITS_format = "".join([sensor_format[2], sensor_format[4], sensor_format[1], sensor_format[3]])
-            elif self.CamProps["Rotation"] in [270, -90]:
-                # don't know if there is such a camera and if the following rotation is right
-                FITS_format = "".join([sensor_format[3], sensor_format[1], sensor_format[4], sensor_format[2]])
-            else:
-                logging.warning(f'Sensor rotation {self.CamProps["Rotation"]} not supported!')
-                FITS_format = sensor_format[1:5]
             #
             size = sensor_mode["size"]
             # adjustments for cameras:
@@ -351,12 +331,11 @@ class CameraControl:
                         logging.warning(f'Unsupported frame size {size} for imx708!')
             # add to list of raw formats
             raw_mode = {
-                "label": f'{size[0]}x{size[1]} {FITS_format} {sensor_mode["bit_depth"]}bit',
+                "label": f'{size[0]}x{size[1]} {sensor_format[1:5]} {sensor_mode["bit_depth"]}bit',
                 "size": size,
                 "true_size": true_size,
                 "camera_format": sensor_format,
                 "bit_depth": sensor_mode["bit_depth"],
-                "FITS_format": FITS_format,
                 "binning": binning,
             }
             raw_modes.append(raw_mode)
@@ -556,7 +535,7 @@ class CameraControl:
             ] + self.snooped_FitsHeader() + [
                 ("XBAYROFF", 0, "X offset of Bayer array"),
                 ("YBAYROFF", 0, "Y offset of Bayer array"),
-                ("BAYERPAT", self.present_CameraSettings.RawMode["FITS_format"], "Bayer color pattern"),
+                ("BAYERPAT", self.picam2.camera_configuration()["raw"]["format"][1:5], "Bayer color pattern"),
             ]
         FitsHeader += [("Gain", metadata.get("AnalogueGain", 0.0), "Gain"), ]
         if "SensorBlackLevels" in metadata:

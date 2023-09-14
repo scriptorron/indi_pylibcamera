@@ -20,7 +20,7 @@ Camera properties:
  'PixelArraySize': (4056, 3040),
  'Rotation': 0,
  'ScalerCropMaximum': (0, 0, 0, 0),
- 'SystemDevices': (20750, 20751, 20738, 20740, 20742),
+ 'SystemDevices': (20750, 20751, 20737, 20738, 20739),
  'UnitCellSize': (1550, 1550)}
 
 Raw sensor modes:
@@ -52,6 +52,26 @@ Raw sensor modes:
   'fps': 10.0,
   'size': (4056, 3040),
   'unpacked': 'SRGGB12'}]
+
+Camera configuration:
+{'buffer_count': 4,
+ 'colour_space': <libcamera.ColorSpace 'sYCC'>,
+ 'controls': {'FrameDurationLimits': (100, 83333),
+              'NoiseReductionMode': <NoiseReductionModeEnum.Minimal: 3>},
+ 'display': 'main',
+ 'encode': 'main',
+ 'lores': None,
+ 'main': {'format': 'XBGR8888',
+          'framesize': 1228800,
+          'size': (640, 480),
+          'stride': 2560},
+ 'queue': True,
+ 'raw': {'format': 'SBGGR12_CSI2P',
+         'framesize': 18580480,
+         'size': (4056, 3040),
+         'stride': 6112},
+ 'transform': <libcamera.Transform 'identity'>,
+ 'use_case': 'preview'}
 
 Camera controls:
 {'AeConstraintMode': (0, 3, 0),
