@@ -115,10 +115,11 @@ When you try to load a non-existing configuration no settings will be changed.
 Many clients load "Config #1" automatically. If you do not want this you must purge "Config #1".
 
 Not all driver settings will be stored. For instance all settings which trigger an action (like "Connect", 
-"Expose" and "Abort") will not be stored and load. Also "Scope Location", "Eq. Coordinates" (the scope pointing
-coordinates) and "Pier Side" will not be stored and loaded because these will typically set by snooping the
-mount driver. Telescope focal length and aperture are stored but get overwritten immediately by client (EKOS)
-when snooping.
+"Expose" and "Abort") will not be stored and load. Also, "Scope Location" (your place on earth), "Eq. Coordinates"
+(the scope pointing coordinates) and "Pier Side" will not be stored and loaded because these will typically set 
+by snooping the mount driver. Telescope focal length and aperture are stored but get overwritten immediately by 
+client (EKOS) when snooping. Generally all settings coming from client (EKOS) will overwrite settings you loaded
+previously from a configuration file.
 
 To save and load configurations you must be connected to a camera. The configuration will only be valid
 for this particular camera. It is not recommended to load a configuration which was saved for a different type
