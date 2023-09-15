@@ -151,7 +151,8 @@ class IVector:
             device: str, name: str, elements: list = [],
             label: str =None, group: str ="",
             state: str = IVectorState.IDLE, perm: str = IPermission.RW,
-            timeout: int = 60, timestamp: bool = False, message: str = None
+            timeout: int = 60, timestamp: bool = False, message: str = None,
+            is_savable: bool = True,
     ):
         """constructor
 
@@ -166,11 +167,13 @@ class IVector:
             timeout: timeout
             timestamp: send messages with (True) or without (False) timestamp
             message: message send to client
+            is_savable: can be saved
         """
         self._vectorType = "NotSet"
         self.device = device
         self.name = name
         self.elements = elements
+        self.driver_default = {element.name: element.value for element in self.elements}
         if label:
             self.label = label
         else:
@@ -181,6 +184,7 @@ class IVector:
         self.timeout = timeout
         self.timestamp = timestamp
         self.message = message
+        self.is_savable = is_savable
 
     def __str__(self) -> str:
         return f"<Vector {self._vectorType} name={self.name}, device={self.device}>"
@@ -327,6 +331,26 @@ class IVector:
         self.send_setVector()
         self.message = ""
 
+    def save(self):
+        """return Vector state
+
+        Returns:
+             None if Vector is not savable
+             dict with Vector state
+        """
+        state = None
+        if self.is_savable:
+            state = dict()
+            state["name"] = self.name
+            state["values"] = {element.name: element.value for element in self.elements}
+        return state
+
+    def restore_DriverDefault(self):
+        """restore driver defaults for savable vector
+        """
+        if self.is_savable:
+            self.set_byClient(self.driver_default)
+
 
 class IText(IProperty):
     """INDI Text property
@@ -363,11 +387,12 @@ class ITextVector(IVector):
             device: str, name: str, elements: list = [],
             label: str = None, group: str = "",
             state: str = IVectorState.IDLE, perm: str =IPermission.RW,
-            timeout: int = 60, timestamp: bool = False, message: str = None
+            timeout: int = 60, timestamp: bool = False, message: str = None,
+            is_savable: bool = True,
     ):
         super().__init__(
             device=device, name=name, elements=elements, label=label, group=group,
-            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message
+            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message, is_savable=is_savable,
         )
         self._vectorType = "TextVector"
 
@@ -416,11 +441,12 @@ class INumberVector(IVector):
             device: str, name: str, elements: list = [],
             label: str = None, group: str = "",
             state: str = IVectorState.IDLE, perm: str = IPermission.RW,
-            timeout: int = 60, timestamp: bool = False, message: str = None
+            timeout: int = 60, timestamp: bool = False, message: str = None,
+            is_savable: bool = True,
     ):
         super().__init__(
             device=device, name=name, elements=elements, label=label, group=group,
-            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message
+            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message, is_savable=is_savable,
         )
         self._vectorType = "NumberVector"
 
@@ -461,11 +487,12 @@ class ISwitchVector(IVector):
             label: str = None, group: str = "",
             state: str = IVectorState.IDLE, perm: str = IPermission.RW,
             rule: str = ISwitchRule.ONEOFMANY,
-            timeout: int = 60, timestamp: bool = False, message: str = None
+            timeout: int = 60, timestamp: bool = False, message: str = None,
+            is_savable: bool = True,
     ):
         super().__init__(
             device=device, name=name, elements=elements, label=label, group=group,
-            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message
+            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message, is_savable=is_savable,
         )
         self._vectorType = "SwitchVector"
         self.rule = rule
@@ -600,11 +627,12 @@ class IBlobVector(IVector):
             device: str, name: str, elements: list = [],
             label: str = None, group: str = "",
             state: str = IVectorState.IDLE, perm: str = IPermission.RO,
-            timeout: int = 60, timestamp: bool = False, message: str = None
+            timeout: int = 60, timestamp: bool = False, message: str = None,
+            is_savable: bool = True,
     ):
         super().__init__(
             device=device, name=name, elements=elements, label=label, group=group,
-            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message
+            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message, is_savable=is_savable,
         )
         self._vectorType = "BLOBVector"
 
