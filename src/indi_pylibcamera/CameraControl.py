@@ -287,22 +287,6 @@ class CameraControl:
             if not re.match("S[RGB]{4}[0-9]+", sensor_format):
                 logging.warning(f'raw mode not supported: {sensor_mode}')
                 continue
-            # it seems that self.CamProps["Rotation"] determines the orientation of the Bayer pattern
-            if self.CamProps["Rotation"] == 0:
-                # at least V1 camera has this
-                FITS_format = sensor_format[1:5]
-            elif self.CamProps["Rotation"] == 180:
-                # at least HQ camera has this
-                FITS_format = sensor_format[4:0:-1]
-            elif self.CamProps["Rotation"] == 90:
-                # don't know if there is such a camera and if the following rotation is right
-                FITS_format = "".join([sensor_format[2], sensor_format[4], sensor_format[1], sensor_format[3]])
-            elif self.CamProps["Rotation"] in [270, -90]:
-                # don't know if there is such a camera and if the following rotation is right
-                FITS_format = "".join([sensor_format[3], sensor_format[1], sensor_format[4], sensor_format[2]])
-            else:
-                logging.warning(f'Sensor rotation {self.CamProps["Rotation"]} not supported!')
-                FITS_format = sensor_format[1:5]
             #
             size = sensor_mode["size"]
             # adjustments for cameras:
@@ -347,17 +331,16 @@ class CameraControl:
                         logging.warning(f'Unsupported frame size {size} for imx708!')
             # add to list of raw formats
             raw_mode = {
-                "label": f'{size[0]}x{size[1]} {FITS_format} {sensor_mode["bit_depth"]}bit',
+                "label": f'{size[0]}x{size[1]} {sensor_format[1:5]} {sensor_mode["bit_depth"]}bit',
                 "size": size,
                 "true_size": true_size,
                 "camera_format": sensor_format,
                 "bit_depth": sensor_mode["bit_depth"],
-                "FITS_format": FITS_format,
                 "binning": binning,
             }
             raw_modes.append(raw_mode)
-        # sort list of raw formats by size in descending order
-        raw_modes.sort(key=lambda k: k["size"][0] * k["size"][1], reverse=True)
+        # sort list of raw formats by size and bit depth in descending order
+        raw_modes.sort(key=lambda k: k["size"][0] * k["size"][1] * 100 + k["bit_depth"], reverse=True)
         return raw_modes
 
     def openCamera(self, idx: int):
@@ -370,12 +353,6 @@ class CameraControl:
         self.CamProps = self.picam2.camera_properties
         logging.info(f'camera properties: {self.CamProps}')
         # force properties with values from config file
-        if "Rotation" not in self.CamProps:
-            logging.warning("Camera properties do not have Rotation value. Need to force from config file!")
-        self.CamProps["Rotation"] = self.config.getint(
-            "driver", "force_Rotation",
-            fallback=self.CamProps["Rotation"] if "Rotation" in self.CamProps else 0
-        )
         if "UnitCellSize" not in self.CamProps:
             logging.warning("Camera properties do not have UnitCellSize value. Need to force from config file!")
         self.CamProps["UnitCellSize"] = (
@@ -531,6 +508,9 @@ class CameraControl:
         with self.parent.knownVectorsLock:
             # determine frame type
             FrameType = self.parent.knownVectors["CCD_FRAME_TYPE"].get_OnSwitchesLabels()[0]
+            # determine Bayer pattern order
+            BayerPattern = self.picam2.camera_configuration()["raw"]["format"][1:5]
+            BayerPattern = self.parent.config.get("driver", "force_BayerOrder", fallback=BayerPattern)
             # FITS header and metadata
             FitsHeader = [
                 ("BZERO", 2 ** (bit_pix - 1), "offset data range"),
@@ -538,8 +518,7 @@ class CameraControl:
                 ("ROWORDER", "TOP-DOWN", "Row order"),
                 ("INSTRUME", self.parent.device, "CCD Name"),
                 ("TELESCOP", self.parent.knownVectors["ACTIVE_DEVICES"]["ACTIVE_TELESCOPE"].value, "Telescope name"),
-                ("OBSERVER", self.parent.knownVectors["FITS_HEADER"]["FITS_OBSERVER"].value, "Observer name"),
-                ("OBJECT", self.parent.knownVectors["FITS_HEADER"]["FITS_OBJECT"].value, "Object name"),
+            ] + self.parent.knownVectors["FITS_HEADER"].get_FitsHeaderList() + [
                 ("EXPTIME", metadata["ExposureTime"]/1e6, "Total Exposure Time (s)"),
                 ("CCD-TEMP", metadata.get('SensorTemperature', 0), "CCD Temperature (Celsius)"),
                 ("PIXSIZE1", self.getProp("UnitCellSize")[0] / 1e3, "Pixel Size 1 (microns)"),
@@ -553,7 +532,7 @@ class CameraControl:
             ] + self.snooped_FitsHeader() + [
                 ("XBAYROFF", 0, "X offset of Bayer array"),
                 ("YBAYROFF", 0, "Y offset of Bayer array"),
-                ("BAYERPAT", self.present_CameraSettings.RawMode["FITS_format"], "Bayer color pattern"),
+                ("BAYERPAT", BayerPattern, "Bayer color pattern"),
             ]
         FitsHeader += [("Gain", metadata.get("AnalogueGain", 0.0), "Gain"), ]
         if "SensorBlackLevels" in metadata:
@@ -607,8 +586,7 @@ class CameraControl:
                 #("ROWORDER", "TOP-DOWN", "Row Order"),
                 ("INSTRUME", self.parent.device, "CCD Name"),
                 ("TELESCOP", self.parent.knownVectors["ACTIVE_DEVICES"]["ACTIVE_TELESCOPE"].value, "Telescope name"),
-                ("OBSERVER", self.parent.knownVectors["FITS_HEADER"]["FITS_OBSERVER"].value, "Observer name"),
-                ("OBJECT", self.parent.knownVectors["FITS_HEADER"]["FITS_OBJECT"].value, "Object name"),
+            ] + self.parent.knownVectors["FITS_HEADER"].get_FitsHeaderList() + [
                 ("EXPTIME", metadata["ExposureTime"]/1e6, "Total Exposure Time (s)"),
                 ("CCD-TEMP", metadata.get('SensorTemperature', 0), "CCD Temperature (Celsius)"),
                 ("PIXSIZE1", self.getProp("UnitCellSize")[0] / 1e3, "Pixel Size 1 (microns)"),
@@ -639,6 +617,7 @@ class CameraControl:
         if self.parent.knownVectors["CCD_ABORT_EXPOSURE"]["ABORT"].value == ISwitchState.ON:
             self.parent.setVector("CCD_FAST_COUNT", "FRAMES", value=0, state=IVectorState.OK)
             self.parent.setVector("CCD_ABORT_EXPOSURE", "ABORT", value=ISwitchState.OFF, state=IVectorState.OK)
+            self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
             return True
         return False
 
@@ -693,6 +672,7 @@ class CameraControl:
             if self.Sig_ActionExit.is_set():
                 # exit exposure loop
                 self.picam2.stop_()
+                self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                 return
             # picam2 needs to be open!
             if self.picam2 is None:
@@ -754,6 +734,7 @@ class CameraControl:
             if self.Sig_ActionExit.is_set():
                 # exit exposure loop
                 self.picam2.stop_()
+                self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                 return
             with self.parent.knownVectorsLock:
                 Abort = self.checkAbort()
@@ -777,6 +758,7 @@ class CameraControl:
                     if self.Sig_ActionExit.is_set():
                         # exit exposure loop
                         self.picam2.stop_()
+                        self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                         return
                     # allow to abort exposure
                     with self.parent.knownVectorsLock:
@@ -789,16 +771,18 @@ class CameraControl:
                     time.sleep(PollingPeriod_s)
                 # get frame and its metadata
                 if not Abort:
-                    (array, ), metadata =  self.picam2.wait(job)
+                    (array, ), metadata = self.picam2.wait(job)
                     logging.info("got exposed frame")
-                # inform client about progress
-                self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.BUSY)
-                # at least HQ camera reports CCD temperature in meta data
-                self.parent.setVector("CCD_TEMPERATURE", "CCD_TEMPERATURE_VALUE", value=metadata.get('SensorTemperature', 0))
+                    # at least HQ camera reports CCD temperature in meta data
+                    self.parent.setVector("CCD_TEMPERATURE", "CCD_TEMPERATURE_VALUE",
+                                          value=metadata.get('SensorTemperature', 0))
+                    # inform client about progress
+                    self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.BUSY)
                 # last chance to exit or abort before sending blob
                 if self.Sig_ActionExit.is_set():
                     # exit exposure loop
                     self.picam2.stop_()
+                    self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                     return
                 with self.parent.knownVectorsLock:
                     Abort = Abort or self.checkAbort()

@@ -99,6 +99,34 @@ There are more settings, mostly to support debugging.
 
 An example for a configuration file can be found in this repository.
 
+## Saving a Configuration
+The driver allows you to save up to 6 different configurations. The "Options" tab has 3 controls for that:
+- You to select which of the 6 configurations you want to save, load or delete with control "Configs".
+- "Config Name" allows you to give the configuration a name. This is optional. It only helps you to remember
+what this configuration is made for.
+- The buttons in "Configuration" trigger the actions:
+  - "Load" loads and applies the configuration.
+  - "Save" stores the configuration.
+  - "Default" restores the driver defaults. It does not overwrite the stored configuration.
+  - "Purge" removes the stored configuration.
+
+When you try to load a non-existing configuration no settings will be changed.
+
+Many clients load "Config #1" automatically. If you do not want this you must purge "Config #1".
+
+Not all driver settings will be stored. For instance all settings which trigger an action (like "Connect", 
+"Expose" and "Abort") will not be stored and load. Also, "Scope Location" (your place on earth), "Eq. Coordinates"
+(the scope pointing coordinates) and "Pier Side" will not be stored and loaded because these will typically set 
+by snooping the mount driver. Telescope focal length and aperture are stored but get overwritten immediately by 
+client (EKOS) when snooping. Generally all settings coming from client (EKOS) will overwrite settings you loaded
+previously from a configuration file.
+
+To save and load configurations you must be connected to a camera. The configuration will only be valid
+for this particular camera. It is not recommended to load a configuration which was saved for a different type
+of camera.
+
+Configurations get stored in `~/.indi_pylibcamera/CONFIG*.json`.
+
 ## Error when restarting indiserver
 When killing the indiserver sometimes the driver process continues to run. You can see this with:
 

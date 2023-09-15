@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import logging
 import sys
 import os
 import os.path
@@ -7,6 +7,8 @@ from pathlib import Path
 import subprocess
 import signal
 import traceback
+from collections import OrderedDict
+import json
 
 from picamera2 import Picamera2
 
@@ -19,14 +21,16 @@ from .CameraControl import CameraControl
 
 logging.basicConfig(filename=None, level=logging.INFO, format='%(name)s-%(levelname)s- %(message)s')
 
+IniPath = Path(Path.home(), ".indi_pylibcamera")
+IniPath.mkdir(parents=True, exist_ok=True)
 
 def read_config():
     # iterative list of INI files to load
-    configfiles = [Path(__file__) / Path("indi_pylibcamera.ini")]
+    configfiles = [Path(__file__, "indi_pylibcamera.ini")]
     if "INDI_PYLIBCAMERA_CONFIG_PATH" in os.environ:
-        configfiles += [Path(os.environ["INDI_PYLIBCAMERA_CONFIG_PATH"]) / Path("indi_pylibcamera.ini")]
-    configfiles += [Path(os.environ["HOME"]) / Path(".indi_pylibcamera") / Path("indi_pylibcamera.ini")]
-    configfiles += [Path(os.getcwd()) / Path("indi_pylibcamera.ini")]
+        configfiles += [Path(os.environ["INDI_PYLIBCAMERA_CONFIG_PATH"], "indi_pylibcamera.ini")]
+    configfiles += [IniPath / Path("indi_pylibcamera.ini")]
+    configfiles += [Path(Path.cwd(), "indi_pylibcamera.ini")]
     # create config parser instance
     config = ConfigParser()
     config.read(configfiles)
@@ -102,7 +106,7 @@ class ConnectionVector(ISwitchVector):
                 ISwitch(name="DISCONNECT", label="Disonnect", value=ISwitchState.ON),
             ],
             label="Connection", group="Main Control",
-            rule=ISwitchRule.ONEOFMANY,
+            rule=ISwitchRule.ONEOFMANY, is_savable=False,
         )
 
     def set_byClient(self, values: dict):
@@ -146,7 +150,7 @@ class ExposureVector(INumberVector):
                 INumber(name="CCD_EXPOSURE_VALUE", label="Duration (s)", min=min_exp / 1e6, max=max_exp / 1e6,
                         step=0.001, value=1.0, format="%.3f"),
             ],
-            label="Expose", group="Main Control",
+            label="Expose", group="Main Control", is_savable=False,
         )
 
     def set_byClient(self, values: dict):
@@ -359,6 +363,41 @@ class SnoopingVector(ITextVector):
                         )
 
 
+class FitsHeaderVector(ITextVector):
+    """INDI Text vector with other devices to snoop
+    """
+
+    def __init__(self, parent):
+        self.parent = parent
+        self.FitsHeader = OrderedDict()
+        super().__init__(
+            device=self.parent.device, timestamp=self.parent.timestamp, name="FITS_HEADER",
+            # empty values mean do not snoop
+            elements=[
+                IText(name="KEYWORD_NAME", label="Name", value=""),
+                IText(name="KEYWORD_VALUE", label="Value", value=""),
+                IText(name="KEYWORD_COMMENT", label="Comment", value=""),
+            ],
+            label="FITS Header", group="General Info", perm=IPermission.WO, is_savable=False,
+        )
+
+    def set_byClient(self, values: dict):
+        """called when vector gets set by client
+        special version for activating snooping
+
+        Args:
+            values: dict(propertyName: value) of values to set
+        """
+        super().set_byClient(values=values)
+        self.FitsHeader[values["KEYWORD_NAME"]] = (values["KEYWORD_VALUE"], values["KEYWORD_COMMENT"])
+
+    def get_FitsHeaderList(self):
+        FitsHeaderList = []
+        for name, value_comment in self.FitsHeader.items():
+            FitsHeaderList.append((name, value_comment[0], value_comment[1]))
+        return FitsHeaderList
+
+
 class DoSnoopingVector(ISwitchVector):
     """INDI SwitchVector to enable/disable snooping; gets initialized from config file
     """
@@ -389,7 +428,7 @@ class PrintSnoopedValuesVector(ISwitchVector):
                 ISwitch(name="PRINT_SNOOPED", label="Print", value=ISwitchState.OFF),
             ],
             label="Print snooped values", group="Snooping",
-            rule=ISwitchRule.ATMOST1,
+            rule=ISwitchRule.ATMOST1, is_savable=False,
         )
 
     def set_byClient(self, values: dict):
@@ -403,6 +442,69 @@ class PrintSnoopedValuesVector(ISwitchVector):
         logging.info(f'Snooped values: {str(self.parent.SnoopingManager)}')
         self.state = IVectorState.OK
         self.send_setVector()
+
+
+class ConfigProcessVector(ISwitchVector):
+    """INDI Switch vector to save and load configurations
+    """
+
+    def __init__(self, parent):
+        self.parent=parent
+        super().__init__(
+            device=self.parent.device, timestamp=self.parent.timestamp, name="CONFIG_PROCESS",
+            elements=[
+                ISwitch(name="CONFIG_LOAD", label="Load", value=ISwitchState.OFF),
+                ISwitch(name="CONFIG_SAVE", label="Save", value=ISwitchState.OFF),
+                ISwitch(name="CONFIG_DEFAULT", label="Default", value=ISwitchState.OFF),
+                ISwitch(name="CONFIG_PURGE", label="Purge", value=ISwitchState.OFF),
+            ],
+            label="Configuration", group="Options",
+            rule=ISwitchRule.ATMOST1, is_savable=False,
+        )
+
+    def set_byClient(self, values: dict):
+        """called when vector gets set by client
+        special version for saving and loading configurations
+
+        Args:
+            values: dict(propertyName: value) of values to set
+        """
+        super().set_byClient(values=values)
+        config_filename = IniPath / f'{self.parent.knownVectors["APPLY_CONFIG"].get_OnSwitches()[0]}.json'
+        actions = self.get_OnSwitches()
+        if len(actions) > 0:
+            action = actions[0]
+            if action == "CONFIG_LOAD":
+                if config_filename.exists():
+                    logging.info(f'loading configuration from {config_filename}')
+                    with open(config_filename, "r") as fh:
+                        states = json.load(fh)
+                    for vector in states:
+                        if vector["name"] in self.parent.knownVectors:
+                            self.parent.knownVectors[vector["name"]].set_byClient(vector["values"])
+                        else:
+                            logging.warning(f'Ignoring unknown vector {vector["name"]}!')
+                else:
+                    logging.info(f'configuration {config_filename} does not exist')
+            elif action == "CONFIG_SAVE":
+                logging.info(f'saving configuration in {config_filename}')
+                states = list()
+                for vector in self.parent.knownVectors:
+                    state = vector.save()
+                    if state is not None:
+                        states.append(state)
+                with open(config_filename, "w") as fh:
+                    json.dump(states, fh, indent=4)
+            elif action == "CONFIG_DEFAULT":
+                logging.info(f'restoring driver defaults')
+                for vector in self.parent.knownVectors:
+                    vector.restore_DriverDefault()
+            else:  # action == "CONFIG_PURGE"
+                logging.info(f'deleting configuration {config_filename}')
+                config_filename.unlink(missing_ok=True)
+        # set all buttons Off again
+        super().set_byClient(values={element.name: ISwitchState.OFF for element in self.elements})
+
 
 
 def kill_oldDriver():
@@ -478,7 +580,7 @@ class indi_pylibcamera(indidevice):
                     ) for i in range(len(self.Cameras))
                 ],
                 label="Camera", group="Main Control",
-                rule=ISwitchRule.ONEOFMANY,
+                rule=ISwitchRule.ONEOFMANY, is_savable=False,
             )
         )
         self.checkin(
@@ -494,7 +596,7 @@ class indi_pylibcamera(indidevice):
                     IText(name="DRIVER_INTERFACE", label="Interface", value="2"),  # This is a CCD!
                 ],
                 label="Driver Info", group="General Info",
-                perm=IPermission.RO,
+                perm=IPermission.RO, is_savable=False,
             )
         )
         self.checkin(
@@ -521,7 +623,7 @@ class indi_pylibcamera(indidevice):
                     INumber(name="ELEV", label="Elevation (m)", min=-200, max=10000, step=0, value=0, format="%g"),
                 ],
                 label="Scope Location", group="Snooping",
-                perm=IPermission.RW,
+                perm=IPermission.RW, is_savable=False,
             ),
         )
         self.checkin(
@@ -532,7 +634,7 @@ class indi_pylibcamera(indidevice):
                     INumber(name="DEC", label="DEC (dd:mm:ss)", min=-90, max=90, step=0, value=0, format="%010.6m"),
                 ],
                 label="Eq. Coordinates", group="Snooping",
-                perm=IPermission.RW,
+                perm=IPermission.RW, is_savable=False,
             ),
         )
         # TODO: "EQUATORIAL_COORD" (J2000 coordinates from mount) are not used!
@@ -545,7 +647,7 @@ class indi_pylibcamera(indidevice):
                         INumber(name="DEC", label="DEC (dd:mm:ss)", min=-90, max=90, step=0, value=0, format="%010.6m"),
                     ],
                     label="Eq. J2000 Coordinates", group="Snooping",
-                    perm=IPermission.RW,
+                    perm=IPermission.RW, is_savable=False,
                 ),
             )
         self.checkin(
@@ -556,7 +658,7 @@ class indi_pylibcamera(indidevice):
                     ISwitch(name="PIER_EAST", value=ISwitchState.OFF, label="East (pointing west)"),
                 ],
                 label="Pier Side", group="Snooping",
-                rule=ISwitchRule.ONEOFMANY,
+                rule=ISwitchRule.ONEOFMANY, is_savable=False,
             )
         )
         self.checkin(
@@ -633,7 +735,7 @@ class indi_pylibcamera(indidevice):
                     IText(name="CAMERA_UNITCELLSIZE", label="Pixel size", value=str(self.CameraThread.getProp("UnitCellSize"))),
                 ],
                 label="Camera Info", group="General Info",
-                state=IVectorState.OK, perm=IPermission.RO,
+                state=IVectorState.OK, perm=IPermission.RO, is_savable=False,
             ),
             send_defVector=True,
         )
@@ -686,7 +788,7 @@ class indi_pylibcamera(indidevice):
                     ISwitch(name="ABORT", label="Abort", value=ISwitchState.OFF),
                 ],
                 label="Abort", group="Main Control",
-                rule=ISwitchRule.ATMOST1,
+                rule=ISwitchRule.ATMOST1, is_savable=False,
             ),
             send_defVector=True,
         )
@@ -705,7 +807,7 @@ class indi_pylibcamera(indidevice):
                             step=0, value=self.CameraThread.getProp("PixelArraySize")[1], format="%4.0f"),
                 ],
                 label="Frame", group="Image Info",
-                perm=IPermission.RO,
+                perm=IPermission.RO, is_savable=False,  # TODO: make it savable after implementing frame cropping
             ),
             send_defVector=True,
         )
@@ -718,7 +820,7 @@ class indi_pylibcamera(indidevice):
                     ISwitch(name="RESET", label="Reset", value=ISwitchState.OFF),
                 ],
                 label="Frame Values", group="Image Settings",
-                rule=ISwitchRule.ONEOFMANY, perm=IPermission.WO,
+                rule=ISwitchRule.ONEOFMANY, perm=IPermission.WO, is_savable=False,
             ),
             send_defVector=True,
         )
@@ -735,15 +837,7 @@ class indi_pylibcamera(indidevice):
         self.CameraVectorNames.append("CCD_BINNING")
         #
         self.checkin(
-            ITextVector(
-                device=self.device, timestamp=self.timestamp, name="FITS_HEADER",
-                elements=[
-                    IText(name="FITS_OBSERVER", label="Observer", value="Unknown"),
-                    IText(name="FITS_OBJECT", label="Object", value="Unknown"),
-                ],
-                label="FITS Header", group="General Info",
-                state=IVectorState.IDLE, perm=IPermission.RW,
-            ),
+            FitsHeaderVector(parent=self,),
             send_defVector=True,
         )
         self.CameraVectorNames.append("FITS_HEADER")
@@ -755,7 +849,7 @@ class indi_pylibcamera(indidevice):
                     INumber(name="CCD_TEMPERATURE_VALUE", label="Temperature (C)", min=-50, max=50, step=0, value=0, format="%5.2f"),
                 ],
                 label="Temperature", group="Main Control",
-                state=IVectorState.IDLE, perm=IPermission.RO,
+                state=IVectorState.IDLE, perm=IPermission.RO, is_savable=False,
             ),
             send_defVector=True,
         )
@@ -780,7 +874,7 @@ class indi_pylibcamera(indidevice):
                             value=8 if len(self.CameraThread.RawModes) < 1 else self.CameraThread.RawModes[0]["bit_depth"], format="%.f"),
                 ],
                 label="CCD Information", group="Image Info",
-                state=IVectorState.IDLE, perm=IPermission.RO,
+                state=IVectorState.IDLE, perm=IPermission.RO, is_savable=False,
             ),
             send_defVector=True,
         )
@@ -812,7 +906,7 @@ class indi_pylibcamera(indidevice):
                     IBlob(name="CCD1", label="Image"),
                 ],
                 label="Image Data", group="Image Info",
-                state=IVectorState.OK, perm=IPermission.RO,
+                state=IVectorState.OK, perm=IPermission.RO, is_savable=False,
             ),
             send_defVector=True,
         )
@@ -882,7 +976,7 @@ class indi_pylibcamera(indidevice):
                 elements=[
                     INumber(name="FRAMES", label="Frames", min=0, max=100000, step=1, value=1, format="%.f"),
                 ],
-                label="Fast Count", group="Main Control",
+                label="Fast Count", group="Main Control", is_savable=False,
             ),
             send_defVector=True,
         )
@@ -901,6 +995,39 @@ class indi_pylibcamera(indidevice):
             send_defVector=True,
         )
         self.CameraVectorNames.append("CCD_GAIN")
+        #
+        # configuration save and load
+        self.checkin(
+            ISwitchVector(
+                device=self.device, timestamp=self.timestamp, name="APPLY_CONFIG",
+                elements=[
+                    ISwitch(name=f"CONFIG{i}", label=f"Config #{i}", value=ISwitchState.ON if i == 1 else ISwitchState.OFF)
+                    for i in range(1, 7)
+                ],
+                label="Configs", group="Options",
+                rule=ISwitchRule.ONEOFMANY,
+            ),
+            send_defVector=True,
+        )
+        self.CameraVectorNames.append("APPLY_CONFIG")
+        #
+        self.checkin(
+            ITextVector(
+                device=self.device, timestamp=self.timestamp, name="CONFIG_NAME",
+                elements=[
+                    IText(name="CONFIG_NAME", label="Config Name", value=""),
+                ],
+                label="Configuration Name", group="Options",
+            ),
+            send_defVector=True,
+        )
+        self.CameraVectorNames.append("CONFIG_NAME")
+        #
+        self.checkin(
+            ConfigProcessVector(parent=self,),
+            send_defVector=True,
+        )
+        self.CameraVectorNames.append("CONFIG_PROCESS")
         #
         # Maybe needed: CCD_CFA
         # self.checkin(

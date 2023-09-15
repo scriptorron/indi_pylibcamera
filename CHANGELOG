@@ -1,3 +1,11 @@
+2.2.0
+- fixed Bayer pattern order for HQ camera (pycamera2 or libcamera have change they way they report Bayer pattern order),
+  BAYERPAT in FITS does not depend on "Rotation" property anymore (force_Rotation has no effect anymore),
+  but Bayer pattern can now be forced with force_BayerOrder
+- sorting raw modes by size and bit depth to make the mode with most pixel and most bits/pixel the default
+- saving and loading configurations
+- bug fix: after aborting an exposure the camera stayed busy and EKOS field solver could not start a new exposure
+
 2.1.0
 - fixed division by 0 when focal length equals 0
 - improved driver exit when indiserver is closed (to avoid driver continue to run)

@@ -68,6 +68,7 @@ class ISwitchState:
 class UnblockTTY:
     """configure stdout for unblocking write
     """
+
     # shameless copy from https://stackoverflow.com/questions/67351928/getting-a-blockingioerror-when-printing-or-writting-to-stdout
     def __enter__(self):
         self.fd = sys.stdout.fileno()
@@ -149,9 +150,10 @@ class IVector:
     def __init__(
             self,
             device: str, name: str, elements: list = [],
-            label: str =None, group: str ="",
+            label: str = None, group: str = "",
             state: str = IVectorState.IDLE, perm: str = IPermission.RW,
-            timeout: int = 60, timestamp: bool = False, message: str = None
+            timeout: int = 60, timestamp: bool = False, message: str = None,
+            is_savable: bool = True,
     ):
         """constructor
 
@@ -166,11 +168,13 @@ class IVector:
             timeout: timeout
             timestamp: send messages with (True) or without (False) timestamp
             message: message send to client
+            is_savable: can be saved
         """
         self._vectorType = "NotSet"
         self.device = device
         self.name = name
         self.elements = elements
+        self.driver_default = {element.name: element.value for element in self.elements}
         if label:
             self.label = label
         else:
@@ -181,6 +185,7 @@ class IVector:
         self.timeout = timeout
         self.timestamp = timestamp
         self.message = message
+        self.is_savable = is_savable
 
     def __str__(self) -> str:
         return f"<Vector {self._vectorType} name={self.name}, device={self.device}>"
@@ -242,8 +247,8 @@ class IVector:
             xml += f' rule="{self.rule}"'
         xml += f' perm="{self.perm}" state="{self.state}" group="{self.group}"'
         xml += f' label="{self.label}" name="{self.name}"'
-        #if self.timeout:
-        #    xml += f' timeout="{self.timeout}"'
+        if self.timeout:
+            xml += f' timeout="{self.timeout}"'
         if self.timestamp:
             xml += f' timestamp="{get_TimeStamp()}"'
         if self.message:
@@ -327,6 +332,26 @@ class IVector:
         self.send_setVector()
         self.message = ""
 
+    def save(self):
+        """return Vector state
+
+        Returns:
+             None if Vector is not savable
+             dict with Vector state
+        """
+        state = None
+        if self.is_savable:
+            state = dict()
+            state["name"] = self.name
+            state["values"] = {element.name: element.value for element in self.elements}
+        return state
+
+    def restore_DriverDefault(self):
+        """restore driver defaults for savable vector
+        """
+        if self.is_savable:
+            self.set_byClient(self.driver_default)
+
 
 class IText(IProperty):
     """INDI Text property
@@ -362,12 +387,13 @@ class ITextVector(IVector):
             self,
             device: str, name: str, elements: list = [],
             label: str = None, group: str = "",
-            state: str = IVectorState.IDLE, perm: str =IPermission.RW,
-            timeout: int = 60, timestamp: bool = False, message: str = None
+            state: str = IVectorState.IDLE, perm: str = IPermission.RW,
+            timeout: int = 60, timestamp: bool = False, message: str = None,
+            is_savable: bool = True,
     ):
         super().__init__(
             device=device, name=name, elements=elements, label=label, group=group,
-            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message
+            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message, is_savable=is_savable,
         )
         self._vectorType = "TextVector"
 
@@ -416,11 +442,12 @@ class INumberVector(IVector):
             device: str, name: str, elements: list = [],
             label: str = None, group: str = "",
             state: str = IVectorState.IDLE, perm: str = IPermission.RW,
-            timeout: int = 60, timestamp: bool = False, message: str = None
+            timeout: int = 60, timestamp: bool = False, message: str = None,
+            is_savable: bool = True,
     ):
         super().__init__(
             device=device, name=name, elements=elements, label=label, group=group,
-            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message
+            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message, is_savable=is_savable,
         )
         self._vectorType = "NumberVector"
 
@@ -461,11 +488,12 @@ class ISwitchVector(IVector):
             label: str = None, group: str = "",
             state: str = IVectorState.IDLE, perm: str = IPermission.RW,
             rule: str = ISwitchRule.ONEOFMANY,
-            timeout: int = 60, timestamp: bool = False, message: str = None
+            timeout: int = 60, timestamp: bool = False, message: str = None,
+            is_savable: bool = True,
     ):
         super().__init__(
             device=device, name=name, elements=elements, label=label, group=group,
-            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message
+            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message, is_savable=is_savable,
         )
         self._vectorType = "SwitchVector"
         self.rule = rule
@@ -526,7 +554,6 @@ class ISwitchVector(IVector):
         message = "; ".join(errmsgs)
         return message
 
-
     def set_byClient(self, values: dict):
         """called when vector gets set by client
         Special implementation for ISwitchVector to follow switch rules.
@@ -558,7 +585,7 @@ class IBlob(IProperty):
         self.data = b''
         self.enabled = "Only"
 
-    def set_data(self, data: bytes, format: str =".fits", compress: bool =False):
+    def set_data(self, data: bytes, format: str = ".fits", compress: bool = False):
         """set BLOB data
 
         Args:
@@ -583,7 +610,7 @@ class IBlob(IProperty):
     def get_oneProperty(self) -> str:
         """return XML for oneBLOB message
         """
-        xml =""
+        xml = ""
         if self.enabled in ["Also", "Only"]:
             xml += f'<oneBLOB name="{self.name}" size="{self.size}" format="{self.format}">'
             xml += base64.b64encode(self.data).decode()
@@ -600,13 +627,20 @@ class IBlobVector(IVector):
             device: str, name: str, elements: list = [],
             label: str = None, group: str = "",
             state: str = IVectorState.IDLE, perm: str = IPermission.RO,
-            timeout: int = 60, timestamp: bool = False, message: str = None
+            timeout: int = 60, timestamp: bool = False, message: str = None,
+            is_savable: bool = True,
     ):
         super().__init__(
             device=device, name=name, elements=elements, label=label, group=group,
-            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message
+            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message, is_savable=is_savable,
         )
         self._vectorType = "BLOBVector"
+
+    def send_setVector(self):
+        """tell client about vector data, special version for IBlobVector to avoid double calculation of setVector
+        """
+        # logging.debug(f'send_setVector: {self.get_setVector()[:100]}')
+        to_server(self.get_setVector())
 
 
 class IVectorList:
@@ -700,7 +734,6 @@ class indidevice:
         # snooping
         self.SnoopingManager = SnoopingManager.SnoopingManager(parent=self, to_server_func=to_server)
 
-
     def send_Message(self, message: str, severity: str = "INFO", timestamp: bool = False):
         """send message to client
 
@@ -760,10 +793,12 @@ class indidevice:
                         with self.knownVectorsLock:
                             vector.set_byClient(values)
                 else:
-                    logging.error(f'could not interpret client request: {etree.tostring(xml, pretty_print=True).decode()}')
+                    logging.error(
+                        f'could not interpret client request: {etree.tostring(xml, pretty_print=True).decode()}')
             else:
                 # can be a snooped device
-                if xml.tag in ["setNumberVector", "setTextVector", "setSwitchVector", "defNumberVector", "defTextVector", "defSwitchVector"]:
+                if xml.tag in ["setNumberVector", "setTextVector", "setSwitchVector", "defNumberVector",
+                               "defTextVector", "defSwitchVector"]:
                     vectorName = xml.attrib["name"]
                     values = {ele.attrib["name"]: (ele.text.strip() if type(ele.text) is str else "") for ele in xml}
                     with self.knownVectorsLock:
@@ -772,8 +807,8 @@ class indidevice:
                     # snooped device got closed
                     pass
                 else:
-                    logging.error(f'could not interpret client request: {etree.tostring(xml, pretty_print=True).decode()}')
-
+                    logging.error(
+                        f'could not interpret client request: {etree.tostring(xml, pretty_print=True).decode()}')
 
     def checkin(self, vector: IVector, send_defVector: bool = False):
         """add vector to knownVectors list
@@ -789,7 +824,7 @@ class indidevice:
         """
         self.knownVectors.checkout(name)
 
-    def setVector(self, name: str, element: str, value = None, state: IVectorState = None, send: bool = True):
+    def setVector(self, name: str, element: str, value=None, state: IVectorState = None, send: bool = True):
         """update vector value and/or state
 
         Args:
