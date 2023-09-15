@@ -4,7 +4,7 @@
   but Bayer pattern can now be forced with force_BayerOrder
 - sorting raw modes by size and bit depth to make the mode with most pixel and most bits/pixel the default
 - saving and loading configurations
-
+- bug fix: after aborting an exposure the camera stayed busy and EKOS field solver could not start a new exposure
 
 2.1.0
 - fixed division by 0 when focal length equals 0

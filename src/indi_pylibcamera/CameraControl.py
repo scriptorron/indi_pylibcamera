@@ -617,6 +617,7 @@ class CameraControl:
         if self.parent.knownVectors["CCD_ABORT_EXPOSURE"]["ABORT"].value == ISwitchState.ON:
             self.parent.setVector("CCD_FAST_COUNT", "FRAMES", value=0, state=IVectorState.OK)
             self.parent.setVector("CCD_ABORT_EXPOSURE", "ABORT", value=ISwitchState.OFF, state=IVectorState.OK)
+            self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
             return True
         return False
 
@@ -671,6 +672,7 @@ class CameraControl:
             if self.Sig_ActionExit.is_set():
                 # exit exposure loop
                 self.picam2.stop_()
+                self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                 return
             # picam2 needs to be open!
             if self.picam2 is None:
@@ -732,6 +734,7 @@ class CameraControl:
             if self.Sig_ActionExit.is_set():
                 # exit exposure loop
                 self.picam2.stop_()
+                self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                 return
             with self.parent.knownVectorsLock:
                 Abort = self.checkAbort()
@@ -755,6 +758,7 @@ class CameraControl:
                     if self.Sig_ActionExit.is_set():
                         # exit exposure loop
                         self.picam2.stop_()
+                        self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                         return
                     # allow to abort exposure
                     with self.parent.knownVectorsLock:
@@ -767,16 +771,18 @@ class CameraControl:
                     time.sleep(PollingPeriod_s)
                 # get frame and its metadata
                 if not Abort:
-                    (array, ), metadata =  self.picam2.wait(job)
+                    (array, ), metadata = self.picam2.wait(job)
                     logging.info("got exposed frame")
-                # inform client about progress
-                self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.BUSY)
-                # at least HQ camera reports CCD temperature in meta data
-                self.parent.setVector("CCD_TEMPERATURE", "CCD_TEMPERATURE_VALUE", value=metadata.get('SensorTemperature', 0))
+                    # at least HQ camera reports CCD temperature in meta data
+                    self.parent.setVector("CCD_TEMPERATURE", "CCD_TEMPERATURE_VALUE",
+                                          value=metadata.get('SensorTemperature', 0))
+                    # inform client about progress
+                    self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.BUSY)
                 # last chance to exit or abort before sending blob
                 if self.Sig_ActionExit.is_set():
                     # exit exposure loop
                     self.picam2.stop_()
+                    self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                     return
                 with self.parent.knownVectorsLock:
                     Abort = Abort or self.checkAbort()
