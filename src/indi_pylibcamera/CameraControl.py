@@ -420,23 +420,23 @@ class CameraControl:
             Aperture = self.parent.knownVectors["TELESCOPE_INFO"]["GUIDER_APERTURE"].value
             FocalLength = self.parent.knownVectors["TELESCOPE_INFO"]["GUIDER_FOCAL_LENGTH"].value
         FitsHeader += [
-            ("FOCALLEN", FocalLength, "Focal Length (mm)"),
-            ("APTDIA", Aperture, "Telescope diameter (mm)"),
+            ("FOCALLEN", FocalLength, "[mm] Focal Length"),
+            ("APTDIA", Aperture, "[mm] Telescope aperture/diameter"),
         ]
         #### SCALE ####
         if FocalLength > 0:
             FitsHeader += [(
                 "SCALE",
                 0.206265 * self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0] / FocalLength,
-                "arcsecs per pixel"
+                "[arcsec/px] image scale"
             ), ]
         #### SITELAT, SITELONG ####
         Lat = self.parent.knownVectors["GEOGRAPHIC_COORD"]["LAT"].value
         Long = self.parent.knownVectors["GEOGRAPHIC_COORD"]["LONG"].value
         Height = self.parent.knownVectors["GEOGRAPHIC_COORD"]["ELEV"].value
         FitsHeader += [
-            ("SITELAT", Lat, "Latitude of the imaging site in degrees"),
-            ("SITELONG", Long, "Longitude of the imaging site in degrees"),
+            ("SITELAT", Lat, "[deg] Latitude of the imaging site"),
+            ("SITELONG", Long, "[deg] Longitude of the imaging site"),
         ]
         ####
         # TODO: "EQUATORIAL_COORD" (J2000 coordinates from mount) are not used!
@@ -448,8 +448,8 @@ class CameraControl:
                 # "Object J2000 RA in Hours"),
                 #("OBJCTDEC", J2000.dec.to_string(unit=astropy.units.deg).replace("d", " ").replace("m", " ").replace("s", " "),
                 # "Object J2000 DEC in Degrees"),
-                ("RA", J2000RA, "Object J2000 RA in Degrees"),
-                ("DEC", J2000DEC, "Object J2000 DEC in Degrees")
+                ("RA", J2000RA, "[deg] Object J2000 RA"),
+                ("DEC", J2000DEC, "[deg] Object J2000 DEC")
             ]
             # TODO: What about AIRMASS, OBJCTAZ and OBJCTALT?
         #### AIRMASS, OBJCTAZ, OBJCTALT, OBJCTRA, OBJCTDEC, RA, DEC ####
@@ -463,12 +463,12 @@ class CameraControl:
         J2000 = cAltAz.transform_to(astropy.coordinates.ICRS())
         FitsHeader += [
             ("AIRMASS", float(cAltAz.secz), "Airmass"),
-            ("OBJCTAZ", float(cAltAz.az/astropy.units.deg), "Azimuth of center of image in Degrees"),
-            ("OBJCTALT", float(cAltAz.alt/astropy.units.deg), "Altitude of center of image in Degrees"),
-            ("OBJCTRA", J2000.ra.to_string(unit=astropy.units.hour).replace("h", " ").replace("m", " ").replace("s", " "), "Object J2000 RA in Hours"),
-            ("OBJCTDEC", J2000.dec.to_string(unit=astropy.units.deg).replace("d", " ").replace("m", " ").replace("s", " "), "Object J2000 DEC in Degrees"),
-            ("RA", float(J2000.ra.degree), "Object J2000 RA in Degrees"),
-            ("DEC", float(J2000.dec.degree), "Object J2000 DEC in Degrees")
+            ("OBJCTAZ", float(cAltAz.az/astropy.units.deg), "[deg] Azimuth of center of image"),
+            ("OBJCTALT", float(cAltAz.alt/astropy.units.deg), "[deg] Altitude of center of image"),
+            ("OBJCTRA", J2000.ra.to_string(unit=astropy.units.hour).replace("h", " ").replace("m", " ").replace("s", " "), "[HMS] Object J2000 RA"),
+            ("OBJCTDEC", J2000.dec.to_string(unit=astropy.units.deg).replace("d", " ").replace("m", " ").replace("s", " "), "[DMS] Object J2000 DEC"),
+            ("RA", float(J2000.ra.degree), "[deg] Object J2000 RA"),
+            ("DEC", float(J2000.dec.degree), "[deg] Object J2000 DEC")
         ]
         #### PIERSIDE ####
         if self.parent.knownVectors["TELESCOPE_PIER_SIDE"]["PIER_WEST"].value == ISwitchState.ON:
@@ -477,8 +477,8 @@ class CameraControl:
             FitsHeader += [("PIERSIDE", "EAST", "East, looking West"), ]
         #### EQUINOX and DATE-OBS ####
         FitsHeader += [
-            ("EQUINOX", 2000, "Equinox"),
-            ("DATE-OBS", datetime.datetime.utcnow().isoformat(timespec="milliseconds"), "UTC start date of observation"),  # FIXME: this is end and not start time!
+            ("EQUINOX", 2000, "[yr] Equinox"),
+            ("DATE-END", datetime.datetime.utcnow().isoformat(timespec="milliseconds"), "UTC start date of observation"),  # FIXME: this is end and not start time!
         ]
         logging.info("Finished collecting snooped data.")
         ####
@@ -515,23 +515,23 @@ class CameraControl:
             FitsHeader = [
                 ("BZERO", 2 ** (bit_pix - 1), "offset data range"),
                 ("BSCALE", 1, "default scaling factor"),
-                ("ROWORDER", "TOP-DOWN", "Row order"),
+                ("ROWORDER", "BOTTOM-UP", "Row order"),
                 ("INSTRUME", self.parent.device, "CCD Name"),
                 ("TELESCOP", self.parent.knownVectors["ACTIVE_DEVICES"]["ACTIVE_TELESCOPE"].value, "Telescope name"),
             ] + self.parent.knownVectors["FITS_HEADER"].get_FitsHeaderList() + [
-                ("EXPTIME", metadata["ExposureTime"]/1e6, "Total Exposure Time (s)"),
-                ("CCD-TEMP", metadata.get('SensorTemperature', 0), "CCD Temperature (Celsius)"),
-                ("PIXSIZE1", self.getProp("UnitCellSize")[0] / 1e3, "Pixel Size 1 (microns)"),
-                ("PIXSIZE2", self.getProp("UnitCellSize")[1] / 1e3, "Pixel Size 2 (microns)"),
+                ("EXPTIME", metadata["ExposureTime"]/1e6, "[s] Total Exposure Time"),
+                ("CCD-TEMP", metadata.get('SensorTemperature', 0), "[degC] CCD Temperature"),
+                ("PIXSIZE1", self.getProp("UnitCellSize")[0] / 1e3, "[um] Pixel Size 1"),
+                ("PIXSIZE2", self.getProp("UnitCellSize")[1] / 1e3, "[um] Pixel Size 2"),
                 ("XBINNING", self.present_CameraSettings.Binning[0], "Binning factor in width"),
                 ("YBINNING", self.present_CameraSettings.Binning[1], "Binning factor in height"),
-                ("XPIXSZ", self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0], "X binned pixel size in microns"),
-                ("YPIXSZ", self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1], "Y binned pixel size in microns"),
+                ("XPIXSZ", self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0], "[um] X binned pixel size"),
+                ("YPIXSZ", self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1], "[um] Y binned pixel size"),
                 ("FRAME", FrameType, "Frame Type"),
                 ("IMAGETYP", FrameType+" Frame", "Frame Type"),
             ] + self.snooped_FitsHeader() + [
-                ("XBAYROFF", 0, "X offset of Bayer array"),
-                ("YBAYROFF", 0, "Y offset of Bayer array"),
+                ("XBAYROFF", 0, "[px] X offset of Bayer array"),
+                ("YBAYROFF", 0, "[px] Y offset of Bayer array"),
                 ("BAYERPAT", BayerPattern, "Bayer color pattern"),
             ]
         FitsHeader += [("Gain", metadata.get("AnalogueGain", 0.0), "Gain"), ]
@@ -550,10 +550,10 @@ class CameraControl:
                 # But when we store image with 8bit/pixel we need to divide by 2**8.
                 SensorBlackLevelScaling = 2 ** (bit_pix - 16)
                 FitsHeader += [
-                    ("OFFSET_0", SensorBlackLevels[0] * SensorBlackLevelScaling, "Sensor Black Level 0"),
-                    ("OFFSET_1", SensorBlackLevels[1] * SensorBlackLevelScaling, "Sensor Black Level 1"),
-                    ("OFFSET_2", SensorBlackLevels[2] * SensorBlackLevelScaling, "Sensor Black Level 2"),
-                    ("OFFSET_3", SensorBlackLevels[3] * SensorBlackLevelScaling, "Sensor Black Level 3"),
+                    ("OFFSET_0", SensorBlackLevels[0] * SensorBlackLevelScaling, "[DN] Sensor Black Level 0"),
+                    ("OFFSET_1", SensorBlackLevels[1] * SensorBlackLevelScaling, "[DN] Sensor Black Level 1"),
+                    ("OFFSET_2", SensorBlackLevels[2] * SensorBlackLevelScaling, "[DN] Sensor Black Level 2"),
+                    ("OFFSET_3", SensorBlackLevels[3] * SensorBlackLevelScaling, "[DN] Sensor Black Level 3"),
                 ]
         for FHdr in FitsHeader:
             if len(FHdr) > 2:
@@ -587,19 +587,19 @@ class CameraControl:
                 ("INSTRUME", self.parent.device, "CCD Name"),
                 ("TELESCOP", self.parent.knownVectors["ACTIVE_DEVICES"]["ACTIVE_TELESCOPE"].value, "Telescope name"),
             ] + self.parent.knownVectors["FITS_HEADER"].get_FitsHeaderList() + [
-                ("EXPTIME", metadata["ExposureTime"]/1e6, "Total Exposure Time (s)"),
-                ("CCD-TEMP", metadata.get('SensorTemperature', 0), "CCD Temperature (Celsius)"),
-                ("PIXSIZE1", self.getProp("UnitCellSize")[0] / 1e3, "Pixel Size 1 (microns)"),
-                ("PIXSIZE2", self.getProp("UnitCellSize")[1] / 1e3, "Pixel Size 2 (microns)"),
+                ("EXPTIME", metadata["ExposureTime"]/1e6, "[s] Total Exposure Time"),
+                ("CCD-TEMP", metadata.get('SensorTemperature', 0), "[degC] CCD Temperature"),
+                ("PIXSIZE1", self.getProp("UnitCellSize")[0] / 1e3, "[um] Pixel Size 1"),
+                ("PIXSIZE2", self.getProp("UnitCellSize")[1] / 1e3, "[um] Pixel Size 2"),
                 ("XBINNING", self.present_CameraSettings.Binning[0], "Binning factor in width"),
                 ("YBINNING", self.present_CameraSettings.Binning[1], "Binning factor in height"),
-                ("XPIXSZ", self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0], "X binned pixel size in microns"),
-                ("YPIXSZ", self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1], "Y binned pixel size in microns"),
+                ("XPIXSZ", self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0], "[um] X binned pixel size"),
+                ("YPIXSZ", self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1], "[um] Y binned pixel size"),
                 ("FRAME", FrameType, "Frame Type"),
                 ("IMAGETYP", FrameType+" Frame", "Frame Type"),
             ] + self.snooped_FitsHeader() + [
                 # more info from camera
-                ("Gain", metadata.get("AnalogueGain", 0.0), "Gain"),
+                ("GAIN", metadata.get("AnalogueGain", 0.0), "Analog gain setting"),
             ]
         for FHdr in FitsHeader:
             if len(FHdr) > 2:
