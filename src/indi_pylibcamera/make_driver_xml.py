@@ -3,28 +3,27 @@
 make indi_pylibcamera.xml for integration in EKOS
 """
 
-from . import __version__
+from __init__ import __version__
+from lxml import etree
 
 
 def make_driver_xml():
     """create driver XML
 
     Returns:
-        string with contents of XML file
+        ElementTree object with contents of XML file
     """
-    return f"""<driversList>
-  <devGroup group="CCDs">
-    <device label="INDI pylibcamera">
-      <driver name="INDI pylibcamera">indi_pylibcamera</driver>
-      <version>{__version__}</version>
-    </device>
-  </devGroup>
-</driversList>
-"""
+    driversList = etree.Element("driversList")
+    devGroup = etree.SubElement(driversList, "devGroup", {"group": "CCDs"})
+    device = etree.SubElement(devGroup, "device", {"label": "INDI pylibcamera"})
+    driver = etree.SubElement(device, "driver", {"name": "INDI pylibcamera"})
+    driver.text = "indi_pylibcamera"
+    version = etree.SubElement(device, "version")
+    version.text = str(__version__)
+    return etree.ElementTree(driversList)
 
 def write_driver_xml(filename):
-    with open(filename, "w") as fh:
-        fh.write(make_driver_xml())
+    make_driver_xml().write(filename, pretty_print=True)
 
 
 # main entry point
