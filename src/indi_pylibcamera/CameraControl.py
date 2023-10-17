@@ -37,7 +37,7 @@ class CameraSettings:
     def update(self, ExposureTime, knownVectors, advertised_camera_controls, has_RawModes):
         self.ExposureTime = ExposureTime
         self.DoFastExposure = knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON
-        self.DoRaw = knownVectors["FRAME_TYPE"]["FRAMETYPE_RAW"].value == ISwitchState.ON if has_RawModes else False
+        self.DoRaw = knownVectors["CCD_CAPTURE_FORMAT"]["INDI_RAW"].value == ISwitchState.ON if has_RawModes else False
         self.ProcSize = (
             int(knownVectors["CCD_PROCFRAME"]["WIDTH"].value),
             int(knownVectors["CCD_PROCFRAME"]["HEIGHT"].value)

@@ -204,7 +204,7 @@ class RawFormatVector(ISwitchVector):
 
     def update_Binning(self):
         if self.do_CameraAdjustments:
-            if self.parent.knownVectors["FRAME_TYPE"]["FRAMETYPE_RAW"].value == ISwitchState.ON:
+            if self.parent.knownVectors["CCD_CAPTURE_FORMAT"]["INDI_RAW"].value == ISwitchState.ON:
                 # set binning according to raw format
                 selectedRawMode = self.CameraThread.RawModes[self.get_OnSwitchesIdxs()[0]]
                 binning = selectedRawMode["binning"]
@@ -235,17 +235,17 @@ class RawProcessedVector(ISwitchVector):
         self.parent=parent
         if len(CameraThread.RawModes) > 0:
             elements = [
-                ISwitch(name="FRAMETYPE_RAW", label="Raw", value=ISwitchState.ON),
-                ISwitch(name="FRAMETYPE_PROC", label="Processed", value=ISwitchState.OFF),
+                ISwitch(name="INDI_RAW", label="RAW", value=ISwitchState.ON),
+                ISwitch(name="INDI_RGB", label="RGB", value=ISwitchState.OFF),
             ]
         else:
             elements = [
-                ISwitch(name="FRAMETYPE_PROC", label="Processed", value=ISwitchState.ON),
+                ISwitch(name="INDI_RGB", label="RGB", value=ISwitchState.ON),
             ]
         super().__init__(
-            device=self.parent.device, timestamp=self.parent.timestamp, name="FRAME_TYPE",
+            device=self.parent.device, timestamp=self.parent.timestamp, name="CCD_CAPTURE_FORMAT",
             elements=elements,
-            label="Frame type", group="Image Settings",
+            label="Format", group="Image Settings",
             rule=ISwitchRule.ONEOFMANY,
         )
 
@@ -302,9 +302,9 @@ class BinningVector(INumberVector):
             values: dict(propertyName: value) of values to set
         """
         if self.do_CameraAdjustments:
-            # allowed binning depends on FRAME_TYPE (raw or processed) and raw mode
+            # allowed binning depends on CCD_CAPTURE_FORMAT (raw or processed) and raw mode
             bestRawIdx = 1
-            if self.parent.knownVectors["FRAME_TYPE"]["FRAMETYPE_RAW"].value == ISwitchState.ON:
+            if self.parent.knownVectors["CCD_CAPTURE_FORMAT"]["INDI_RAW"].value == ISwitchState.ON:
                 # select best matching frame type
                 bestError = 1000000
                 for binning, RawIdx in self.RawBinningModes.items():
@@ -739,7 +739,7 @@ class indi_pylibcamera(indidevice):
             RawProcessedVector(parent=self, CameraThread=self.CameraThread),
             send_defVector=True,
         )
-        self.CameraVectorNames.append("FRAME_TYPE")
+        self.CameraVectorNames.append("CCD_CAPTURE_FORMAT")
         # raw frame types
         self.checkin(
             RawFormatVector(
