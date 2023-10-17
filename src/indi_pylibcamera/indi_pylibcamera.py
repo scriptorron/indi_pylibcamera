@@ -760,7 +760,7 @@ class indi_pylibcamera(indidevice):
                     INumber(name="HEIGHT", label="Height", min=1, max=self.CameraThread.getProp("PixelArraySize")[1],
                             step=0, value=self.CameraThread.getProp("PixelArraySize")[1], format="%4.0f"),
                 ],
-                label="Processed frame", group="Image Settings",
+                label="RGB format", group="Image Settings",
                 perm=IPermission.RW,
             ),
             send_defVector=True,
