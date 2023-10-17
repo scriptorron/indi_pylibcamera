@@ -391,12 +391,6 @@ class FitsHeaderVector(ITextVector):
         super().set_byClient(values=values)
         self.FitsHeader[values["KEYWORD_NAME"]] = (values["KEYWORD_VALUE"], values["KEYWORD_COMMENT"])
 
-    def get_FitsHeaderList(self):
-        FitsHeaderList = []
-        for name, value_comment in self.FitsHeader.items():
-            FitsHeaderList.append((name, value_comment[0], value_comment[1]))
-        return FitsHeaderList
-
 
 class DoSnoopingVector(ISwitchVector):
     """INDI SwitchVector to enable/disable snooping; gets initialized from config file
