@@ -276,3 +276,11 @@ the capture function already returns after 40 seconds. Likely this maximum expos
 exposure time was successful.
 - Libcamera reports a higher maximum value for analogue gain than expected. The analogue gain is implemented by hardware
 and has therefore well-defined restrictions. It is not clear if the reported higher maximum analogue gain is correct.
+
+## Credits
+Many thanks to all who helped o improve this software. Contributions came from:
+- Simon Šander
+- Aaron W Morris
+- Caden Gobat
+
+I hope I did not forget someone. If so please do not be angry and tell me.

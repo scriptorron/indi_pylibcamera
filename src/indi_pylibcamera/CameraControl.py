@@ -8,7 +8,7 @@ import io
 import re
 import threading
 import time
-from datetime import datetime, timedelta
+import datetime
 
 from astropy.io import fits
 import astropy.coordinates
@@ -188,7 +188,7 @@ def getLocalFileName(dir: str = ".", prefix: str = "Image_XXX", suffix: str = ".
     """
     os.makedirs(dir, exist_ok=True)
     # replace ISO8601 placeholder in prefix with current time
-    now = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    now = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
     prefix_now = prefix.replace("_ISO8601", f"_{now}")
     # find largest existing image index
     maxidx = 0
@@ -477,7 +477,7 @@ class CameraControl:
         #### EQUINOX and DATE-OBS ####
         FitsHeader.update({
             "EQUINOX": (2000, "[yr] Equinox"),
-            "DATE-END": (datetime.utcnow().isoformat(timespec="milliseconds"), "UTC time at end of observation"),
+            "DATE-END": (datetime.datetime.utcnow().isoformat(timespec="milliseconds"), "UTC time at end of observation"),
         })
         logging.info("Finished collecting snooped data.")
         ####
@@ -516,7 +516,7 @@ class CameraControl:
                 "BSCALE": (1, "default scaling factor"),
                 "ROWORDER": ("BOTTOM-UP", "Row order"),
                 "INSTRUME": (self.parent.device, "CCD Name"),
-                "TELESCOP": (self.parent.knownVectors["ACTIVE_DEVICES"]["ACTIVE_TELESCOPE"].value, "Telescope name")
+                "TELESCOP": (self.parent.knownVectors["ACTIVE_DEVICES"]["ACTIVE_TELESCOPE"].value, "Telescope name"),
                 **self.parent.knownVectors["FITS_HEADER"].FitsHeader,
                 "EXPTIME": (metadata["ExposureTime"]/1e6, "[s] Total Exposure Time"),
                 "CCD-TEMP": (metadata.get('SensorTemperature', 0), "[degC] CCD Temperature"),
@@ -556,7 +556,7 @@ class CameraControl:
                 })
         for kw, value_comment in FitsHeader.items():
             hdu.header[kw] = value_comment # astropy appropriately sets value and comment from tuple
-        hdu.header.set("DATE-OBS", (datetime.fromisoformat(hdu.header["DATE-END"])-timedelta(seconds=hdu.header["EXPTIME"])).isoformat(timespec="milliseconds"),
+        hdu.header.set("DATE-OBS", (datetime.datetime.fromisoformat(hdu.header["DATE-END"])-datetime.timedelta(seconds=hdu.header["EXPTIME"])).isoformat(timespec="milliseconds"),
                        "UTC time of observation start", before="DATE-END") # FIXME: still an estimate! There may be a better way to do start time
         hdul = fits.HDUList([hdu])
         return hdul
@@ -601,7 +601,7 @@ class CameraControl:
             }
         for kw, value_comment in FitsHeader.items():
             hdu.header[kw] = value_comment
-        hdu.header.set("DATE-OBS", (datetime.fromisoformat(hdu.header["DATE-END"])-timedelta(seconds=hdu.header["EXPTIME"])).isoformat(timespec="milliseconds"),
+        hdu.header.set("DATE-OBS", (datetime.datetime.fromisoformat(hdu.header["DATE-END"])-datetime.timedelta(seconds=hdu.header["EXPTIME"])).isoformat(timespec="milliseconds"),
                        "UTC time of observation start", before="DATE-END")
         hdul = fits.HDUList([hdu])
         return hdul

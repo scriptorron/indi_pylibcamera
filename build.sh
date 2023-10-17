@@ -8,9 +8,8 @@ rm -rf dist
 rm -rf src/indi_pylibcamera.egg-info
 
 # create driver XML
-cd src
-python3 -m indi_pylibcamera.make_driver_xml
-mv indi_pylibcamera.xml indi_pylibcamera
+cd src/indi_pylibcamera
+python3 make_driver_xml.py
 cd "$OLDPWD"
 
 # updating build tools may be needed

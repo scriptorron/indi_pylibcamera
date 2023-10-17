@@ -1,3 +1,7 @@
+2.3.0dev
+- update FITS header formatting and timestamps
+- use lxml for construction of indi_pylibcamera.xml
+
 2.2.0
 - fixed Bayer pattern order for HQ camera (pycamera2 or libcamera have change they way they report Bayer pattern order),
   BAYERPAT in FITS does not depend on "Rotation" property anymore (force_Rotation has no effect anymore),

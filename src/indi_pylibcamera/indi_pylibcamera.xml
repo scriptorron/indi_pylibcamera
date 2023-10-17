@@ -2,7 +2,7 @@
   <devGroup group="CCDs">
     <device label="INDI pylibcamera">
       <driver name="INDI pylibcamera">indi_pylibcamera</driver>
-      <version>2.2.0</version>
+      <version>2.3.0dev</version>
     </device>
   </devGroup>
 </driversList>
