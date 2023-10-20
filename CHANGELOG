@@ -3,6 +3,10 @@
 - use lxml for construction of indi_pylibcamera.xml
 - renamed SwitchVector FRAME_TYPE(FRAMETYPE_RAW, FRAMETYPE_PROC) to CCD_CAPTURE_FORMAT(INDI_RAW, INDI_RGB)
   to better support AstroDMX
+- removed "setSitchVector CCD_ABORT_EXPOSURE" after each exposure start (that did not allow CCDciel to run
+  exposures in loop)
+- reworked handling of CCD_ABORT_EXPOSURE
+- fixed Fast Exposure
 
 2.2.0
 - fixed Bayer pattern order for HQ camera (pycamera2 or libcamera have change they way they report Bayer pattern order),

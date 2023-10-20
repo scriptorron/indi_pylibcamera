@@ -231,11 +231,13 @@ class CameraControl:
         self.Sig_Do = threading.Event() # do an action
         self.Sig_ActionExpose = threading.Event()  # single or fast exposure
         self.Sig_ActionExit = threading.Event()  # exit exposure loop
+        self.Sig_ActionAbort = threading.Event()  # abort running exposure
         self.Sig_CaptureDone = threading.Event()
         # exposure loop in separate thread
         self.Sig_ActionExit.clear()
         self.Sig_ActionExpose.clear()
         self.Sig_Do.clear()
+        self.Sig_ActionAbort.clear()
         self.ExposureThread = None
 
 
@@ -606,18 +608,6 @@ class CameraControl:
         hdul = fits.HDUList([hdu])
         return hdul
 
-    def checkAbort(self):
-        """check if client has aborted the exposure
-
-        Reset CCD_FAST_COUNT FRAMES and acknowledge the abort.
-        """
-        if self.parent.knownVectors["CCD_ABORT_EXPOSURE"]["ABORT"].value == ISwitchState.ON:
-            self.parent.setVector("CCD_FAST_COUNT", "FRAMES", value=0, state=IVectorState.OK)
-            self.parent.setVector("CCD_ABORT_EXPOSURE", "ABORT", value=ISwitchState.OFF, state=IVectorState.OK)
-            self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
-            return True
-        return False
-
     def __ExposureLoop(self):
         """exposure loop
 
@@ -653,7 +643,6 @@ class CameraControl:
         """
         while True:
             with self.parent.knownVectorsLock:
-                self.checkAbort()
                 DoFastExposure = self.parent.knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON
                 FastCount_Frames = self.parent.knownVectors["CCD_FAST_COUNT"]["FRAMES"].value
             if not DoFastExposure or (FastCount_Frames < 1):
@@ -661,10 +650,10 @@ class CameraControl:
                 if FastCount_Frames < 1:
                     self.parent.setVector("CCD_FAST_COUNT", "FRAMES", value=1, state=IVectorState.OK)
                 # wait for next action
+                self.Sig_ActionAbort.clear()
                 self.Sig_Do.wait()
                 self.Sig_Do.clear()
             if self.Sig_ActionExpose.is_set():
-                self.parent.setVector("CCD_ABORT_EXPOSURE", "ABORT", value=ISwitchState.OFF, state=IVectorState.OK)
                 self.Sig_ActionExpose.clear()
             if self.Sig_ActionExit.is_set():
                 # exit exposure loop
@@ -733,9 +722,9 @@ class CameraControl:
                 self.picam2.stop_()
                 self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                 return
-            with self.parent.knownVectorsLock:
-                Abort = self.checkAbort()
-            if not Abort:
+            if self.Sig_ActionAbort.is_set():
+                self.Sig_ActionAbort.clear()
+            else:
                 # get (non-blocking!) frame and meta data
                 self.Sig_CaptureDone.clear()
                 ExpectedEndOfExposure = time.time() + self.present_CameraSettings.ExposureTime
@@ -745,6 +734,7 @@ class CameraControl:
                 )
                 with self.parent.knownVectorsLock:
                     PollingPeriod_s = self.parent.knownVectors["POLLING_PERIOD"]["PERIOD_MS"].value / 1e3
+                Abort = False
                 while ExpectedEndOfExposure - time.time() > PollingPeriod_s:
                     # exposure count down
                     self.parent.setVector(
@@ -758,9 +748,9 @@ class CameraControl:
                         self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                         return
                     # allow to abort exposure
-                    with self.parent.knownVectorsLock:
-                        Abort = self.checkAbort()
+                    Abort = self.Sig_ActionAbort.is_set()
                     if Abort:
+                        self.Sig_ActionAbort.clear()
                         break
                     # allow exposure to finish earlier than expected (for instance when in fast exposure mode)
                     if self.Sig_CaptureDone.is_set():
@@ -781,8 +771,10 @@ class CameraControl:
                     self.picam2.stop_()
                     self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                     return
+                if self.Sig_ActionAbort.is_set():
+                    self.Sig_ActionAbort.clear()
+                    Abort = True
                 with self.parent.knownVectorsLock:
-                    Abort = Abort or self.checkAbort()
                     DoFastExposure = self.parent.knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON
                     FastCount_Frames = self.parent.knownVectors["CCD_FAST_COUNT"]["FRAMES"].value
                 if not DoFastExposure:
@@ -846,6 +838,10 @@ class CameraControl:
             raise RuntimeError("Try ro start exposure without having exposure loop running!")
         self.ExposureTime = exposuretime
         self.Sig_ActionExpose.set()
+        self.Sig_ActionAbort.clear()
         self.Sig_ActionExit.clear()
         self.Sig_Do.set()
 
+    def abortExposure(self):
+        self.Sig_ActionExpose.clear()
+        self.Sig_ActionAbort.set()
