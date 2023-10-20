@@ -267,6 +267,15 @@ A detailed description of the camera controls can be found in appendix C of the 
 Please be aware that most of the camera controls affect processed (RGB) pictures only. Do not use automatic exposure
 control or AWB when you plan to stack images.
 
+## Client Software
+
+### KStars/EKOS
+The driver is developed and tested with KStars/EKOS.
+
+### CCDciel
+Since version 2.3.0 the driver works with CCDciel. But you need to stop the preview loop before you start image
+captures, otherwise CCDciel will tell you that it can not start exposures. The same happens when using
+indi_simulator_ccd as camera driver. 
 
 ## Known Limitations
 - The maximum exposure time of the V1 camera is about 1 second. This limitation is caused by libcamera and the kernel

@@ -410,6 +410,29 @@ class DoSnoopingVector(ISwitchVector):
         )
 
 
+class AbortVector(ISwitchVector):
+    """INDI SwitchVector to abort exposure
+    """
+
+    def __init__(self, parent):
+        self.parent = parent
+        super().__init__(
+            device=self.parent.device, timestamp=self.parent.timestamp, name="CCD_ABORT_EXPOSURE",
+            elements=[
+                ISwitch(name="ABORT", label="Abort", value=ISwitchState.OFF),
+            ],
+            label="Abort", group="Main Control",
+            rule=ISwitchRule.ATMOST1, is_savable=False,
+        )
+
+    def set_byClient(self, values: dict):
+        super().set_byClient(values = values)
+        if self.get_OnSwitches()[0] == "ABORT":
+            self.parent.setVector("CCD_FAST_COUNT", "FRAMES", value=0, state=IVectorState.OK)
+            self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
+            self.parent.abortExposure()
+            self.parent.setVector("CCD_ABORT_EXPOSURE", "ABORT", value=ISwitchState.OFF, state=IVectorState.OK)
+
 class PrintSnoopedValuesVector(ISwitchVector):
     """Button that prints all snooped values as INFO in log
     """
@@ -776,14 +799,7 @@ class indi_pylibcamera(indidevice):
         self.CameraVectorNames.append("CCD_EXPOSURE")
         #
         self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, name="CCD_ABORT_EXPOSURE",
-                elements=[
-                    ISwitch(name="ABORT", label="Abort", value=ISwitchState.OFF),
-                ],
-                label="Abort", group="Main Control",
-                rule=ISwitchRule.ATMOST1, is_savable=False,
-            ),
+            AbortVector(parent=self),
             send_defVector=True,
         )
         self.CameraVectorNames.append("CCD_ABORT_EXPOSURE")
@@ -1345,6 +1361,12 @@ class indi_pylibcamera(indidevice):
             exposuretime: exposure time (seconds)
         """
         self.CameraThread.startExposure(exposuretime)
+
+
+    def abortExposure(self):
+        """abort a running exposure
+        """
+        self.CameraThread.abortExposure()
 
 
 # main entry point
