@@ -1,4 +1,4 @@
-2.3.0dev
+2.3.0
 - update FITS header formatting and timestamps
 - use lxml for construction of indi_pylibcamera.xml
 - renamed SwitchVector FRAME_TYPE(FRAMETYPE_RAW, FRAMETYPE_PROC) to CCD_CAPTURE_FORMAT(INDI_RAW, INDI_RGB)
