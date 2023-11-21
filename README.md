@@ -94,6 +94,14 @@ at the beginning of the driver initialization. This can be done here in the INI 
 indi_pylibcamera driver uses this feature to get observer location, telescope information and telescope direction
 from the mount driver. It writes these information as metadata in the FITS images. This function got newly implemented
 and may make trouble in some setups. With the `DoSnooping` you can disable this function.
+- `force_Restart` (`yes`, `no`, `auto`): Some cameras crash after the first exposure. Restarting the camera before
+every frame exposure can solve this issue. Valid values of this switch are:
+  * `no`: Do not restart if not needed to reconfigure camera.
+  * `yes`: Always restart. Can lead to longer time between frames.
+  * `auto`: Automatically choose based on list of known critical cameras. 
+
+  Default (if not otherwise set in INI file) is `auto`.
+
 
 There are more settings, mostly to support debugging.
 
@@ -287,9 +295,10 @@ exposure time was successful.
 and has therefore well-defined restrictions. It is not clear if the reported higher maximum analogue gain is correct.
 
 ## Credits
-Many thanks to all who helped o improve this software. Contributions came from:
+Many thanks to all who helped to improve this software. Contributions came from:
 - Simon Šander
 - Aaron W Morris
 - Caden Gobat
+- anjok
 
 I hope I did not forget someone. If so please do not be angry and tell me.

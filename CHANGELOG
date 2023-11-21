@@ -1,3 +1,6 @@
+2.3.1
+- added INI switch "force_Restart" and implemented camera restart (solves crashes for IMX290 and IMX519)
+
 2.3.0
 - update FITS header formatting and timestamps
 - use lxml for construction of indi_pylibcamera.xml

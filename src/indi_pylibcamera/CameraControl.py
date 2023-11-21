@@ -226,6 +226,7 @@ class CameraControl:
         self.min_AnalogueGain = None
         self.max_AnalogueGain = None
         self.camera_controls = dict()
+        self.needs_Restarts = False
         # exposure loop control
         self.ExposureTime = 0.0
         self.Sig_Do = threading.Event() # do an action
@@ -380,6 +381,18 @@ class CameraControl:
         # exposure time range
         self.min_ExposureTime, self.max_ExposureTime, default_exp = self.camera_controls["ExposureTime"]
         self.min_AnalogueGain, self.max_AnalogueGain, default_again = self.camera_controls["AnalogueGain"]
+        # TODO
+        force_Restart = self.config.get("driver", "force_Restart", fallback="auto").lower()
+        if force_Restart == "yes":
+            logging.info("INI setting forces camera restart")
+            self.needs_Restarts = True
+        elif force_Restart == "no":
+            logging.info("INI setting for camera restarts as needed")
+            self.needs_Restarts = False
+        else:
+            if force_Restart != "auto":
+                logging.warning(f'unknown INI value for camera restart: force_Restart={force_Restart}')
+            self.needs_Restarts = self.CamProps["Model"] in ["imx290", "imx519"]
         # start exposure loop
         self.Sig_ActionExit.clear()
         self.Sig_ActionExpose.clear()
@@ -675,12 +688,12 @@ class CameraControl:
                 )
             logging.info(f'exposure settings: {NewCameraSettings}')
             # need a camera stop/start when something has changed on exposure controls
-            IsRestartNeeded = self.present_CameraSettings.is_RestartNeeded(NewCameraSettings)
+            IsRestartNeeded = self.present_CameraSettings.is_RestartNeeded(NewCameraSettings) or self.needs_Restarts
             if self.picam2.started and IsRestartNeeded:
                 logging.info(f'stopping camera for deeper reconfiguration')
                 self.picam2.stop_()
             # change of DoFastExposure needs a configuration change
-            if self.present_CameraSettings.is_ReconfigurationNeeded(NewCameraSettings):
+            if self.present_CameraSettings.is_ReconfigurationNeeded(NewCameraSettings) or self.needs_Restarts:
                 logging.info(f'reconfiguring camera')
                 # need a new camera configuration
                 config = self.picam2.create_still_configuration(
