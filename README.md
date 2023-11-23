@@ -12,6 +12,19 @@ The "indi_pylibcamera" may support all cameras supported by "libcamera". But not
 in the required formats (raw Bayer or at least RGB). So it is not guaranteed that the driver will work with all
 cameras you can connect to a Raspberry Pi.
 
+The 'indi_pylibcamera' is one layer in a stack of software:
+```
+    INDI client (for instance KStars, PHD2, CCDciel, ...)
+        --> INDI server
+            --> indi_pylibcamera
+                --> picamera2
+                    --> libcamera library
+                        --> kernel driver
+```
+It can not work when the versions of `libcamera` and `picamera2` are too old (both are in a dynamic development).
+And it can not work when the libcamera-tools (like `libcamera-hello` and `libcamera-still`) have issues with your
+camera.
+
 ## Requirements and installation
 Some packages need to be installed with apt-get:
 - `libcamera` (if not already installed). You can test libcamera and the support
