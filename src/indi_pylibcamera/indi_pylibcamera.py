@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import logging
 import sys
 import os
 import os.path
@@ -19,10 +18,9 @@ from .indidevice import *
 from .CameraControl import CameraControl
 
 
-logging.basicConfig(filename=None, level=logging.INFO, format='%(name)s-%(levelname)s- %(message)s')
-
 IniPath = Path(Path.home(), ".indi_pylibcamera")
 IniPath.mkdir(parents=True, exist_ok=True)
+
 
 def read_config():
     # iterative list of INI files to load
@@ -34,7 +32,7 @@ def read_config():
     # create config parser instance
     config = ConfigParser()
     config.read(configfiles)
-    logging.debug(f"ConfigParser: {config}")
+    logger.debug(f"ConfigParser: {config}")
     return config
 
 
@@ -50,7 +48,7 @@ class LoggingVector(ISwitchVector):
         self.parent = parent
         LoggingLevel = self.parent.config.get("driver", "LoggingLevel", fallback="Info")
         if LoggingLevel not in ["Debug", "Info", "Warning", "Error"]:
-            logging.error('Parameter "LoggingLevel" in INI file has an unsupported value!')
+            logger.error('Parameter "LoggingLevel" in INI file has an unsupported value!')
             LoggingLevel = "Info"
         super().__init__(
             device=self.parent.device, timestamp=self.parent.timestamp, name="LOGGING_LEVEL",
@@ -65,19 +63,17 @@ class LoggingVector(ISwitchVector):
         )
         self.configure_logger()
 
-
     def configure_logger(self):
         selectedLogLevel = self.get_OnSwitches()[0]
-        logging.info(f'selected logging level: {selectedLogLevel}')
+        logger.info(f'selected logging level: {selectedLogLevel}')
         if selectedLogLevel == "LOGGING_DEBUG":
-            logging.getLogger().setLevel(logging.DEBUG)
+            logger.setLevel(logging.DEBUG)
         elif selectedLogLevel == "LOGGING_INFO":
-            logging.getLogger().setLevel(logging.INFO)
+            logger.setLevel(logging.INFO)
         elif selectedLogLevel == "LOGGING_WARN":
-            logging.getLogger().setLevel(logging.WARN)
+            logger.setLevel(logging.WARN)
         else:
-            logging.getLogger().setLevel(logging.ERROR)
-
+            logger.setLevel(logging.ERROR)
 
     def set_byClient(self, values: dict):
         """called when vector gets set by client
@@ -86,7 +82,7 @@ class LoggingVector(ISwitchVector):
         Args:
             values: dict(propertyName: value) of values to set
         """
-        logging.debug(f"logging level action: {values}")
+        logger.debug(f"logging level action: {values}")
         super().set_byClient(values = values)
         self.configure_logger()
 
@@ -116,7 +112,7 @@ class ConnectionVector(ISwitchVector):
         Args:
             values: dict(propertyName: value) of values to set
         """
-        logging.debug(f"connect/disconnect action: {values}")
+        logger.debug(f"connect/disconnect action: {values}")
         self.message = self.update_SwitchStates(values=values)
         # send updated property values
         if len(self.message) > 0:
@@ -455,8 +451,7 @@ class PrintSnoopedValuesVector(ISwitchVector):
         Args:
             values: dict(propertyName: value) of values to set
         """
-        logging.debug(f"logging level action: {values}")
-        logging.info(f'Snooped values: {str(self.parent.SnoopingManager)}')
+        logger.info(f'Snooped values: {str(self.parent.SnoopingManager)}')
         self.state = IVectorState.OK
         self.send_setVector()
 
@@ -493,18 +488,18 @@ class ConfigProcessVector(ISwitchVector):
             action = actions[0]
             if action == "CONFIG_LOAD":
                 if config_filename.exists():
-                    logging.info(f'loading configuration from {config_filename}')
+                    logger.info(f'loading configuration from {config_filename}')
                     with open(config_filename, "r") as fh:
                         states = json.load(fh)
                     for vector in states:
                         if vector["name"] in self.parent.knownVectors:
                             self.parent.knownVectors[vector["name"]].set_byClient(vector["values"])
                         else:
-                            logging.warning(f'Ignoring unknown vector {vector["name"]}!')
+                            logger.warning(f'Ignoring unknown vector {vector["name"]}!')
                 else:
-                    logging.info(f'configuration {config_filename} does not exist')
+                    logger.info(f'configuration {config_filename} does not exist')
             elif action == "CONFIG_SAVE":
-                logging.info(f'saving configuration in {config_filename}')
+                logger.info(f'saving configuration in {config_filename}')
                 states = list()
                 for vector in self.parent.knownVectors:
                     state = vector.save()
@@ -513,11 +508,11 @@ class ConfigProcessVector(ISwitchVector):
                 with open(config_filename, "w") as fh:
                     json.dump(states, fh, indent=4)
             elif action == "CONFIG_DEFAULT":
-                logging.info(f'restoring driver defaults')
+                logger.info(f'restoring driver defaults')
                 for vector in self.parent.knownVectors:
                     vector.restore_DriverDefault()
             else:  # action == "CONFIG_PURGE"
-                logging.info(f'deleting configuration {config_filename}')
+                logger.info(f'deleting configuration {config_filename}')
                 config_filename.unlink(missing_ok=True)
         # set all buttons Off again
         super().set_byClient(values={element.name: ISwitchState.OFF for element in self.elements})
@@ -531,9 +526,9 @@ def kill_oldDriver():
     Alternative would be 3rd party library psutil which may need to be installed.
     """
     my_PID = os.getpid()
-    logging.info(f'my PID: {my_PID}')
+    logger.info(f'my PID: {my_PID}')
     my_fileName = os.path.basename(__file__)[:-3]
-    logging.info(f'my file name: {my_fileName}')
+    logger.info(f'my file name: {my_fileName}')
     ps_ax = subprocess.check_output(["ps", "ax"]).decode(sys.stdout.encoding)
     ps_ax = ps_ax.split("\n")
     pids_oldDriver = []
@@ -541,7 +536,7 @@ def kill_oldDriver():
         if ("python3" in processInfo) and (my_fileName in processInfo):
             PID = int(processInfo.strip().split(" ", maxsplit=1)[0])
             if PID != my_PID:
-                logging.info(f'found old driver with PID {PID} ({processInfo})')
+                logger.info(f'found old driver with PID {PID} ({processInfo})')
                 pids_oldDriver.append(PID)
     for pid_oldDriver in pids_oldDriver:
         try:
@@ -551,7 +546,7 @@ def kill_oldDriver():
             pass
         except PermissionError:
             # not allowed to kill
-            logging.error(f'Do not have permission to kill old driver with PID {pid_oldDriver}.')
+            logger.error(f'Do not have permission to kill old driver with PID {pid_oldDriver}.')
 
 
 # the device driver
@@ -570,6 +565,8 @@ class indi_pylibcamera(indidevice):
         super().__init__(device=config.get("driver", "DeviceName", fallback="indi_pylibcamera"))
         self.config = config
         self.timestamp = self.config.getboolean("driver", "SendTimeStamps", fallback=False)
+        # send logging messages to client
+        enable_Logging(device=self.device, timestamp=self.timestamp)
         # camera
         self.CameraThread = CameraControl(
             parent=self,
@@ -580,7 +577,7 @@ class indi_pylibcamera(indidevice):
         signal.signal(signal.SIGTERM, self.exit_gracefully)
         # get connected cameras
         cameras = Picamera2.global_camera_info()
-        logging.info(f'found cameras: {cameras}')
+        logger.info(f'found cameras: {cameras}')
         # use Id as unique camera identifier
         self.Cameras = [c["Id"] for c in cameras]
         # INDI vector names only available with connected camera
@@ -717,7 +714,7 @@ class indi_pylibcamera(indidevice):
     def exit_gracefully(self, sig, frame):
         """exit driver on system signals
         """
-        logging.info("Exit triggered by SIGINT or SIGTERM")
+        logger.info("Exit triggered by SIGINT or SIGTERM")
         self.CameraThread.closeCamera()
         traceback.print_stack(frame)
         sys.exit(0)
@@ -738,7 +735,7 @@ class indi_pylibcamera(indidevice):
         if len(CameraSel) < 1:
             return False
         CameraIdx = CameraSel[0]
-        logging.info(f'connecting to camera {self.Cameras[CameraIdx]}')
+        logger.info(f'connecting to camera {self.Cameras[CameraIdx]}')
         self.closeCamera()
         self.CameraThread.openCamera(CameraIdx)
         # update INDI properties

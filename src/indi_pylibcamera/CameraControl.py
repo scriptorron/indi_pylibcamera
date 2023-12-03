@@ -1,7 +1,6 @@
 """
 indi_pylibcamera: CameraControl class
 """
-import logging
 import os.path
 import numpy as np
 import io
@@ -164,8 +163,8 @@ class CameraSettings:
         return is_ReconfigurationNeeded
 
     def __str__(self):
-        return f'CameraSettings: FastExposure={self.DoFastExposure}, DoRaw={self.DoRaw}, ProcSize={self.ProcSize}, ` +\
-        `RawMode={self.RawMode}, CameraControls={self.camera_controls}'
+        return f'CameraSettings: FastExposure={self.DoFastExposure}, DoRaw={self.DoRaw}, ProcSize={self.ProcSize}, ' \
+               f'RawMode={self.RawMode}, CameraControls={self.camera_controls}'
 
     def __repr__(self):
         return str(self)
@@ -226,6 +225,7 @@ class CameraControl:
         self.min_AnalogueGain = None
         self.max_AnalogueGain = None
         self.camera_controls = dict()
+        self.needs_Restarts = False
         # exposure loop control
         self.ExposureTime = 0.0
         self.Sig_Do = threading.Event() # do an action
@@ -244,7 +244,7 @@ class CameraControl:
     def closeCamera(self):
         """close camera
         """
-        logging.info('closing camera')
+        logger.info('closing camera')
         # stop exposure loop
         if self.ExposureThread is not None:
             if self.ExposureThread.is_alive():
@@ -283,11 +283,11 @@ class CameraControl:
                 sensor_format = sensor_mode["unpacked"]
             # packed data formats are not supported
             if sensor_format.endswith("_CSI2P"):
-                logging.warning(f'raw mode not supported: {sensor_mode}')
+                logger.warning(f'raw mode not supported: {sensor_mode}')
                 continue
             # only Bayer pattern formats are supported
             if not re.match("S[RGB]{4}[0-9]+", sensor_format):
-                logging.warning(f'raw mode not supported: {sensor_mode}')
+                logger.warning(f'raw mode not supported: {sensor_mode}')
                 continue
             #
             size = sensor_mode["size"]
@@ -310,7 +310,7 @@ class CameraControl:
                     elif size == (4056, 3040):
                         true_size = (4056, 3040)
                     else:
-                        logging.warning(f'Unsupported frame size {size} for imx477!')
+                        logger.warning(f'Unsupported frame size {size} for imx477!')
                 elif self.CamProps["Model"] == 'ov5647':
                     if size == (640, 480):
                         binning = (4, 4)
@@ -321,7 +321,7 @@ class CameraControl:
                     elif size == (2592, 1944):
                         pass
                     else:
-                        logging.warning(f'Unsupported frame size {size} for ov5647!')
+                        logger.warning(f'Unsupported frame size {size} for ov5647!')
                 elif self.CamProps["Model"].startswith("imx708"):
                     if size == (1536, 864):
                         binning = (2, 2)
@@ -330,7 +330,7 @@ class CameraControl:
                     elif size == (4608, 2592):
                         pass
                     else:
-                        logging.warning(f'Unsupported frame size {size} for imx708!')
+                        logger.warning(f'Unsupported frame size {size} for imx708!')
             # add to list of raw formats
             raw_mode = {
                 "label": f'{size[0]}x{size[1]} {sensor_format[1:5]} {sensor_mode["bit_depth"]}bit',
@@ -348,15 +348,14 @@ class CameraControl:
     def openCamera(self, idx: int):
         """open camera with given index idx
         """
-        self.closeCamera()
-        logging.info("opening camera")
+        logger.info("opening camera")
         self.picam2 = Picamera2(idx)
         # read camera properties
         self.CamProps = self.picam2.camera_properties
-        logging.info(f'camera properties: {self.CamProps}')
+        logger.info(f'camera properties: {self.CamProps}')
         # force properties with values from config file
         if "UnitCellSize" not in self.CamProps:
-            logging.warning("Camera properties do not have UnitCellSize value. Need to force from config file!")
+            logger.warning("Camera properties do not have UnitCellSize value. Need to force from config file!")
         self.CamProps["UnitCellSize"] = (
             self.config.getint(
                 "driver", "force_UnitCellSize_X",
@@ -380,6 +379,18 @@ class CameraControl:
         # exposure time range
         self.min_ExposureTime, self.max_ExposureTime, default_exp = self.camera_controls["ExposureTime"]
         self.min_AnalogueGain, self.max_AnalogueGain, default_again = self.camera_controls["AnalogueGain"]
+        # TODO
+        force_Restart = self.config.get("driver", "force_Restart", fallback="auto").lower()
+        if force_Restart == "yes":
+            logger.info("INI setting forces camera restart")
+            self.needs_Restarts = True
+        elif force_Restart == "no":
+            logger.info("INI setting for camera restarts as needed")
+            self.needs_Restarts = False
+        else:
+            if force_Restart != "auto":
+                logger.warning(f'unknown INI value for camera restart: force_Restart={force_Restart}')
+            self.needs_Restarts = self.CamProps["Model"] in ["imx290", "imx519"]
         # start exposure loop
         self.Sig_ActionExit.clear()
         self.Sig_ActionExpose.clear()
@@ -481,7 +492,7 @@ class CameraControl:
             "EQUINOX": (2000, "[yr] Equinox"),
             "DATE-END": (datetime.datetime.utcnow().isoformat(timespec="milliseconds"), "UTC time at end of observation"),
         })
-        logging.info("Finished collecting snooped data.")
+        logger.debug("Finished collecting snooped data.")
         ####
         return FitsHeader
 
@@ -673,15 +684,15 @@ class CameraControl:
                     advertised_camera_controls=self.camera_controls,
                     has_RawModes=has_RawModes,
                 )
-            logging.info(f'exposure settings: {NewCameraSettings}')
+            logger.info(f'exposure settings: {NewCameraSettings}')
             # need a camera stop/start when something has changed on exposure controls
-            IsRestartNeeded = self.present_CameraSettings.is_RestartNeeded(NewCameraSettings)
+            IsRestartNeeded = self.present_CameraSettings.is_RestartNeeded(NewCameraSettings) or self.needs_Restarts
             if self.picam2.started and IsRestartNeeded:
-                logging.info(f'stopping camera for deeper reconfiguration')
+                logger.info(f'stopping camera for deeper reconfiguration')
                 self.picam2.stop_()
             # change of DoFastExposure needs a configuration change
-            if self.present_CameraSettings.is_ReconfigurationNeeded(NewCameraSettings):
-                logging.info(f'reconfiguring camera')
+            if self.present_CameraSettings.is_ReconfigurationNeeded(NewCameraSettings) or self.needs_Restarts:
+                logger.info(f'reconfiguring camera')
                 # need a new camera configuration
                 config = self.picam2.create_still_configuration(
                     queue=NewCameraSettings.DoFastExposure,
@@ -713,7 +724,7 @@ class CameraControl:
             # start camera if not already running in Fast Exposure mode
             if not self.picam2.started:
                 self.picam2.start()
-                logging.info(f'camera started')
+                logger.debug(f'camera started')
             # camera runs now with new parameter
             self.present_CameraSettings = NewCameraSettings
             # last chance to exit or abort before doing exposure
@@ -759,7 +770,7 @@ class CameraControl:
                 # get frame and its metadata
                 if not Abort:
                     (array, ), metadata = self.picam2.wait(job)
-                    logging.info("got exposed frame")
+                    logger.info("got exposed frame")
                     # at least HQ camera reports CCD temperature in meta data
                     self.parent.setVector("CCD_TEMPERATURE", "CCD_TEMPERATURE_VALUE",
                                           value=metadata.get('SensorTemperature', 0))
@@ -802,18 +813,18 @@ class CameraControl:
                         # requested to save locally
                         local_filename = getLocalFileName(dir=upload_dir, prefix=upload_prefix, suffix=".fits")
                         bstream.seek(0)
-                        logging.info(f"saving image to file {local_filename}")
+                        logger.info(f"saving image to file {local_filename}")
                         with open(local_filename, 'wb') as fh:
                             fh.write(bstream.getbuffer())
                     if upload_mode[0] in ["UPLOAD_CLIENT", "UPLOAD_BOTH"]:
                         # send blob to client
                         bstream.seek(0)
                         # make BLOB
-                        logging.info(f"preparing frame as BLOB: {size} bytes")
+                        logger.info(f"preparing frame as BLOB: {size} bytes")
                         bv = self.parent.knownVectors["CCD1"]
                         compress = self.parent.knownVectors["CCD_COMPRESSION"]["CCD_COMPRESS"].value == ISwitchState.ON
                         bv["CCD1"].set_data(data=bstream.getbuffer(), format=".fits", compress=compress)
-                        logging.info(f"sending BLOB")
+                        logger.info(f"sending BLOB")
                         bv.send_setVector()
                     # tell client that we finished exposure
                     if DoFastExposure:

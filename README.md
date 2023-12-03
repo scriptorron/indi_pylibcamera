@@ -12,6 +12,19 @@ The "indi_pylibcamera" may support all cameras supported by "libcamera". But not
 in the required formats (raw Bayer or at least RGB). So it is not guaranteed that the driver will work with all
 cameras you can connect to a Raspberry Pi.
 
+The 'indi_pylibcamera' is one layer in a stack of software:
+```
+    INDI client (for instance KStars, PHD2, CCDciel, ...)
+        --> INDI server
+            --> indi_pylibcamera
+                --> picamera2
+                    --> libcamera library
+                        --> kernel driver
+```
+It can not work when the versions of `libcamera` and `picamera2` are too old (both are in a dynamic development).
+And it can not work when the libcamera-tools (like `libcamera-hello` and `libcamera-still`) have issues with your
+camera.
+
 ## Requirements and installation
 Some packages need to be installed with apt-get:
 - `libcamera` (if not already installed). You can test libcamera and the support
@@ -94,6 +107,14 @@ at the beginning of the driver initialization. This can be done here in the INI 
 indi_pylibcamera driver uses this feature to get observer location, telescope information and telescope direction
 from the mount driver. It writes these information as metadata in the FITS images. This function got newly implemented
 and may make trouble in some setups. With the `DoSnooping` you can disable this function.
+- `force_Restart` (`yes`, `no`, `auto`): Some cameras crash after the first exposure. Restarting the camera before
+every frame exposure can solve this issue. Valid values of this switch are:
+  * `no`: Do not restart if not needed to reconfigure camera.
+  * `yes`: Always restart. Can lead to longer time between frames.
+  * `auto`: Automatically choose based on list of known critical cameras. 
+
+  Default (if not otherwise set in INI file) is `auto`.
+
 
 There are more settings, mostly to support debugging.
 
@@ -287,9 +308,10 @@ exposure time was successful.
 and has therefore well-defined restrictions. It is not clear if the reported higher maximum analogue gain is correct.
 
 ## Credits
-Many thanks to all who helped o improve this software. Contributions came from:
+Many thanks to all who helped to improve this software. Contributions came from:
 - Simon Šander
 - Aaron W Morris
 - Caden Gobat
+- anjok
 
 I hope I did not forget someone. If so please do not be angry and tell me.

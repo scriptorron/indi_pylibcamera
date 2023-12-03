@@ -1,11 +1,11 @@
 """
 Snooping manager
 """
-import logging
 
 
 class SnoopingManager:
-    def __init__(self, parent, to_server_func):
+    def __init__(self, parent, to_server_func, logger):
+        self.logger = logger
         self.to_server = to_server_func
         self.parent = parent
         # snooped values: dict(device->dict(name->dict(elements)))
@@ -54,7 +54,7 @@ class SnoopingManager:
         if device in self.snoopedValues:
             if name in self.snoopedValues[device]:
                 self.snoopedValues[device][name] = values
-                logging.debug(f'snooped "{device}" - "{name}": {values}')
+                self.logger.debug(f'snooped "{device}" - "{name}": {values}')
                 if ("DO_SNOOPING" in self.parent.knownVectors) and ("SNOOP" in self.parent.knownVectors["DO_SNOOPING"].get_OnSwitches()):
                     if name in self.parent.knownVectors:
                         self.parent.knownVectors[name].set_byClient(values)

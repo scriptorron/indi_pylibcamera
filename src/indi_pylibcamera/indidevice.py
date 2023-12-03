@@ -20,6 +20,7 @@ import datetime
 
 from . import SnoopingManager
 
+logger = logging.getLogger(__name__)
 
 # helping functions
 
@@ -137,7 +138,7 @@ class IProperty:
             error message if failed or empty string if okay
         """
         errmsg = f'setting property {self.name} not implemented'
-        logging.error(errmsg)
+        logger.error(errmsg)
         return errmsg
 
 
@@ -266,7 +267,7 @@ class IVector:
             device: device name
         """
         if (device is None) or (device == self.device):
-            logging.debug(f'send_defVector: {self.get_defVector()}')
+            logger.debug(f'send_defVector: {self.get_defVector()}')
             to_server(self.get_defVector())
 
     def get_delVector(self, msg: str = None) -> str:
@@ -284,7 +285,7 @@ class IVector:
     def send_delVector(self):
         """tell client to remove this vector
         """
-        logging.debug(f'send_delVector: {self.get_delVector()}')
+        logger.debug(f'send_delVector: {self.get_delVector()}')
         to_server(self.get_delVector())
 
     def get_setVector(self) -> str:
@@ -307,7 +308,7 @@ class IVector:
     def send_setVector(self):
         """tell client about vector data
         """
-        logging.debug(f'send_setVector: {self.get_setVector()[:100]}')
+        logger.debug(f'send_setVector: {self.get_setVector()[:100]}')
         to_server(self.get_setVector())
 
     def set_byClient(self, values: dict):
@@ -639,7 +640,7 @@ class IBlobVector(IVector):
     def send_setVector(self):
         """tell client about vector data, special version for IBlobVector to avoid double calculation of setVector
         """
-        # logging.debug(f'send_setVector: {self.get_setVector()[:100]}')
+        # logger.debug(f'send_setVector: {self.get_setVector()[:100]}')  # this takes too long!
         to_server(self.get_setVector())
 
 
@@ -716,6 +717,56 @@ class IVectorList:
         self.pop(name).send_delVector()
 
 
+class indiMessageHandler(logging.StreamHandler):
+    """logging message handler for INDI
+
+    allows sending of log messages to client
+    """
+    def __init__(self, device, timestamp=False):
+        super().__init__()
+        self.device = device
+        self.timestamp = timestamp
+
+    def emit(self, record):
+        msg = self.format(record)
+        # use etree here to get correct encoding of special characters in msg
+        attribs = {"device": self.device, "message": msg}
+        if self.timestamp:
+            attribs['timestamp'] = get_TimeStamp()
+        et = etree.ElementTree(etree.Element("message", attribs))
+        to_server(etree.tostring(et, xml_declaration=True).decode("latin"))
+        #print(f'DBG MessageHandler: {etree.tostring(et, xml_declaration=True).decode("latin")}', file=sys.stderr)
+
+
+def handle_exception(exc_type, exc_value, exc_traceback):
+    """logging of uncaught exceptions
+    """
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    logger.error("Uncaught exception!", exc_info=(exc_type, exc_value, exc_traceback))
+
+
+def enable_Logging(device, timestamp=False):
+    """enable logging to client
+    """
+    global logger
+    logger.setLevel(logging.INFO)
+    # console handler
+    ch = logging.StreamHandler()
+    #ch.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(name)s-%(levelname)s- %(message)s')
+    ch.setFormatter(formatter)
+    # INDI message handler
+    ih = indiMessageHandler(device=device, timestamp=timestamp)
+    ih.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
+    # add the handlers to logger
+    logger.addHandler(ch)
+    logger.addHandler(ih)
+    # log uncought exceptions and forward them to client
+    sys.excepthook = handle_exception
+
+
 class indidevice:
     """general INDI device
     """
@@ -732,7 +783,7 @@ class indidevice:
         # lock for device parameter
         self.knownVectorsLock = threading.Lock()
         # snooping
-        self.SnoopingManager = SnoopingManager.SnoopingManager(parent=self, to_server_func=to_server)
+        self.SnoopingManager = SnoopingManager.SnoopingManager(parent=self, to_server_func=to_server, logger=logger)
 
     def send_Message(self, message: str, severity: str = "INFO", timestamp: bool = False):
         """send message to client
@@ -746,7 +797,6 @@ class indidevice:
         if timestamp:
             xml += f' timestamp="{get_TimeStamp()}"'
         xml += f'/>'
-        logging.debug(f'send_Message: {xml}')
         to_server(xml)
 
     def on_getProperties(self, device=None):
@@ -771,11 +821,11 @@ class indidevice:
                 xml = etree.fromstring(inp)
                 inp = ""
             except etree.XMLSyntaxError as error:
-                logging.debug(f"XML not complete ({error}): {inp}")
+                #logger.debug(f"XML not complete ({error}): {inp}")  # creates too many log messages!
                 continue
 
-            logging.debug(f'Parsed data from client:\n{etree.tostring(xml, pretty_print=True).decode()}')
-            logging.debug("End client data")
+            logger.debug(f'Parsed data from client:\n{etree.tostring(xml, pretty_print=True).decode()}')
+            logger.debug("End client data")
 
             device = xml.attrib.get('device', None)
             if xml.tag == "getProperties":
@@ -787,13 +837,13 @@ class indidevice:
                     try:
                         vector = self.knownVectors[vectorName]
                     except ValueError as e:
-                        logging.error(f'unknown vector name {vectorName}')
+                        logger.error(f'unknown vector name {vectorName}')
                     else:
-                        logging.debug(f"calling {vector} set_byClient")
+                        logger.debug(f"calling {vector} set_byClient")
                         with self.knownVectorsLock:
                             vector.set_byClient(values)
                 else:
-                    logging.error(
+                    logger.error(
                         f'could not interpret client request: {etree.tostring(xml, pretty_print=True).decode()}')
             else:
                 # can be a snooped device
@@ -807,7 +857,7 @@ class indidevice:
                     # snooped device got closed
                     pass
                 else:
-                    logging.error(
+                    logger.error(
                         f'could not interpret client request: {etree.tostring(xml, pretty_print=True).decode()}')
 
     def checkin(self, vector: IVector, send_defVector: bool = False):
