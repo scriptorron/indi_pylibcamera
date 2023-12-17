@@ -619,6 +619,32 @@ class CameraControl:
         hdul = fits.HDUList([hdu])
         return hdul
 
+    def log_FrameInformation(self, array, metadata):
+        """write frame information to debug log
+
+        Args:
+            array: raw frame data
+            metadata: frame metadata
+        """
+        # FIXME: change error to debug
+        logger.error(f'array shape: {array.shape}')
+        #
+        bit_depth = self.present_CameraSettings.RawMode["bit_depth"]
+        logger.error(f'{bit_depth} bits per pixel')
+        #
+        bit_depth = 16  # FIXME
+        BitUsage = np.zeros(bit_depth) == 0
+        Bit = np.r_[range(bit_depth)]
+        for b in Bit:
+            BitUsage[b] = ((array & (1 << b)) != 0).any()
+        UsedBits = ''.join(["1" if b!=0 else "0" for b in BitUsage])
+        UsedBits = UsedBits[-1::-1]  # MSB first
+        logger.error(f'  data alignment: (MSB) {UsedBits} (LSB) (1=at least one 1 in data, 0=all 0)')
+        #
+        logger.error(f'metadata: {metadata}')
+        #
+        logger.error(f'camera configuration: {self.picam2.camera_configuration()}')
+
     def __ExposureLoop(self):
         """exposure loop
 
@@ -716,6 +742,7 @@ class CameraControl:
                 # (for instance: size) will fit better to hardware
                 self.picam2.align_configuration(config)
                 # set still configuration
+                logger.error(f'config requested: {config}')  # FIXME
                 self.picam2.configure(config)
             # changing exposure time or analogue gain needs a restart
             if IsRestartNeeded:
@@ -771,6 +798,7 @@ class CameraControl:
                 if not Abort:
                     (array, ), metadata = self.picam2.wait(job)
                     logger.info("got exposed frame")
+                    self.log_FrameInformation(array=array, metadata=metadata)
                     # at least HQ camera reports CCD temperature in meta data
                     self.parent.setVector("CCD_TEMPERATURE", "CCD_TEMPERATURE_VALUE",
                                           value=metadata.get('SensorTemperature', 0))
