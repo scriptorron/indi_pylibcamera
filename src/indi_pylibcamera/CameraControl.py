@@ -504,7 +504,14 @@ class CameraControl:
             metadata: metadata
         """
         # type cast and rescale
-        bit_depth = self.present_CameraSettings.RawMode["bit_depth"]
+        currentFormat = self.picam2.camera_configuration()["raw"]["format"].split("_")
+        assert len(currentFormat) == 1, f'Picamera2 returned unexpected format: {currentFormat}!'
+        assert currentFormat[0][0] == 'S', f'Picamera2 returned unexpected format: {currentFormat}!'
+        BayerPattern = currentFormat[0][1:5]
+        BayerPattern = self.parent.config.get("driver", "force_BayerOrder", fallback=BayerPattern)
+        bit_depth = int(currentFormat[0][5:])
+        self.log_FrameInformation(array=array, metadata=metadata, is_raw=True, bit_depth=bit_depth)
+        # left adjust if needed
         if bit_depth > 8:
             bit_pix = 16
             array = array.view(np.uint16) * (2 ** (bit_pix - bit_depth))
@@ -520,9 +527,6 @@ class CameraControl:
         with self.parent.knownVectorsLock:
             # determine frame type
             FrameType = self.parent.knownVectors["CCD_FRAME_TYPE"].get_OnSwitchesLabels()[0]
-            # determine Bayer pattern order
-            BayerPattern = self.picam2.camera_configuration()["raw"]["format"][1:5]
-            BayerPattern = self.parent.config.get("driver", "force_BayerOrder", fallback=BayerPattern)
             # FITS header and metadata
             FitsHeader = {
                 "BZERO": (2 ** (bit_pix - 1), "offset data range"),
@@ -581,6 +585,7 @@ class CameraControl:
             array: data array
             metadata: metadata
         """
+        self.log_FrameInformation(array=array, metadata=metadata, is_raw=False)
         # convert to FITS
         hdu = fits.PrimaryHDU(array.transpose([2, 0, 1]))
         # avoid access conflicts to knownVectors
@@ -619,27 +624,30 @@ class CameraControl:
         hdul = fits.HDUList([hdu])
         return hdul
 
-    def log_FrameInformation(self, array, metadata):
+
+    def log_FrameInformation(self, array, metadata, is_raw=True, bit_depth=16):
         """write frame information to debug log
 
         Args:
             array: raw frame data
             metadata: frame metadata
+            is_raw: raw or RGB frame
+            bit_depth: bit depth for raw frame
         """
         # FIXME: change error to debug
         logger.error(f'array shape: {array.shape}')
         #
-        bit_depth = self.present_CameraSettings.RawMode["bit_depth"]
-        logger.error(f'{bit_depth} bits per pixel')
+        logger.error(f'{self.present_CameraSettings.RawMode["bit_depth"]} bits per pixel expected')
         #
-        bit_depth = 16  # FIXME
-        BitUsage = np.zeros(bit_depth) == 0
-        Bit = np.r_[range(bit_depth)]
-        for b in Bit:
-            BitUsage[b] = ((array & (1 << b)) != 0).any()
-        UsedBits = ''.join(["1" if b!=0 else "0" for b in BitUsage])
-        UsedBits = UsedBits[-1::-1]  # MSB first
-        logger.error(f'  data alignment: (MSB) {UsedBits} (LSB) (1=at least one 1 in data, 0=all 0)')
+        if is_raw:
+            arr = array.view(np.uint16) if bit_depth > 8 else array
+            BitUsage = np.zeros(bit_depth) == 0
+            Bit = np.r_[range(bit_depth)]
+            for b in Bit:
+                BitUsage[b] = ((arr & (1 << b)) != 0).any()
+            UsedBits = ''.join(["1" if b!=0 else "0" for b in BitUsage])
+            UsedBits = UsedBits[-1::-1]  # make MSB first
+            logger.error(f'  data alignment: (MSB) {UsedBits} (LSB) (1=at least one 1 in data, 0=all 0)')
         #
         logger.error(f'metadata: {metadata}')
         #
@@ -798,7 +806,6 @@ class CameraControl:
                 if not Abort:
                     (array, ), metadata = self.picam2.wait(job)
                     logger.info("got exposed frame")
-                    self.log_FrameInformation(array=array, metadata=metadata)
                     # at least HQ camera reports CCD temperature in meta data
                     self.parent.setVector("CCD_TEMPERATURE", "CCD_TEMPERATURE_VALUE",
                                           value=metadata.get('SensorTemperature', 0))
