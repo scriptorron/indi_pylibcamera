@@ -510,7 +510,7 @@ class CameraControl:
         BayerPattern = currentFormat[0][1:5]
         BayerPattern = self.parent.config.get("driver", "force_BayerOrder", fallback=BayerPattern)
         bit_depth = int(currentFormat[0][5:])
-        self.log_FrameInformation(array=array, metadata=metadata, is_raw=True, bit_depth=bit_depth)
+        #self.log_FrameInformation(array=array, metadata=metadata, is_raw=True, bit_depth=bit_depth)
         # left adjust if needed
         if bit_depth > 8:
             bit_pix = 16
@@ -585,7 +585,7 @@ class CameraControl:
             array: data array
             metadata: metadata
         """
-        self.log_FrameInformation(array=array, metadata=metadata, is_raw=False)
+        #self.log_FrameInformation(array=array, metadata=metadata, is_raw=False)
         # convert to FITS
         hdu = fits.PrimaryHDU(array.transpose([2, 0, 1]))
         # avoid access conflicts to knownVectors
@@ -634,24 +634,24 @@ class CameraControl:
             is_raw: raw or RGB frame
             bit_depth: bit depth for raw frame
         """
-        # FIXME: change error to debug
-        logger.error(f'array shape: {array.shape}')
+        logger.debug(f'array shape: {array.shape}')
         #
-        logger.error(f'{self.present_CameraSettings.RawMode["bit_depth"]} bits per pixel expected')
+        logger.debug(f'{self.present_CameraSettings.RawMode["bit_depth"]} bits per pixel requested, {bit_depth} bits per pixel received')
         #
         if is_raw:
             arr = array.view(np.uint16) if bit_depth > 8 else array
-            BitUsage = np.zeros(bit_depth) == 0
-            Bit = np.r_[range(bit_depth)]
-            for b in Bit:
-                BitUsage[b] = ((arr & (1 << b)) != 0).any()
-            UsedBits = ''.join(["1" if b!=0 else "0" for b in BitUsage])
-            UsedBits = UsedBits[-1::-1]  # make MSB first
-            logger.error(f'  data alignment: (MSB) {UsedBits} (LSB) (1=at least one 1 in data, 0=all 0)')
-        #
-        logger.error(f'metadata: {metadata}')
-        #
-        logger.error(f'camera configuration: {self.picam2.camera_configuration()}')
+            BitUsage = ["X"] * bit_depth
+            for b in range(bit_depth-1, -1, -1):
+                BitSlice = (arr & (1 << b)) != 0
+                if BitSlice.all():
+                    BitUsage[b] = "1"
+                elif BitSlice.any():
+                    BitUsage[b] = "T"
+                else:
+                    BitUsage[b] = "0"
+            logger.debug(f'  data alignment: (MSB) {"".join(BitUsage)} (LSB) (1 = all 1, 0 = all 0, T = some 1)')
+        logger.debug(f'metadata: {metadata}')
+        logger.debug(f'camera configuration: {self.picam2.camera_configuration()}')
 
     def __ExposureLoop(self):
         """exposure loop
@@ -750,7 +750,6 @@ class CameraControl:
                 # (for instance: size) will fit better to hardware
                 self.picam2.align_configuration(config)
                 # set still configuration
-                logger.error(f'config requested: {config}')  # FIXME
                 self.picam2.configure(config)
             # changing exposure time or analogue gain needs a restart
             if IsRestartNeeded:
