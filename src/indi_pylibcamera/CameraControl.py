@@ -504,7 +504,14 @@ class CameraControl:
             metadata: metadata
         """
         # type cast and rescale
-        bit_depth = self.present_CameraSettings.RawMode["bit_depth"]
+        currentFormat = self.picam2.camera_configuration()["raw"]["format"].split("_")
+        assert len(currentFormat) == 1, f'Picamera2 returned unexpected format: {currentFormat}!'
+        assert currentFormat[0][0] == 'S', f'Picamera2 returned unexpected format: {currentFormat}!'
+        BayerPattern = currentFormat[0][1:5]
+        BayerPattern = self.parent.config.get("driver", "force_BayerOrder", fallback=BayerPattern)
+        bit_depth = int(currentFormat[0][5:])
+        #self.log_FrameInformation(array=array, metadata=metadata, is_raw=True, bit_depth=bit_depth)
+        # left adjust if needed
         if bit_depth > 8:
             bit_pix = 16
             array = array.view(np.uint16) * (2 ** (bit_pix - bit_depth))
@@ -520,9 +527,6 @@ class CameraControl:
         with self.parent.knownVectorsLock:
             # determine frame type
             FrameType = self.parent.knownVectors["CCD_FRAME_TYPE"].get_OnSwitchesLabels()[0]
-            # determine Bayer pattern order
-            BayerPattern = self.picam2.camera_configuration()["raw"]["format"][1:5]
-            BayerPattern = self.parent.config.get("driver", "force_BayerOrder", fallback=BayerPattern)
             # FITS header and metadata
             FitsHeader = {
                 "BZERO": (2 ** (bit_pix - 1), "offset data range"),
@@ -581,6 +585,7 @@ class CameraControl:
             array: data array
             metadata: metadata
         """
+        #self.log_FrameInformation(array=array, metadata=metadata, is_raw=False)
         # convert to FITS
         hdu = fits.PrimaryHDU(array.transpose([2, 0, 1]))
         # avoid access conflicts to knownVectors
@@ -618,6 +623,35 @@ class CameraControl:
                        "UTC time of observation start", before="DATE-END")
         hdul = fits.HDUList([hdu])
         return hdul
+
+
+    def log_FrameInformation(self, array, metadata, is_raw=True, bit_depth=16):
+        """write frame information to debug log
+
+        Args:
+            array: raw frame data
+            metadata: frame metadata
+            is_raw: raw or RGB frame
+            bit_depth: bit depth for raw frame
+        """
+        logger.debug(f'array shape: {array.shape}')
+        #
+        logger.debug(f'{self.present_CameraSettings.RawMode["bit_depth"]} bits per pixel requested, {bit_depth} bits per pixel received')
+        #
+        if is_raw:
+            arr = array.view(np.uint16) if bit_depth > 8 else array
+            BitUsage = ["X"] * bit_depth
+            for b in range(bit_depth-1, -1, -1):
+                BitSlice = (arr & (1 << b)) != 0
+                if BitSlice.all():
+                    BitUsage[b] = "1"
+                elif BitSlice.any():
+                    BitUsage[b] = "T"
+                else:
+                    BitUsage[b] = "0"
+            logger.debug(f'  data alignment: (MSB) {"".join(BitUsage)} (LSB) (1 = all 1, 0 = all 0, T = some 1)')
+        logger.debug(f'metadata: {metadata}')
+        logger.debug(f'camera configuration: {self.picam2.camera_configuration()}')
 
     def __ExposureLoop(self):
         """exposure loop

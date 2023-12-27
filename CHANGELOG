@@ -1,6 +1,4 @@
-2.4.0
-- added INI switch "force_Restart" and implemented camera restart (solves crashes for IMX290 and IMX519)
-- forwarding log messages to client
+- fixed changed data alignment in Pi 5 raw images
 
 2.3.0
 - update FITS header formatting and timestamps
