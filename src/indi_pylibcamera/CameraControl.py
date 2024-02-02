@@ -285,14 +285,16 @@ class CameraControl:
             if sensor_format.endswith("_CSI2P"):
                 logger.warning(f'raw mode not supported: {sensor_mode}')
                 continue
-            # only Bayer pattern formats are supported
-            if not re.match("S[RGB]{4}[0-9]+", sensor_format):
+            # only monochrome and Bayer pattern formats are supported
+            is_monochrome = re.match("R[0-9]+", sensor_format)
+            is_bayer = re.match("S[RGB]{4}[0-9]+", sensor_format)
+            if not (is_monochrome or is_bayer):
                 logger.warning(f'raw mode not supported: {sensor_mode}')
                 continue
             #
             size = sensor_mode["size"]
             # adjustments for cameras:
-            #   * 0- or garbage-filled columns
+            #   * zero- or garbage-filled columns
             #   * raw modes with binning or subsampling
             true_size = size
             binning = (1, 1)
@@ -333,7 +335,7 @@ class CameraControl:
                         logger.warning(f'Unsupported frame size {size} for imx708!')
             # add to list of raw formats
             raw_mode = {
-                "label": f'{size[0]}x{size[1]} {sensor_format[1:5]} {sensor_mode["bit_depth"]}bit',
+                "label": f'{size[0]}x{size[1]} {sensor_format[1:5] if is_bayer else "gray"} {sensor_mode["bit_depth"]}bit',
                 "size": size,
                 "true_size": true_size,
                 "camera_format": sensor_format,
@@ -376,9 +378,12 @@ class CameraControl:
             self.RawModes = []
         # camera controls
         self.camera_controls = self.picam2.camera_controls
-        # exposure time range
+        # gain and exposure time range
         self.min_ExposureTime, self.max_ExposureTime, default_exp = self.camera_controls["ExposureTime"]
         self.min_AnalogueGain, self.max_AnalogueGain, default_again = self.camera_controls["AnalogueGain"]
+        # workaround for cameras reporting max_ExposureTime=0 (IMX296)
+        self.max_ExposureTime = self.max_ExposureTime if self.min_ExposureTime < self.max_ExposureTime else 1000.0
+        self.max_AnalogueGain = self.max_AnalogueGain if self.min_AnalogueGain < self.max_AnalogueGain else 1000.0
         # TODO
         force_Restart = self.config.get("driver", "force_Restart", fallback="auto").lower()
         if force_Restart == "yes":
@@ -495,6 +500,21 @@ class CameraControl:
         logger.debug("Finished collecting snooped data.")
         ####
         return FitsHeader
+
+    def createRawFits(self, array, metadata):
+        """
+        creates raw image in FITS format
+
+        Args:
+            array: image data
+            metadata: image metadata
+
+        Returns:
+            FITS HDUL
+        """
+        # TODO: distinguish here between grayscale and Bayer frames
+        format = self.picam2.camera_configuration()["raw"]["format"]
+        return self.createBayerFits(array=array, metadata=metadata)
 
     def createBayerFits(self, array, metadata):
         """creates Bayer pattern FITS image from raw frame
@@ -636,7 +656,8 @@ class CameraControl:
         """
         logger.debug(f'array shape: {array.shape}')
         #
-        logger.debug(f'{self.present_CameraSettings.RawMode["bit_depth"]} bits per pixel requested, {bit_depth} bits per pixel received')
+        logger.debug(
+            f'{self.present_CameraSettings.RawMode["bit_depth"]} bits per pixel requested, {bit_depth} bits per pixel received')
         #
         if is_raw:
             arr = array.view(np.uint16) if bit_depth > 8 else array
@@ -742,7 +763,8 @@ class CameraControl:
                     #self.parent.setVector("CCD_FRAME", "HEIGHT", value=NewCameraSettings.RawMode["size"][1])
                 else:
                     config["main"]["size"] = NewCameraSettings.ProcSize
-                    config["main"]["format"] = "BGR888"  # strange: we get RBG when configuring HQ camera as BGR
+                    # do not overwrite "format": some cameras have BGR888 (V1, HQ), others XBGR888 (IMX296)
+                    #config["main"]["format"] = "BGR888"  # strange: we get RBG when configuring HQ camera as BGR
                     # software image scaling does not change sensor array mechanical dimensions!
                     #self.parent.setVector("CCD_FRAME", "WIDTH", value=NewCameraSettings.ProcSize[0], send=False)
                     #self.parent.setVector("CCD_FRAME", "HEIGHT", value=NewCameraSettings.ProcSize[1])
@@ -804,7 +826,10 @@ class CameraControl:
                 # get frame and its metadata
                 if not Abort:
                     (array, ), metadata = self.picam2.wait(job)
-                    logger.info("got exposed frame")
+                    logger.info(
+                        f'got exposed frame: {self.picam2.camera_configuration()["raw"]["format"]}, '
+                        f'shape {array.shape}, dtype {array.dtype}, metadata {metadata}'
+                    )
                     # at least HQ camera reports CCD temperature in meta data
                     self.parent.setVector("CCD_TEMPERATURE", "CCD_TEMPERATURE_VALUE",
                                           value=metadata.get('SensorTemperature', 0))
@@ -831,7 +856,7 @@ class CameraControl:
                         self.parent.setVector("CCD_FAST_COUNT", "FRAMES", value=FastCount_Frames, state=IVectorState.BUSY)
                     # create FITS images
                     if self.present_CameraSettings.DoRaw:
-                        hdul = self.createBayerFits(array=array, metadata=metadata)
+                        hdul = self.createRawFits(array=array, metadata=metadata)
                     else:
                         hdul = self.createRgbFits(array=array, metadata=metadata)
                     bstream = io.BytesIO()

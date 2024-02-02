@@ -1,0 +1,80 @@
+Testing numpy:
+  numpy 1.26.3
+
+Testing astropy:
+  astropy 6.0.0
+
+Found 1 cameras.
+
+Camera 0:
+{'Id': '/base/soc/i2c0mux/i2c@1/imx296@1a',
+ 'Location': 2,
+ 'Model': 'imx296',
+ 'Num': 0,
+ 'Rotation': 180}
+
+Camera properties:
+{'ColorFilterArrangement': 5,
+ 'Location': 2,
+ 'Model': 'imx296',
+ 'PixelArrayActiveAreas': [(0, 0, 1456, 1088)],
+ 'PixelArraySize': (1456, 1088),
+ 'Rotation': 180,
+ 'ScalerCropMaximum': (0, 0, 0, 0),
+ 'SystemDevices': (20749, 20741, 20743, 20744),
+ 'UnitCellSize': (3450, 3450)}
+
+Raw sensor modes:
+[{'bit_depth': 10,
+  'crop_limits': (0, 0, 1456, 1088),
+  'exposure_limits': (29, None),
+  'format': R10_CSI2P,
+  'fps': 60.38,
+  'size': (1456, 1088),
+  'unpacked': 'R10'}]
+
+Camera configuration:
+{'buffer_count': 4,
+ 'colour_space': <libcamera.ColorSpace 'sYCC'>,
+ 'controls': {'FrameDurationLimits': (100, 83333),
+              'NoiseReductionMode': <NoiseReductionModeEnum.Minimal: 3>},
+ 'display': 'main',
+ 'encode': 'main',
+ 'lores': None,
+ 'main': {'format': 'XBGR8888',
+          'framesize': 1228800,
+          'size': (640, 480),
+          'stride': 2560},
+ 'queue': True,
+ 'raw': {'format': 'R10_CSI2P',
+         'framesize': 1984512,
+         'size': (1456, 1088),
+         'stride': 1824},
+ 'sensor': {'bit_depth': 10, 'output_size': (1456, 1088)},
+ 'transform': <libcamera.Transform 'identity'>,
+ 'use_case': 'preview'}
+
+Camera controls:
+{'AeConstraintMode': (0, 3, 0),
+ 'AeEnable': (False, True, None),
+ 'AeExposureMode': (0, 3, 0),
+ 'AeFlickerMode': (0, 1, 0),
+ 'AeFlickerPeriod': (100, 1000000, None),
+ 'AeMeteringMode': (0, 3, 0),
+ 'AnalogueGain': (1.0, 251.1886444091797, None),
+ 'Brightness': (-1.0, 1.0, 0.0),
+ 'Contrast': (0.0, 32.0, 1.0),
+ 'ExposureTime': (29, 0, None),
+ 'ExposureValue': (-8.0, 8.0, 0.0),
+ 'FrameDurationLimits': (16562, 15534444, None),
+ 'HdrMode': (0, 4, 0),
+ 'NoiseReductionMode': (0, 4, 0),
+ 'ScalerCrop': ((0, 0, 64, 64), (0, 0, 1456, 1088), (3, 0, 1450, 1088)),
+ 'Sharpness': (0.0, 16.0, 1.0)}
+
+Exposure time:
+  min: 29, max: 0, default: None
+
+AnalogGain:
+  min: 1.0, max: 251.1886444091797, default: None
+
