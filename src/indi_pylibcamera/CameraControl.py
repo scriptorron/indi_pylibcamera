@@ -335,7 +335,7 @@ class CameraControl:
                         logger.warning(f'Unsupported frame size {size} for imx708!')
             # add to list of raw formats
             raw_mode = {
-                "label": f'{size[0]}x{size[1]} {sensor_format[1:5] if is_bayer else "gray"} {sensor_mode["bit_depth"]}bit',
+                "label": f'{size[0]}x{size[1]} {sensor_format[1:5] if is_bayer else "mono"} {sensor_mode["bit_depth"]}bit',
                 "size": size,
                 "true_size": true_size,
                 "camera_format": sensor_format,
@@ -773,8 +773,7 @@ class CameraControl:
                     #self.parent.setVector("CCD_FRAME", "HEIGHT", value=NewCameraSettings.RawMode["size"][1])
                 else:
                     config["main"]["size"] = NewCameraSettings.ProcSize
-                    # do not overwrite "format": some cameras have BGR888 (V1, HQ), others XBGR888 (IMX296)
-                    #config["main"]["format"] = "BGR888"  # strange: we get RBG when configuring HQ camera as BGR
+                    config["main"]["format"] = "BGR888"
                     # software image scaling does not change sensor array mechanical dimensions!
                     #self.parent.setVector("CCD_FRAME", "WIDTH", value=NewCameraSettings.ProcSize[0], send=False)
                     #self.parent.setVector("CCD_FRAME", "HEIGHT", value=NewCameraSettings.ProcSize[1])
