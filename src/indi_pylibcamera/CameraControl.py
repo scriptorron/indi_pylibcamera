@@ -516,25 +516,22 @@ class CameraControl:
         Returns:
             FITS HDUL
         """
-        # TODO: distinguish here between grayscale and Bayer frames
         format = self.picam2.camera_configuration()["raw"]["format"]
-        return self.createBayerFits(array=array, metadata=metadata)
-
-    def createBayerFits(self, array, metadata):
-        """creates Bayer pattern FITS image from raw frame
-
-        Args:
-            array: data array
-            metadata: metadata
-        """
-        # type cast and rescale
-        currentFormat = self.picam2.camera_configuration()["raw"]["format"].split("_")
-        assert len(currentFormat) == 1, f'Picamera2 returned unexpected format: {currentFormat}!'
-        assert currentFormat[0][0] == 'S', f'Picamera2 returned unexpected format: {currentFormat}!'
-        BayerPattern = currentFormat[0][1:5]
-        BayerPattern = self.parent.config.get("driver", "force_BayerOrder", fallback=BayerPattern)
-        bit_depth = int(currentFormat[0][5:])
-        #self.log_FrameInformation(array=array, metadata=metadata, is_raw=True, bit_depth=bit_depth)
+        self.log_FrameInformation(array=array, metadata=metadata, format=format)
+        # we expect uncompressed format here
+        if format.count("_") > 0:
+            raise NotImplementedError(f'got unsupported raw image format {format}')
+        if format[0] not in ["S", "R"]:
+            raise NotImplementedError(f'got unsupported raw image format {format}')
+        # Bayer of mono format
+        if format[0] == "S":
+            # Bayer pattern format
+            BayerPattern = format[1:5]
+            BayerPattern = self.parent.config.get("driver", "force_BayerOrder", fallback=BayerPattern)
+            bit_depth = int(format[5:])
+        else:
+            BayerPattern = None
+            bit_depth = int(format[1:])
         # left adjust if needed
         if bit_depth > 8:
             bit_pix = 16
@@ -570,15 +567,18 @@ class CameraControl:
                 "FRAME": (FrameType, "Frame Type"),
                 "IMAGETYP": (FrameType+" Frame", "Frame Type"),
                 **self.snooped_FitsHeader(),
+                "GAIN": (metadata.get("AnalogueGain", 0.0), "Gain"),
+            }
+        if BayerPattern is not None:
+            FitsHeader.update({
                 "XBAYROFF": (0, "[px] X offset of Bayer array"),
                 "YBAYROFF": (0, "[px] Y offset of Bayer array"),
                 "BAYERPAT": (BayerPattern, "Bayer color pattern"),
-                "GAIN": (metadata.get("AnalogueGain", 0.0), "Gain"),
-            }
+            })
         if "SensorBlackLevels" in metadata:
             SensorBlackLevels = metadata["SensorBlackLevels"]
             if len(SensorBlackLevels) == 4:
-                # according to pylibcamera2 documentation:
+                # according to picamera2 documentation:
                 #   "The black levels of the raw sensor image. This
                 #    control appears only in captured image
                 #    metadata and is read-only. One value is
@@ -609,9 +609,27 @@ class CameraControl:
             array: data array
             metadata: metadata
         """
+        format = self.picam2.camera_configuration()["main"]["format"]
+        self.log_FrameInformation(array=array, metadata=metadata, format=format)
+        # first dimension must be the color channels of one pixel
+        array = array.transpose([2, 0, 1])
+        if format == "BGR888":
+            # each pixel is laid out as [R, G, B]
+            pass
+        elif format == "RGB888":
+            # each pixel is laid out as [B, G, R]
+            array = array[[2, 1, 0], :, :]
+        elif format == "XBGR8888":
+            # each pixel is laid out as [R, G, B, A] with A = 255
+            array = array[[0, 1, 2], :, :]
+        elif format == "XRGB8888":
+            # each pixel is laid out as [B, G, R, A] with A = 255
+            array = array[[2, 1, 0], :, :]
+        else:
+            raise NotImplementedError(f'got unsupported RGB image format {format}')
         #self.log_FrameInformation(array=array, metadata=metadata, is_raw=False)
         # convert to FITS
-        hdu = fits.PrimaryHDU(array.transpose([2, 0, 1]))
+        hdu = fits.PrimaryHDU(array)
         # avoid access conflicts to knownVectors
         with self.parent.knownVectorsLock:
             # determine frame type
@@ -648,35 +666,27 @@ class CameraControl:
         hdul = fits.HDUList([hdu])
         return hdul
 
-
-    def log_FrameInformation(self, array, metadata, is_raw=True, bit_depth=16):
-        """write frame information to debug log
+    def log_FrameInformation(self, array, metadata, format):
+        """write frame information to log
 
         Args:
             array: raw frame data
             metadata: frame metadata
-            is_raw: raw or RGB frame
-            bit_depth: bit depth for raw frame
+            format: format string
         """
-        logger.debug(f'array shape: {array.shape}')
-        #
-        logger.debug(
-            f'{self.present_CameraSettings.RawMode["bit_depth"]} bits per pixel requested, {bit_depth} bits per pixel received')
-        #
-        if is_raw:
-            arr = array.view(np.uint16) if bit_depth > 8 else array
-            BitUsage = ["X"] * bit_depth
-            for b in range(bit_depth-1, -1, -1):
-                BitSlice = (arr & (1 << b)) != 0
-                if BitSlice.all():
-                    BitUsage[b] = "1"
-                elif BitSlice.any():
-                    BitUsage[b] = "T"
-                else:
-                    BitUsage[b] = "0"
-            logger.debug(f'  data alignment: (MSB) {"".join(BitUsage)} (LSB) (1 = all 1, 0 = all 0, T = some 1)')
-        logger.debug(f'metadata: {metadata}')
-        logger.debug(f'camera configuration: {self.picam2.camera_configuration()}')
+        if self.parent.config.getboolean("driver", "log_FrameInformation", fallback=False):
+            if array.ndim == 2:
+                arr = array.view(np.uint16)
+                BitUsages = list()
+                for b in range(15, -1, -1):
+                    BitSlice = (arr & (1 << b)) != 0
+                    BitUsage = BitSlice.sum() / arr.size
+                    BitUsages.append(BitUsage)
+                BitUsages = [f'{bu:.1e}' for bu in BitUsages]
+                logger.info(f'Frame format: {format}, shape: {array.shape} {array.dtype}, bit usages: (MSB) {" ".join(BitUsages)} (LSB)')
+            else:
+                logger.info(f'Frame format: {format}, shape: {array.shape} {array.dtype}')
+            logger.info(f'Frame metadata: {metadata}')
 
     def __ExposureLoop(self):
         """exposure loop
@@ -830,10 +840,7 @@ class CameraControl:
                 # get frame and its metadata
                 if not Abort:
                     (array, ), metadata = self.picam2.wait(job)
-                    logger.info(
-                        f'got exposed frame: {self.picam2.camera_configuration()["raw"]["format"]}, '
-                        f'shape {array.shape}, dtype {array.dtype}, metadata {metadata}'
-                    )
+                    logger.info('got exposed frame')
                     # at least HQ camera reports CCD temperature in meta data
                     self.parent.setVector("CCD_TEMPERATURE", "CCD_TEMPERATURE_VALUE",
                                           value=metadata.get('SensorTemperature', 0))
