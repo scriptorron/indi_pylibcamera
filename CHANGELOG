@@ -1,3 +1,6 @@
+- support for monochrome cameras
+- better support for seldom raw and RGB frame formats
+
 2.5.0
 - fixed changed data alignment in Pi 5 raw images
 
