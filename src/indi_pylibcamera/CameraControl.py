@@ -19,6 +19,10 @@ from libcamera import controls, Rectangle
 
 from .indidevice import *
 
+# From time to time astropy downloads the latest IERS-A table from internet.
+# If offline this will raise an error. Here we disable the auto update.
+from astropy.utils.iers import conf
+conf.auto_max_age = None
 
 class CameraSettings:
     """exposure settings
