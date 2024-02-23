@@ -285,14 +285,16 @@ class CameraControl:
             if sensor_format.endswith("_CSI2P"):
                 logger.warning(f'raw mode not supported: {sensor_mode}')
                 continue
-            # only Bayer pattern formats are supported
-            if not re.match("S[RGB]{4}[0-9]+", sensor_format):
+            # only monochrome and Bayer pattern formats are supported
+            is_monochrome = re.match("R[0-9]+", sensor_format)
+            is_bayer = re.match("S[RGB]{4}[0-9]+", sensor_format)
+            if not (is_monochrome or is_bayer):
                 logger.warning(f'raw mode not supported: {sensor_mode}')
                 continue
             #
             size = sensor_mode["size"]
             # adjustments for cameras:
-            #   * 0- or garbage-filled columns
+            #   * zero- or garbage-filled columns
             #   * raw modes with binning or subsampling
             true_size = size
             binning = (1, 1)
@@ -333,7 +335,7 @@ class CameraControl:
                         logger.warning(f'Unsupported frame size {size} for imx708!')
             # add to list of raw formats
             raw_mode = {
-                "label": f'{size[0]}x{size[1]} {sensor_format[1:5]} {sensor_mode["bit_depth"]}bit',
+                "label": f'{size[0]}x{size[1]} {sensor_format[1:5] if is_bayer else "mono"} {sensor_mode["bit_depth"]}bit',
                 "size": size,
                 "true_size": true_size,
                 "camera_format": sensor_format,
@@ -376,9 +378,12 @@ class CameraControl:
             self.RawModes = []
         # camera controls
         self.camera_controls = self.picam2.camera_controls
-        # exposure time range
+        # gain and exposure time range
         self.min_ExposureTime, self.max_ExposureTime, default_exp = self.camera_controls["ExposureTime"]
         self.min_AnalogueGain, self.max_AnalogueGain, default_again = self.camera_controls["AnalogueGain"]
+        # workaround for cameras reporting max_ExposureTime=0 (IMX296)
+        self.max_ExposureTime = self.max_ExposureTime if self.min_ExposureTime < self.max_ExposureTime else 1000.0
+        self.max_AnalogueGain = self.max_AnalogueGain if self.min_AnalogueGain < self.max_AnalogueGain else 1000.0
         # TODO
         force_Restart = self.config.get("driver", "force_Restart", fallback="auto").lower()
         if force_Restart == "yes":
@@ -496,21 +501,33 @@ class CameraControl:
         ####
         return FitsHeader
 
-    def createBayerFits(self, array, metadata):
-        """creates Bayer pattern FITS image from raw frame
+    def createRawFits(self, array, metadata):
+        """
+        creates raw image in FITS format
 
         Args:
-            array: data array
-            metadata: metadata
+            array: image data
+            metadata: image metadata
+
+        Returns:
+            FITS HDUL
         """
-        # type cast and rescale
-        currentFormat = self.picam2.camera_configuration()["raw"]["format"].split("_")
-        assert len(currentFormat) == 1, f'Picamera2 returned unexpected format: {currentFormat}!'
-        assert currentFormat[0][0] == 'S', f'Picamera2 returned unexpected format: {currentFormat}!'
-        BayerPattern = currentFormat[0][1:5]
-        BayerPattern = self.parent.config.get("driver", "force_BayerOrder", fallback=BayerPattern)
-        bit_depth = int(currentFormat[0][5:])
-        #self.log_FrameInformation(array=array, metadata=metadata, is_raw=True, bit_depth=bit_depth)
+        format = self.picam2.camera_configuration()["raw"]["format"]
+        self.log_FrameInformation(array=array, metadata=metadata, format=format)
+        # we expect uncompressed format here
+        if format.count("_") > 0:
+            raise NotImplementedError(f'got unsupported raw image format {format}')
+        if format[0] not in ["S", "R"]:
+            raise NotImplementedError(f'got unsupported raw image format {format}')
+        # Bayer of mono format
+        if format[0] == "S":
+            # Bayer pattern format
+            BayerPattern = format[1:5]
+            BayerPattern = self.parent.config.get("driver", "force_BayerOrder", fallback=BayerPattern)
+            bit_depth = int(format[5:])
+        else:
+            BayerPattern = None
+            bit_depth = int(format[1:])
         # left adjust if needed
         if bit_depth > 8:
             bit_pix = 16
@@ -546,15 +563,18 @@ class CameraControl:
                 "FRAME": (FrameType, "Frame Type"),
                 "IMAGETYP": (FrameType+" Frame", "Frame Type"),
                 **self.snooped_FitsHeader(),
+                "GAIN": (metadata.get("AnalogueGain", 0.0), "Gain"),
+            }
+        if BayerPattern is not None:
+            FitsHeader.update({
                 "XBAYROFF": (0, "[px] X offset of Bayer array"),
                 "YBAYROFF": (0, "[px] Y offset of Bayer array"),
                 "BAYERPAT": (BayerPattern, "Bayer color pattern"),
-                "GAIN": (metadata.get("AnalogueGain", 0.0), "Gain"),
-            }
+            })
         if "SensorBlackLevels" in metadata:
             SensorBlackLevels = metadata["SensorBlackLevels"]
             if len(SensorBlackLevels) == 4:
-                # according to pylibcamera2 documentation:
+                # according to picamera2 documentation:
                 #   "The black levels of the raw sensor image. This
                 #    control appears only in captured image
                 #    metadata and is read-only. One value is
@@ -585,9 +605,27 @@ class CameraControl:
             array: data array
             metadata: metadata
         """
+        format = self.picam2.camera_configuration()["main"]["format"]
+        self.log_FrameInformation(array=array, metadata=metadata, format=format)
+        # first dimension must be the color channels of one pixel
+        array = array.transpose([2, 0, 1])
+        if format == "BGR888":
+            # each pixel is laid out as [R, G, B]
+            pass
+        elif format == "RGB888":
+            # each pixel is laid out as [B, G, R]
+            array = array[[2, 1, 0], :, :]
+        elif format == "XBGR8888":
+            # each pixel is laid out as [R, G, B, A] with A = 255
+            array = array[[0, 1, 2], :, :]
+        elif format == "XRGB8888":
+            # each pixel is laid out as [B, G, R, A] with A = 255
+            array = array[[2, 1, 0], :, :]
+        else:
+            raise NotImplementedError(f'got unsupported RGB image format {format}')
         #self.log_FrameInformation(array=array, metadata=metadata, is_raw=False)
         # convert to FITS
-        hdu = fits.PrimaryHDU(array.transpose([2, 0, 1]))
+        hdu = fits.PrimaryHDU(array)
         # avoid access conflicts to knownVectors
         with self.parent.knownVectorsLock:
             # determine frame type
@@ -624,34 +662,27 @@ class CameraControl:
         hdul = fits.HDUList([hdu])
         return hdul
 
-
-    def log_FrameInformation(self, array, metadata, is_raw=True, bit_depth=16):
-        """write frame information to debug log
+    def log_FrameInformation(self, array, metadata, format):
+        """write frame information to log
 
         Args:
             array: raw frame data
             metadata: frame metadata
-            is_raw: raw or RGB frame
-            bit_depth: bit depth for raw frame
+            format: format string
         """
-        logger.debug(f'array shape: {array.shape}')
-        #
-        logger.debug(f'{self.present_CameraSettings.RawMode["bit_depth"]} bits per pixel requested, {bit_depth} bits per pixel received')
-        #
-        if is_raw:
-            arr = array.view(np.uint16) if bit_depth > 8 else array
-            BitUsage = ["X"] * bit_depth
-            for b in range(bit_depth-1, -1, -1):
-                BitSlice = (arr & (1 << b)) != 0
-                if BitSlice.all():
-                    BitUsage[b] = "1"
-                elif BitSlice.any():
-                    BitUsage[b] = "T"
-                else:
-                    BitUsage[b] = "0"
-            logger.debug(f'  data alignment: (MSB) {"".join(BitUsage)} (LSB) (1 = all 1, 0 = all 0, T = some 1)')
-        logger.debug(f'metadata: {metadata}')
-        logger.debug(f'camera configuration: {self.picam2.camera_configuration()}')
+        if self.parent.config.getboolean("driver", "log_FrameInformation", fallback=False):
+            if array.ndim == 2:
+                arr = array.view(np.uint16)
+                BitUsages = list()
+                for b in range(15, -1, -1):
+                    BitSlice = (arr & (1 << b)) != 0
+                    BitUsage = BitSlice.sum() / arr.size
+                    BitUsages.append(BitUsage)
+                BitUsages = [f'{bu:.1e}' for bu in BitUsages]
+                logger.info(f'Frame format: {format}, shape: {array.shape} {array.dtype}, bit usages: (MSB) {" ".join(BitUsages)} (LSB)')
+            else:
+                logger.info(f'Frame format: {format}, shape: {array.shape} {array.dtype}')
+            logger.info(f'Frame metadata: {metadata}')
 
     def __ExposureLoop(self):
         """exposure loop
@@ -742,7 +773,7 @@ class CameraControl:
                     #self.parent.setVector("CCD_FRAME", "HEIGHT", value=NewCameraSettings.RawMode["size"][1])
                 else:
                     config["main"]["size"] = NewCameraSettings.ProcSize
-                    config["main"]["format"] = "BGR888"  # strange: we get RBG when configuring HQ camera as BGR
+                    config["main"]["format"] = "BGR888"
                     # software image scaling does not change sensor array mechanical dimensions!
                     #self.parent.setVector("CCD_FRAME", "WIDTH", value=NewCameraSettings.ProcSize[0], send=False)
                     #self.parent.setVector("CCD_FRAME", "HEIGHT", value=NewCameraSettings.ProcSize[1])
@@ -804,7 +835,7 @@ class CameraControl:
                 # get frame and its metadata
                 if not Abort:
                     (array, ), metadata = self.picam2.wait(job)
-                    logger.info("got exposed frame")
+                    logger.info('got exposed frame')
                     # at least HQ camera reports CCD temperature in meta data
                     self.parent.setVector("CCD_TEMPERATURE", "CCD_TEMPERATURE_VALUE",
                                           value=metadata.get('SensorTemperature', 0))
@@ -831,7 +862,7 @@ class CameraControl:
                         self.parent.setVector("CCD_FAST_COUNT", "FRAMES", value=FastCount_Frames, state=IVectorState.BUSY)
                     # create FITS images
                     if self.present_CameraSettings.DoRaw:
-                        hdul = self.createBayerFits(array=array, metadata=metadata)
+                        hdul = self.createRawFits(array=array, metadata=metadata)
                     else:
                         hdul = self.createRgbFits(array=array, metadata=metadata)
                     bstream = io.BytesIO()
