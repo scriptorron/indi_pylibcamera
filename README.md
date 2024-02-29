@@ -114,7 +114,8 @@ every frame exposure can solve this issue. Valid values of this switch are:
   * `auto`: Automatically choose based on list of known critical cameras. 
 
   Default (if not otherwise set in INI file) is `auto`.
-
+- `enable_IERS_autoupdate` (`yes`, `no`): Allows the `astropy` library to update the IERS-A table from internet.
+By default this is disabled to avoid errors when the camera is not connected to internet.
 
 There are more settings, mostly to support debugging.
 

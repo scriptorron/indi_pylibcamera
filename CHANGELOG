@@ -1,5 +1,8 @@
+2.6.0
 - support for monochrome cameras
-- better support for seldom raw and RGB frame formats
+- support for new raw and RGB frame formats (including monochrome)
+- disable astropy to download the latest IERS-A table from internet to avoid errors during observation session
+- better stability of exposure loop
 
 2.5.0
 - fixed changed data alignment in Pi 5 raw images

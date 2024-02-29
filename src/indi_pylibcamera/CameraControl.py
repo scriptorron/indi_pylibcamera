@@ -12,6 +12,7 @@ import datetime
 from astropy.io import fits
 import astropy.coordinates
 import astropy.units
+import astropy.utils.iers
 
 from picamera2 import Picamera2
 from libcamera import controls, Rectangle
@@ -19,10 +20,6 @@ from libcamera import controls, Rectangle
 
 from .indidevice import *
 
-# From time to time astropy downloads the latest IERS-A table from internet.
-# If offline this will raise an error. Here we disable the auto update.
-from astropy.utils.iers import conf
-conf.auto_max_age = None
 
 class CameraSettings:
     """exposure settings
@@ -217,8 +214,14 @@ class CameraControl:
     def __init__(self, parent, config):
         self.parent = parent
         self.config = config
-        self.do_CameraAdjustments = config.getboolean("driver", "CameraAdjustments", fallback=True)
-        self.IgnoreRawModes = config.getboolean("driver", "IgnoreRawModes", fallback=False)
+        # From time to time astropy downloads the latest IERS-A table from internet.
+        # If offline this will raise an error. Here we disable the auto update.
+        if self.config.getboolean("driver", "enable_IERS_autoupdate", fallback=True):
+            astropy.utils.iers.conf.auto_max_age = None
+            astropy.utils.iers.conf.iers_degraded_accuracy = "ignore"
+        #
+        self.do_CameraAdjustments = self.config.getboolean("driver", "CameraAdjustments", fallback=True)
+        self.IgnoreRawModes = self.config.getboolean("driver", "IgnoreRawModes", fallback=False)
         # reset states
         self.picam2 = None
         self.present_CameraSettings = CameraSettings()
@@ -737,6 +740,7 @@ class CameraControl:
                 self.Sig_ActionExpose.clear()
             if self.Sig_ActionExit.is_set():
                 # exit exposure loop
+                #logger.error(f'DBG vor stop (line 744): {self.picam2.started=}')  # FIXME
                 self.picam2.stop_()
                 self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                 return
@@ -763,6 +767,7 @@ class CameraControl:
             if self.present_CameraSettings.is_ReconfigurationNeeded(NewCameraSettings) or self.needs_Restarts:
                 logger.info(f'reconfiguring camera')
                 # need a new camera configuration
+                #logger.error(f'DBG vor create_still_configuration: {self.picam2.started=}')  # FIXME
                 config = self.picam2.create_still_configuration(
                     queue=NewCameraSettings.DoFastExposure,
                     buffer_count=2  # 2 if NewCameraSettings.DoFastExposure else 1  # need at least 2 buffer for queueing
@@ -783,15 +788,19 @@ class CameraControl:
                     #self.parent.setVector("CCD_FRAME", "HEIGHT", value=NewCameraSettings.ProcSize[1])
                 # optimize (align) configuration: small changes to some main stream configurations
                 # (for instance: size) will fit better to hardware
+                #logger.error(f'DBG vor align_configuration: {self.picam2.started=}')  # FIXME
                 self.picam2.align_configuration(config)
                 # set still configuration
+                #logger.error(f'DBG vor configure: {self.picam2.started=}')  # FIXME
                 self.picam2.configure(config)
             # changing exposure time or analogue gain needs a restart
             if IsRestartNeeded:
                 # change camera controls
+                #logger.error(f'DBG vor set_controls: {self.picam2.started=}')  # FIXME
                 self.picam2.set_controls(NewCameraSettings.get_controls())
             # start camera if not already running in Fast Exposure mode
             if not self.picam2.started:
+                #logger.error(f'DBG vor start (line 802): {self.picam2.started=}')  # FIXME
                 self.picam2.start()
                 logger.debug(f'camera started')
             # camera runs now with new parameter
@@ -799,6 +808,7 @@ class CameraControl:
             # last chance to exit or abort before doing exposure
             if self.Sig_ActionExit.is_set():
                 # exit exposure loop
+                #logger.error(f'DBG vor stop (line 811): {self.picam2.started=}')  # FIXME
                 self.picam2.stop_()
                 self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                 return
@@ -808,6 +818,7 @@ class CameraControl:
                 # get (non-blocking!) frame and meta data
                 self.Sig_CaptureDone.clear()
                 ExpectedEndOfExposure = time.time() + self.present_CameraSettings.ExposureTime
+                #logger.error(f'DBG vor capture_arrays: {self.picam2.started=}')  # FIXME
                 job = self.picam2.capture_arrays(
                     ["raw" if self.present_CameraSettings.DoRaw else "main"],
                     wait=False, signal_function=self.on_CaptureFinished,
@@ -824,12 +835,15 @@ class CameraControl:
                     # allow to close camera
                     if self.Sig_ActionExit.is_set():
                         # exit exposure loop
+                        #logger.error(f'DBG vor stop (line 838): {self.picam2.started=}')  # FIXME
                         self.picam2.stop_()
                         self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                         return
                     # allow to abort exposure
                     Abort = self.Sig_ActionAbort.is_set()
                     if Abort:
+                        #logger.error(f'DBG vor stop (line 846): {self.picam2.started=}')  # FIXME
+                        self.picam2.stop_()  # stop exposure immediately
                         self.Sig_ActionAbort.clear()
                         break
                     # allow exposure to finish earlier than expected (for instance when in fast exposure mode)
@@ -838,6 +852,7 @@ class CameraControl:
                     time.sleep(PollingPeriod_s)
                 # get frame and its metadata
                 if not Abort:
+                    #logger.error(f'DBG vor wait: {self.picam2.started=}')  # FIXME
                     (array, ), metadata = self.picam2.wait(job)
                     logger.info('got exposed frame')
                     # at least HQ camera reports CCD temperature in meta data
@@ -848,6 +863,7 @@ class CameraControl:
                 # last chance to exit or abort before sending blob
                 if self.Sig_ActionExit.is_set():
                     # exit exposure loop
+                    #logger.error(f'DBG vor stop (line 864): {self.picam2.started=}')  # FIXME
                     self.picam2.stop_()
                     self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                     return
@@ -859,7 +875,8 @@ class CameraControl:
                     FastCount_Frames = self.parent.knownVectors["CCD_FAST_COUNT"]["FRAMES"].value
                 if not DoFastExposure:
                     # in normal exposure mode the camera needs to be started with exposure command
-                    self.picam2.stop_()
+                    #logger.error(f'DBG vor stop (line 876): {self.picam2.started=}')  # FIXME
+                    self.picam2.stop()
                 if not Abort:
                     if DoFastExposure:
                         FastCount_Frames -= 1
