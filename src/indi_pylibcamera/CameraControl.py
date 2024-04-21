@@ -555,7 +555,7 @@ class CameraControl:
             FitsHeader = {
                 "BZERO": (2 ** (bit_pix - 1), "offset data range"),
                 "BSCALE": (1, "default scaling factor"),
-                "ROWORDER": ("BOTTOM-UP", "Row order"),
+                "ROWORDER": ("TOP-DOWN", "Row order"),
                 "INSTRUME": (self.parent.device, "CCD Name"),
                 "TELESCOP": (self.parent.knownVectors["ACTIVE_DEVICES"]["ACTIVE_TELESCOPE"].value, "Telescope name"),
                 **self.parent.knownVectors["FITS_HEADER"].FitsHeader,
