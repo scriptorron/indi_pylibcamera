@@ -27,7 +27,7 @@ camera.
 
 ## Requirements and installation
 Some packages need to be installed with apt-get:
-- `libcamera` (if not already installed). You can test libcamera and the support
+- `libcamera` and `libcamera-apps` (if not already installed). You can test libcamera and the support
 for your camera with: 
   ```commandline
   libcamera-hello --list-cameras
@@ -52,36 +52,42 @@ for your camera with:
 by yourself. Instructions can be found here: https://github.com/indilib/indi. A Raspberry Pi Zero does not
 have enough RAM to compile with 4 threads in parallel: you need to do `make -j1` instead of `make -j4`. 
 Finally, after installation, you need to have a working INDI server: `indiserver -v indi_simulator_telescope`
-- The Python packages `picamera2`, `numpy`, `lxml` and `astropy`. Theoretically these packages can be installed with `pip`. 
-But at least the version of `picamera2` must fit to the `libcamera` you installed with `apt-get`. Therefore it is
-safer to install these Python packages with `apt-get` too. 
-
-The command line to install all is:
+- The Python packages `PyQt5`, `picamera2` and `numpy` must be installed with `apt-get`. Typically they are already
+installed. If not you can install them with:
 ```commandline
-sudo apt-get install libcamera-apps indi-bin python3-picamera2 python3-lxml python3-astropy python3-numpy
+sudo apt-get install python3-picamera2 python3-pyqt5 python3-numpy
 ```
 
-The `indi_pylibcamera` driver package is available on PyPi. Please install with:
-```commandline
-sudo pip3 install indi_pylibcamera
-sudo indi_pylibcamera_postinstall
-```
+The Raspberry PI OS requires a virtual environment to install non-system Python packages. Trying to install
+`indi_pylibcamera` without a virtual environment will fail with `error: externally-managed-environment`. 
 
-The `indi_pylibcamera_postinstall` script creates in `/usr/share/indi` a symbolic link to the driver XML. That makes
-the driver available in the KStars/EKOS profile editor in "CCD"->"OTHERS". Not all versions ov KStars/ECOS support this
-(for instance it works with KStars 3.6.5 but not with KStars 3.4.3).
+Run the following on a command line to install `indi_pylibcamera`in a virtual environment called `venv_indi_pylibcamera`:
+```commandline
+python3 -m venv --system-site-packages ~/venv_indi_pylibcamera
+source ~/venv_indi_pylibcamera/bin/activate
+pip install --upgrade pip
+pip install indi_pylibcamera
+```
 
 ## Uninstall
 For uninstalling the driver do:
 ```commandline
 sudo rm -f /usr/share/indi/indi_pylibcamera.xml
-sudo pip3 uninstall indi_pylibcamera
+rm -rf ~/venv_indi_pylibcamera
 ```
 
 ## Running
-You can start the INDI server with `indiserver -v indi_pylibcamera`. When the server is running you can connect to
-the server from another computer with an INDI client (for instance KStars/EKOS). The camera name is the one
-you configure in `indi_pylibcamera.ini`.
+At the moment there is no support to start the driver from the EKOS profile editor. 
+The driver and the indi server must be started in shell with activated virtual environment:
+```commandline
+source ~/venv_indi_pylibcamera/bin/activate
+```
+
+In the same shell you can start the INDI server with `indiserver -v indi_pylibcamera`. When the server is running
+you can connect to the server from another computer with an INDI client (for instance KStars/EKOS). The camera name
+is the one you configure in `indi_pylibcamera.ini`.
+
+I recommend you to make a wrapper script to activate the environment and start the driver.
 
 ## Global Configuration
 The driver uses a hierarchy of configuration files to set global parameter. These configuration files are loaded in the

@@ -26,7 +26,7 @@ twine check dist/*
 # after upload the package will be visible in https://test.pypi.org/project/indi_pylibcamera
 # to test the pip installation from TestPyPi:
 # - USE APT_GET TO INSTALL REQUIREMENTS!
-#   sudo apt-get install indi-bin python3-picamera2 python3-lxml python3-astropy
+#   sudo apt-get install indi-bin python3-picamera2 python3-lxml
 # - install in virtual environment
 #   python3 -m venv --system-site-packages /home/cam/test_iplc
 #   source test_iplc/bin/activate

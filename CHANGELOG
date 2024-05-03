@@ -1,3 +1,10 @@
+2.6.2
+- fixed ROWORDER attribute in FITS files (KStars/EKOS ignores this but some postprocessing tools need this fix to
+  have the Bayer pattern in the correct order)
+- more details in install_requires of the wheel
+- adapted install instructions in README.md to meet newer OS versions (installation in virtual environment)
+- removed indi_pylibcamera_postinstall from installation: does not work from virtual environment
+
 2.6.0
 - support for monochrome cameras
 - support for new raw and RGB frame formats (including monochrome)
