@@ -25,12 +25,13 @@ twine check dist/*
 #   python3 -m twine upload --repository testpypi dist/*
 # after upload the package will be visible in https://test.pypi.org/project/indi_pylibcamera
 # to test the pip installation from TestPyPi:
-# - USE APT_GET TO INSTALL REQUIREMENTS!
-#   sudo apt-get install indi-bin python3-picamera2 python3-lxml
+# - USE APT TO INSTALL REQUIREMENTS!
+#   sudo apt install python3-pip libcamera-apps python3-picamera2 python3-lxml python3-astropy python3-numpy python3-venv
 # - install in virtual environment
 #   python3 -m venv --system-site-packages /home/cam/test_iplc
 #   source test_iplc/bin/activate
-#   python3 -m pip install --index-url https://test.pypi.org/simple/ indi_pylibcamera
+#   pip install --upgrade pip
+#   pip install --index-url https://test.pypi.org/simple/ indi_pylibcamera
 #   indi_pylibcamera_print_camera_information
 #   indi_pylibcamera
 # - clean-up after test:
@@ -45,7 +46,8 @@ twine check dist/*
 # - install in virtual environment
 #   python3 -m venv --system-site-packages /home/cam/test_iplc
 #   source test_iplc/bin/activate
-#   python3 -m pip install indi_pylibcamera
+#   pip install --upgrade pip
+#   pip install indi_pylibcamera
 #   indi_pylibcamera_print_camera_information
 #   indi_pylibcamera
 # - clean-up after test:

@@ -26,7 +26,7 @@ And it can not work when the libcamera-tools (like `libcamera-hello` and `libcam
 camera.
 
 ## Requirements and installation
-Some packages need to be installed with apt-get:
+Some packages need to be installed with `apt`:
 - `libcamera` and `libcamera-apps` (if not already installed). You can test libcamera and the support
 for your camera with: 
   ```commandline
@@ -49,25 +49,46 @@ for your camera with:
   ```
   Something with your libcamera or kernel driver installation will be wrong if this does not work.
 - Install INDI core library. If there is no pre-compiled package for your hardware you will need to compile it
-by yourself. Instructions can be found here: https://github.com/indilib/indi. A Raspberry Pi Zero does not
-have enough RAM to compile with 4 threads in parallel: you need to do `make -j1` instead of `make -j4`. 
+by yourself. Instructions can be found here: https://github.com/indilib/indi. 
+The scripts on https://gitea.nouspiro.space/nou/astro-soft-build automate compilation and installation.
+  A Raspberry Pi Zero does not have enough RAM to compile with 4 threads in parallel: you need to do `make -j1` instead of `make -j4`. 
 Finally, after installation, you need to have a working INDI server: `indiserver -v indi_simulator_telescope`
-- The Python packages `PyQt5`, `picamera2` and `numpy` must be installed with `apt-get`. Typically they are already
-installed. If not you can install them with:
+- Some Python packages require matching versions of system libraries. They must be installed with `apt`:
 ```commandline
-sudo apt-get install python3-picamera2 python3-pyqt5 python3-numpy
+sudo apt install python3-pip libcamera-apps python3-picamera2 python3-lxml python3-astropy python3-numpy python3-venv
 ```
 
-The Raspberry PI OS requires a virtual environment to install non-system Python packages. Trying to install
+The Raspberry Pi OS "Bullseye" still allowed to install system wide with `sudo pip install indi_pylibcamera`. 
+Since "Bookworm" a virtual environment is required to install non-system Python packages. Trying to install
 `indi_pylibcamera` without a virtual environment will fail with `error: externally-managed-environment`. 
 
-Run the following on a command line to install `indi_pylibcamera`in a virtual environment called `venv_indi_pylibcamera`:
+Run the following on a command line to install `indi_pylibcamera`in a virtual environment called `venv_indi_pylibcamera`
+(you can name the virtual environment as you want):
 ```commandline
 python3 -m venv --system-site-packages ~/venv_indi_pylibcamera
 source ~/venv_indi_pylibcamera/bin/activate
 pip install --upgrade pip
 pip install indi_pylibcamera
 ```
+
+## Some hints when you get trouble
+The Python packages `picamera2`, `numpy`, and ` astropy` MUST be installed with `sudo apt install`.
+You MUST NOT update them with `pip`. When you get errors related to these packages you can:
+  1. Check directory `~/.local/lib/python3.9/site-packages` if it contains one of these packages. If yes delete them!
+  2. Check if `pip list` shows different version numbers than `apt list` for these packages:
+     ```commandline
+     pip list | grep numpy
+     apt list | grep numpy
+     
+     pip list | grep astropy
+     apt list | grep astropy
+     
+     pip list | grep picamera2
+     apt list | grep picamera2
+     ```
+     If you see different versions for a package remove it with `pip uninstall` and reinstall it with 
+     `sudo apt reinstall`.
+  3. Remove and recreate the virtual environment.
 
 ## Uninstall
 For uninstalling the driver do:
