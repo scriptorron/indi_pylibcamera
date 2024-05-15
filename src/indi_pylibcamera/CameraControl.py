@@ -389,7 +389,7 @@ class CameraControl:
         self.min_ExposureTime, self.max_ExposureTime, default_exp = self.camera_controls["ExposureTime"]
         self.min_AnalogueGain, self.max_AnalogueGain, default_again = self.camera_controls["AnalogueGain"]
         # workaround for cameras reporting max_ExposureTime=0 (IMX296)
-        self.max_ExposureTime = self.max_ExposureTime if self.min_ExposureTime < self.max_ExposureTime else 1000.0
+        self.max_ExposureTime = self.max_ExposureTime if self.min_ExposureTime < self.max_ExposureTime else 1000.0e6
         self.max_AnalogueGain = self.max_AnalogueGain if self.min_AnalogueGain < self.max_AnalogueGain else 1000.0
         # TODO
         force_Restart = self.config.get("driver", "force_Restart", fallback="auto").lower()
