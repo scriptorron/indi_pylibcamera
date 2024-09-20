@@ -533,7 +533,7 @@ def kill_oldDriver():
     ps_ax = ps_ax.split("\n")
     pids_oldDriver = []
     for processInfo in ps_ax:
-        if ("python3" in processInfo) and (my_fileName in processInfo):
+        if ("python" in processInfo) and (my_fileName in processInfo):
             PID = int(processInfo.strip().split(" ", maxsplit=1)[0])
             if PID != my_PID:
                 logger.info(f'found old driver with PID {PID} ({processInfo})')

@@ -1,3 +1,5 @@
+- running old driver gets killed when started with `python3` and `python`
+
 2.6.4
 - fixed maximum exposure time for cameras reporting max < min (for instance for IMX296)
 
