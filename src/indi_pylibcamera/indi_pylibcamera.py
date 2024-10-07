@@ -99,7 +99,7 @@ class ConnectionVector(ISwitchVector):
             device=self.parent.device, timestamp=self.parent.timestamp, name="CONNECTION",
             elements=[
                 ISwitch(name="CONNECT", label="Connect", value=ISwitchState.OFF),
-                ISwitch(name="DISCONNECT", label="Disonnect", value=ISwitchState.ON),
+                ISwitch(name="DISCONNECT", label="Disconnect", value=ISwitchState.ON),
             ],
             label="Connection", group="Main Control",
             rule=ISwitchRule.ONEOFMANY, is_savable=False,
