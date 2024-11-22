@@ -1,4 +1,5 @@
 - implemented Mono frame
+- scaled RGB and Mono frames have now binning-factor in FITS header
 - minor code cleanup
 
 2.6.5
