@@ -233,10 +233,12 @@ class RawProcessedVector(ISwitchVector):
             elements = [
                 ISwitch(name="INDI_RAW", label="RAW", value=ISwitchState.ON),
                 ISwitch(name="INDI_RGB", label="RGB", value=ISwitchState.OFF),
+                ISwitch(name="INDI_MONO", label="Mono", value=ISwitchState.OFF),
             ]
         else:
             elements = [
                 ISwitch(name="INDI_RGB", label="RGB", value=ISwitchState.ON),
+                ISwitch(name="INDI_MONO", label="Mono", value=ISwitchState.OFF),
             ]
         super().__init__(
             device=self.parent.device, timestamp=self.parent.timestamp, name="CCD_CAPTURE_FORMAT",
@@ -814,7 +816,7 @@ class indi_pylibcamera(indidevice):
                             step=0, value=self.CameraThread.getProp("PixelArraySize")[1], format="%4.0f"),
                 ],
                 label="Frame", group="Image Info",
-                perm=IPermission.RO, is_savable=False,  # TODO: make it savable after implementing frame cropping
+                perm=IPermission.RO, is_savable=False,  # TODO: make it available after implementing frame cropping
             ),
             send_defVector=True,
         )

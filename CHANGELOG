@@ -1,3 +1,6 @@
+- implemented Mono frame
+- minor code cleanup
+
 2.6.5
 - running old driver gets killed when started with `python3` and `python`
 - fixed typo in label "Disconnect"

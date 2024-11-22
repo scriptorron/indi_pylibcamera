@@ -29,6 +29,7 @@ class CameraSettings:
         self.ExposureTime = None
         self.DoFastExposure = None
         self.DoRaw = None
+        self.DoMono = None
         self.ProcSize = None
         self.RawMode = None
         self.Binning = None
@@ -38,6 +39,7 @@ class CameraSettings:
         self.ExposureTime = ExposureTime
         self.DoFastExposure = knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON
         self.DoRaw = knownVectors["CCD_CAPTURE_FORMAT"]["INDI_RAW"].value == ISwitchState.ON if has_RawModes else False
+        self.DoMono = knownVectors["CCD_CAPTURE_FORMAT"]["INDI_MONO"].value == ISwitchState.ON if has_RawModes else False
         self.ProcSize = (
             int(knownVectors["CCD_PROCFRAME"]["WIDTH"].value),
             int(knownVectors["CCD_PROCFRAME"]["HEIGHT"].value)
@@ -136,7 +138,11 @@ class CameraSettings:
                 "HIGHQUALITY": controls.draft.NoiseReductionModeEnum.HighQuality,
             }[knownVectors["CAMCTRL_NOISEREDUCTIONMODE"].get_OnSwitches()[0]]
         if "Saturation" in advertised_camera_controls:
-            self.camera_controls["Saturation"] = knownVectors["CAMCTRL_SATURATION"]["SATURATION"].value
+            if self.DoMono:
+                # mono exposures are a special case of RGB with saturation=0
+                self.camera_controls["Saturation"] = 0.0
+            else:
+                self.camera_controls["Saturation"] = knownVectors["CAMCTRL_SATURATION"]["SATURATION"].value
         if "Sharpness" in advertised_camera_controls:
             self.camera_controls["Sharpness"] = knownVectors["CAMCTRL_SHARPNESS"]["SHARPNESS"].value
 
@@ -606,7 +612,7 @@ class CameraControl:
         return hdul
 
     def createRgbFits(self, array, metadata):
-        """creates RGB FITS image from RGB frame
+        """creates RGB and monochrome FITS image from RGB frame
 
         Args:
             array: data array
@@ -631,6 +637,9 @@ class CameraControl:
         else:
             raise NotImplementedError(f'got unsupported RGB image format {format}')
         #self.log_FrameInformation(array=array, metadata=metadata, is_raw=False)
+        if self.present_CameraSettings.DoMono:
+            # monochrome frames are a special case of RGB: exposed with saturation=0, transmitted is R channel only
+            array = array[1, :, :]
         # convert to FITS
         hdu = fits.PrimaryHDU(array)
         # avoid access conflicts to knownVectors
@@ -885,6 +894,7 @@ class CameraControl:
                     if self.present_CameraSettings.DoRaw:
                         hdul = self.createRawFits(array=array, metadata=metadata)
                     else:
+                        # RGB and Mono
                         hdul = self.createRgbFits(array=array, metadata=metadata)
                     bstream = io.BytesIO()
                     hdul.writeto(bstream)
