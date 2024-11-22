@@ -642,6 +642,13 @@ class CameraControl:
             array = array[1, :, :]
         # convert to FITS
         hdu = fits.PrimaryHDU(array)
+        # The image scaling in the ISP works like a software-binning.
+        # When aspect ratio of the scaled image differs from the pixel array the ISP ignores rows (columns) on
+        # both sides of the pixel array to select the field of view.
+        ArraySize = self.getProp("PixelArraySize")
+        FrameSize = self.picam2.camera_configuration()["main"]["size"]
+        SoftwareBinning = ArraySize[1] / FrameSize[1] if (ArraySize[0] / ArraySize[1]) > (FrameSize[0] / FrameSize[1]) \
+            else ArraySize[0] / FrameSize[0]
         # avoid access conflicts to knownVectors
         with self.parent.knownVectorsLock:
             # determine frame type
@@ -661,10 +668,10 @@ class CameraControl:
                 "CCD-TEMP": (metadata.get('SensorTemperature', 0), "[degC] CCD Temperature"),
                 "PIXSIZE1": (self.getProp("UnitCellSize")[0] / 1e3, "[um] Pixel Size 1"),
                 "PIXSIZE2": (self.getProp("UnitCellSize")[1] / 1e3, "[um] Pixel Size 2"),
-                "XBINNING": (self.present_CameraSettings.Binning[0], "Binning factor in width"),
-                "YBINNING": (self.present_CameraSettings.Binning[1], "Binning factor in height"),
-                "XPIXSZ": (self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0], "[um] X binned pixel size"),
-                "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1], "[um] Y binned pixel size"),
+                "XBINNING": (SoftwareBinning, "Binning factor in width"),
+                "YBINNING": (SoftwareBinning, "Binning factor in height"),
+                "XPIXSZ": (self.getProp("UnitCellSize")[0] / 1e3 * SoftwareBinning, "[um] X binned pixel size"),
+                "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * SoftwareBinning, "[um] Y binned pixel size"),
                 "FRAME": (FrameType, "Frame Type"),
                 "IMAGETYP": (FrameType+" Frame", "Frame Type"),
                 **self.snooped_FitsHeader(),
