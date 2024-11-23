@@ -421,7 +421,7 @@ class CameraControl:
         """
         return self.CamProps[name]
 
-    def snooped_FitsHeader(self):
+    def snooped_FitsHeader(self, binnedCellSize_nm):
         """created FITS header data from snooped data
 
         Example:
@@ -457,7 +457,7 @@ class CameraControl:
         #### SCALE ####
         if FocalLength > 0:
             FitsHeader["SCALE"] = (
-                0.206265 * self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0] / FocalLength,
+                0.206265 * binnedCellSize_nm / FocalLength,
                 "[arcsec/px] image scale"
                 )
         #### SITELAT, SITELONG ####
@@ -575,7 +575,7 @@ class CameraControl:
                 "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1], "[um] Y binned pixel size"),
                 "FRAME": (FrameType, "Frame Type"),
                 "IMAGETYP": (FrameType+" Frame", "Frame Type"),
-                **self.snooped_FitsHeader(),
+                **self.snooped_FitsHeader(binnedCellSize_nm = self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0]),
                 "GAIN": (metadata.get("AnalogueGain", 0.0), "Gain"),
             }
         if BayerPattern is not None:
@@ -674,7 +674,7 @@ class CameraControl:
                 "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * SoftwareBinning, "[um] Y binned pixel size"),
                 "FRAME": (FrameType, "Frame Type"),
                 "IMAGETYP": (FrameType+" Frame", "Frame Type"),
-                **self.snooped_FitsHeader(),
+                **self.snooped_FitsHeader(binnedCellSize_nm = self.getProp("UnitCellSize")[0] * SoftwareBinning),
                 # more info from camera
                 "GAIN": (metadata.get("AnalogueGain", 0.0), "Analog gain setting"),
             }
