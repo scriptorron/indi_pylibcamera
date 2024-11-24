@@ -639,7 +639,7 @@ class CameraControl:
         #self.log_FrameInformation(array=array, metadata=metadata, is_raw=False)
         if self.present_CameraSettings.DoMono:
             # monochrome frames are a special case of RGB: exposed with saturation=0, transmitted is R channel only
-            array = array[1, :, :]
+            array = array[0, :, :]
         # convert to FITS
         hdu = fits.PrimaryHDU(array)
         # The image scaling in the ISP works like a software-binning.
@@ -892,6 +892,10 @@ class CameraControl:
                         hdul = self.createRgbFits(array=array, metadata=metadata)
                     bstream = io.BytesIO()
                     hdul.writeto(bstream)
+                    # free up some memory
+                    del hdul
+                    del array
+                    # save and/or transmit frame
                     size = bstream.tell()
                     # what to do with image
                     with self.parent.knownVectorsLock:
