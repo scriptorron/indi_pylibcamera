@@ -143,6 +143,10 @@ every frame exposure can solve this issue. Valid values of this switch are:
   Default (if not otherwise set in INI file) is `auto`.
 - `enable_IERS_autoupdate` (`yes`, `no`): Allows the `astropy` library to update the IERS-A table from internet.
 By default this is disabled to avoid errors when the camera is not connected to internet.
+- `extended_Metadata` (`yes`, `no`, `on`, `off`, `true`, `false`, `1`, `0`, default: `false`): Adds more metadata to the FITS image. For
+instance it stores `SCALE` (angle of sky projected to pixel) and `XPIXSZ`/`YPIXSZ` (binned pixel size). When disabled
+the pixel sizes `PIXSIZE1`/`PIXSIZE2` get adjusted to the binning. That makes the images look like from a camera
+without binning and avoids many issues with plate solvers.
 
 There are more settings, mostly to support debugging.
 
@@ -185,6 +189,21 @@ When killing the indiserver sometimes the driver process continues to run. You c
 If you get a line containing `python3` and `indi_pylibcamera` in the output the driver process is still running. In that case you must
 kill the driver process manually before you restart the indiserver. Otherwise, you will get a libcamera error 
 when connecting to the camera.
+
+## Frametypes
+The driver can (when supported by the camera hardware) provide these image frame types:
+- `Raw` is the raw signal coming from the pixel converted to digital. Most cameras have an analog amplifier
+(configurable with `Gain`) between the pixel and the A/D converter. There is no software processing of the data.
+Typically, these pixel data have higher resolution but suffer from offset and gain errors. Furthermore, the pixel of
+color cameras have own color filter (called Bayer pattern) and do not RGB data directly. Such raw images need
+post-processing. Astro-photographs like raw images because they allow much better image optimizations. The frame size
+of raw images is determined by the modes implemented in the camera hardware.
+- `RGB` are images post-processed by the Image Signal Processor (ISP). The ISP corrects for offset and gain,
+calculates the colors and can adjust exposure time and wide balance automatically. Drawback is the lower dynamic
+(lower bit width) and additional systematic "noise" due to rounding errors. Frame size can be chosen freely because
+the image scaling is done by software in the ISP.
+- `Mono` is a special case of the `RGB` images, exposed with saturation=0 and transmitted with only one channel per
+pixel.
 
 ## Special handling for some cameras
 The driver is made as generic as possible by using the camera information provided by libcamera. For instance the raw

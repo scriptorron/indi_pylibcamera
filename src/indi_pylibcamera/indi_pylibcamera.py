@@ -288,7 +288,7 @@ class BinningVector(INumberVector):
                 INumber(name="HOR_BIN", label="X", min=1, max=max_HOR_BIN, step=1, value=1, format="%2.0f"),
                 INumber(name="VER_BIN", label="Y", min=1, max=max_VER_BIN, step=1, value=1, format="%2.0f"),
             ],
-            label="Binning", group="Image Settings",
+            label="Raw binning", group="Image Settings",
             state=IVectorState.IDLE, perm=IPermission.RW,
         )
 
@@ -782,7 +782,7 @@ class indi_pylibcamera(indidevice):
                     INumber(name="HEIGHT", label="Height", min=1, max=self.CameraThread.getProp("PixelArraySize")[1],
                             step=0, value=self.CameraThread.getProp("PixelArraySize")[1], format="%4.0f"),
                 ],
-                label="RGB format", group="Image Settings",
+                label="RGB, Mono", group="Image Settings",
                 perm=IPermission.RW,
             ),
             send_defVector=True,

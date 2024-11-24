@@ -455,11 +455,14 @@ class CameraControl:
             "APTDIA": (Aperture, "[mm] Telescope aperture/diameter")
         })
         #### SCALE ####
-        if FocalLength > 0:
-            FitsHeader["SCALE"] = (
-                0.206265 * binnedCellSize_nm / FocalLength,
-                "[arcsec/px] image scale"
-                )
+        if self.config.getboolean("driver", "extended_Metadata", fallback=False):
+            # some telescope driver do not provide TELESCOPE_FOCAL_LENGTH and some capture software overwrite
+            # FOCALLEN without recalculating SCALE --> trouble with plate solver
+            if FocalLength > 0:
+                FitsHeader["SCALE"] = (
+                    0.206265 * binnedCellSize_nm / FocalLength,
+                    "[arcsec/px] image scale"
+                    )
         #### SITELAT, SITELONG ####
         Lat = self.parent.knownVectors["GEOGRAPHIC_COORD"]["LAT"].value
         Long = self.parent.knownVectors["GEOGRAPHIC_COORD"]["LONG"].value
@@ -567,17 +570,36 @@ class CameraControl:
                 **self.parent.knownVectors["FITS_HEADER"].FitsHeader,
                 "EXPTIME": (metadata["ExposureTime"]/1e6, "[s] Total Exposure Time"),
                 "CCD-TEMP": (metadata.get('SensorTemperature', 0), "[degC] CCD Temperature"),
-                "PIXSIZE1": (self.getProp("UnitCellSize")[0] / 1e3, "[um] Pixel Size 1"),
-                "PIXSIZE2": (self.getProp("UnitCellSize")[1] / 1e3, "[um] Pixel Size 2"),
-                "XBINNING": (self.present_CameraSettings.Binning[0], "Binning factor in width"),
-                "YBINNING": (self.present_CameraSettings.Binning[1], "Binning factor in height"),
-                "XPIXSZ": (self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0], "[um] X binned pixel size"),
-                "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1], "[um] Y binned pixel size"),
                 "FRAME": (FrameType, "Frame Type"),
                 "IMAGETYP": (FrameType+" Frame", "Frame Type"),
                 **self.snooped_FitsHeader(binnedCellSize_nm = self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0]),
                 "GAIN": (metadata.get("AnalogueGain", 0.0), "Gain"),
             }
+            if self.config.getboolean("driver", "extended_Metadata", fallback=False):
+                # This is very detailed information about the camera binning. But some plate solver ignore this and get
+                # trouble with a wrong field of view.
+                FitsHeader.update({
+                    "PIXSIZE1": (self.getProp("UnitCellSize")[0] / 1e3, "[um] Pixel Size 1"),
+                    "PIXSIZE2": (self.getProp("UnitCellSize")[1] / 1e3, "[um] Pixel Size 2"),
+                    "XBINNING": (self.present_CameraSettings.Binning[0], "Binning factor in width"),
+                    "YBINNING": (self.present_CameraSettings.Binning[1], "Binning factor in height"),
+                    "XPIXSZ": (self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0],
+                               "[um] X binned pixel size"),
+                    "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1],
+                               "[um] Y binned pixel size"),
+                })
+            else:
+                # Pretend to be a camera without binning to avoid trouble with plate solver.
+                FitsHeader.update({
+                    "PIXSIZE1": (self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0], "[um] Pixel Size 1"),
+                    "PIXSIZE2": (self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1], "[um] Pixel Size 2"),
+                    "XBINNING": (1, "Binning factor in width"),
+                    "YBINNING": (1, "Binning factor in height"),
+                    "XPIXSZ": (self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0],
+                               "[um] X binned pixel size"),
+                    "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1],
+                               "[um] Y binned pixel size"),
+                })
         if BayerPattern is not None:
             FitsHeader.update({
                 "XBAYROFF": (0, "[px] X offset of Bayer array"),
@@ -666,18 +688,34 @@ class CameraControl:
                 **self.parent.knownVectors["FITS_HEADER"].FitsHeader,
                 "EXPTIME": (metadata["ExposureTime"]/1e6, "[s] Total Exposure Time"),
                 "CCD-TEMP": (metadata.get('SensorTemperature', 0), "[degC] CCD Temperature"),
-                "PIXSIZE1": (self.getProp("UnitCellSize")[0] / 1e3, "[um] Pixel Size 1"),
-                "PIXSIZE2": (self.getProp("UnitCellSize")[1] / 1e3, "[um] Pixel Size 2"),
-                "XBINNING": (SoftwareBinning, "Binning factor in width"),
-                "YBINNING": (SoftwareBinning, "Binning factor in height"),
-                "XPIXSZ": (self.getProp("UnitCellSize")[0] / 1e3 * SoftwareBinning, "[um] X binned pixel size"),
-                "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * SoftwareBinning, "[um] Y binned pixel size"),
                 "FRAME": (FrameType, "Frame Type"),
                 "IMAGETYP": (FrameType+" Frame", "Frame Type"),
                 **self.snooped_FitsHeader(binnedCellSize_nm = self.getProp("UnitCellSize")[0] * SoftwareBinning),
                 # more info from camera
                 "GAIN": (metadata.get("AnalogueGain", 0.0), "Analog gain setting"),
             }
+            if self.config.getboolean("driver", "extended_Metadata", fallback=False):
+                # This is very detailed information about the camera binning. But some plate solver ignore this and get
+                # trouble with a wrong field of view.
+                FitsHeader.update({
+                    "PIXSIZE1": (self.getProp("UnitCellSize")[0] / 1e3, "[um] Pixel Size 1"),
+                    "PIXSIZE2": (self.getProp("UnitCellSize")[1] / 1e3, "[um] Pixel Size 2"),
+                    "XBINNING": (SoftwareBinning, "Binning factor in width"),
+                    "YBINNING": (SoftwareBinning, "Binning factor in height"),
+                    "XPIXSZ": (self.getProp("UnitCellSize")[0] / 1e3 * SoftwareBinning, "[um] X binned pixel size"),
+                    "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * SoftwareBinning, "[um] Y binned pixel size"),
+                })
+            else:
+                # Pretend to be a camera without binning to avoid trouble with plate solver.
+                FitsHeader.update({
+                    "PIXSIZE1": (self.getProp("UnitCellSize")[0] / 1e3 * SoftwareBinning, "[um] Pixel Size 1"),
+                    "PIXSIZE2": (self.getProp("UnitCellSize")[1] / 1e3 * SoftwareBinning, "[um] Pixel Size 2"),
+                    "XBINNING": (1, "Binning factor in width"),
+                    "YBINNING": (1, "Binning factor in height"),
+                    "XPIXSZ": (self.getProp("UnitCellSize")[0] / 1e3 * SoftwareBinning, "[um] X binned pixel size"),
+                    "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * SoftwareBinning, "[um] Y binned pixel size"),
+
+                })
         for kw, value_comment in FitsHeader.items():
             hdu.header[kw] = value_comment
         hdu.header.set("DATE-OBS", (datetime.datetime.fromisoformat(hdu.header["DATE-END"])-datetime.timedelta(seconds=hdu.header["EXPTIME"])).isoformat(timespec="milliseconds"),

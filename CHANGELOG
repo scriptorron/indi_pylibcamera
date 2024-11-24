@@ -1,6 +1,7 @@
 - implemented Mono frame
 - scaled RGB and Mono frames have now binning-factor in FITS header
-- minor code cleanup
+- minor code cleanup and optimization
+- minimized FITS metadata to avoid trouble with plate solver
 
 2.6.5
 - running old driver gets killed when started with `python3` and `python`
