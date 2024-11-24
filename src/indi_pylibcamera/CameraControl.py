@@ -693,7 +693,7 @@ class CameraControl:
             metadata: frame metadata
             format: format string
         """
-        if self.parent.config.getboolean("driver", "log_FrameInformation", fallback=False):
+        if self.config.getboolean("driver", "log_FrameInformation", fallback=False):
             if array.ndim == 2:
                 arr = array.view(np.uint16)
                 BitUsages = list()
