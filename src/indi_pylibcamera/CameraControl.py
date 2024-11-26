@@ -533,17 +533,18 @@ class CameraControl:
         # we expect uncompressed format here
         if format.count("_") > 0:
             raise NotImplementedError(f'got unsupported raw image format {format}')
-        if format[0] not in ["S", "R"]:
-            raise NotImplementedError(f'got unsupported raw image format {format}')
-        # Bayer of mono format
+        # Bayer or mono format
         if format[0] == "S":
             # Bayer pattern format
             BayerPattern = format[1:5]
             BayerPattern = self.parent.config.get("driver", "force_BayerOrder", fallback=BayerPattern)
             bit_depth = int(format[5:])
-        else:
+        elif format[0] == "R":
+            # mono camera
             BayerPattern = None
             bit_depth = int(format[1:])
+        else:
+            raise NotImplementedError(f'got unsupported raw image format {format}')
         # left adjust if needed
         if bit_depth > 8:
             bit_pix = 16
