@@ -154,7 +154,7 @@ class IVector:
             label: str = None, group: str = "",
             state: str = IVectorState.IDLE, perm: str = IPermission.RW,
             timeout: int = 60, timestamp: bool = False, message: str = None,
-            is_savable: bool = True,
+            is_storable: bool = True,
     ):
         """constructor
 
@@ -169,7 +169,7 @@ class IVector:
             timeout: timeout
             timestamp: send messages with (True) or without (False) timestamp
             message: message send to client
-            is_savable: can be saved
+            is_storable: can be saved
         """
         self._vectorType = "NotSet"
         self.device = device
@@ -186,7 +186,7 @@ class IVector:
         self.timeout = timeout
         self.timestamp = timestamp
         self.message = message
-        self.is_savable = is_savable
+        self.is_storable = is_storable
 
     def __str__(self) -> str:
         return f"<Vector {self._vectorType} name={self.name}, device={self.device}>"
@@ -341,7 +341,7 @@ class IVector:
              dict with Vector state
         """
         state = None
-        if self.is_savable:
+        if self.is_storable:
             state = dict()
             state["name"] = self.name
             state["values"] = {element.name: element.value for element in self.elements}
@@ -350,7 +350,7 @@ class IVector:
     def restore_DriverDefault(self):
         """restore driver defaults for savable vector
         """
-        if self.is_savable:
+        if self.is_storable:
             self.set_byClient(self.driver_default)
 
 
@@ -390,11 +390,11 @@ class ITextVector(IVector):
             label: str = None, group: str = "",
             state: str = IVectorState.IDLE, perm: str = IPermission.RW,
             timeout: int = 60, timestamp: bool = False, message: str = None,
-            is_savable: bool = True,
+            is_storable: bool = True,
     ):
         super().__init__(
             device=device, name=name, elements=elements, label=label, group=group,
-            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message, is_savable=is_savable,
+            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message, is_storable=is_storable,
         )
         self._vectorType = "TextVector"
 
@@ -444,11 +444,11 @@ class INumberVector(IVector):
             label: str = None, group: str = "",
             state: str = IVectorState.IDLE, perm: str = IPermission.RW,
             timeout: int = 60, timestamp: bool = False, message: str = None,
-            is_savable: bool = True,
+            is_storable: bool = True,
     ):
         super().__init__(
             device=device, name=name, elements=elements, label=label, group=group,
-            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message, is_savable=is_savable,
+            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message, is_storable=is_storable,
         )
         self._vectorType = "NumberVector"
 
@@ -490,11 +490,11 @@ class ISwitchVector(IVector):
             state: str = IVectorState.IDLE, perm: str = IPermission.RW,
             rule: str = ISwitchRule.ONEOFMANY,
             timeout: int = 60, timestamp: bool = False, message: str = None,
-            is_savable: bool = True,
+            is_storable: bool = True,
     ):
         super().__init__(
             device=device, name=name, elements=elements, label=label, group=group,
-            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message, is_savable=is_savable,
+            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message, is_storable=is_storable,
         )
         self._vectorType = "SwitchVector"
         self.rule = rule
@@ -629,11 +629,11 @@ class IBlobVector(IVector):
             label: str = None, group: str = "",
             state: str = IVectorState.IDLE, perm: str = IPermission.RO,
             timeout: int = 60, timestamp: bool = False, message: str = None,
-            is_savable: bool = True,
+            is_storable: bool = True,
     ):
         super().__init__(
             device=device, name=name, elements=elements, label=label, group=group,
-            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message, is_savable=is_savable,
+            state=state, perm=perm, timeout=timeout, timestamp=timestamp, message=message, is_storable=is_storable,
         )
         self._vectorType = "BLOBVector"
 

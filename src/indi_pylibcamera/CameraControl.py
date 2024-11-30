@@ -29,6 +29,7 @@ class CameraSettings:
         self.ExposureTime = None
         self.DoFastExposure = None
         self.DoRaw = None
+        self.DoMono = None
         self.ProcSize = None
         self.RawMode = None
         self.Binning = None
@@ -38,6 +39,7 @@ class CameraSettings:
         self.ExposureTime = ExposureTime
         self.DoFastExposure = knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON
         self.DoRaw = knownVectors["CCD_CAPTURE_FORMAT"]["INDI_RAW"].value == ISwitchState.ON if has_RawModes else False
+        self.DoMono = knownVectors["CCD_CAPTURE_FORMAT"]["INDI_MONO"].value == ISwitchState.ON if has_RawModes else False
         self.ProcSize = (
             int(knownVectors["CCD_PROCFRAME"]["WIDTH"].value),
             int(knownVectors["CCD_PROCFRAME"]["HEIGHT"].value)
@@ -136,7 +138,11 @@ class CameraSettings:
                 "HIGHQUALITY": controls.draft.NoiseReductionModeEnum.HighQuality,
             }[knownVectors["CAMCTRL_NOISEREDUCTIONMODE"].get_OnSwitches()[0]]
         if "Saturation" in advertised_camera_controls:
-            self.camera_controls["Saturation"] = knownVectors["CAMCTRL_SATURATION"]["SATURATION"].value
+            if self.DoMono:
+                # mono exposures are a special case of RGB with saturation=0
+                self.camera_controls["Saturation"] = 0.0
+            else:
+                self.camera_controls["Saturation"] = knownVectors["CAMCTRL_SATURATION"]["SATURATION"].value
         if "Sharpness" in advertised_camera_controls:
             self.camera_controls["Sharpness"] = knownVectors["CAMCTRL_SHARPNESS"]["SHARPNESS"].value
 
@@ -391,7 +397,7 @@ class CameraControl:
         # workaround for cameras reporting max_ExposureTime=0 (IMX296)
         self.max_ExposureTime = self.max_ExposureTime if self.min_ExposureTime < self.max_ExposureTime else 1000.0e6
         self.max_AnalogueGain = self.max_AnalogueGain if self.min_AnalogueGain < self.max_AnalogueGain else 1000.0
-        # TODO
+        # INI switch to force camera restarts
         force_Restart = self.config.get("driver", "force_Restart", fallback="auto").lower()
         if force_Restart == "yes":
             logger.info("INI setting forces camera restart")
@@ -415,7 +421,7 @@ class CameraControl:
         """
         return self.CamProps[name]
 
-    def snooped_FitsHeader(self):
+    def snooped_FitsHeader(self, binnedCellSize_nm):
         """created FITS header data from snooped data
 
         Example:
@@ -449,11 +455,14 @@ class CameraControl:
             "APTDIA": (Aperture, "[mm] Telescope aperture/diameter")
         })
         #### SCALE ####
-        if FocalLength > 0:
-            FitsHeader["SCALE"] = (
-                0.206265 * self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0] / FocalLength,
-                "[arcsec/px] image scale"
-                )
+        if self.config.getboolean("driver", "extended_Metadata", fallback=False):
+            # some telescope driver do not provide TELESCOPE_FOCAL_LENGTH and some capture software overwrite
+            # FOCALLEN without recalculating SCALE --> trouble with plate solver
+            if FocalLength > 0:
+                FitsHeader["SCALE"] = (
+                    0.206265 * binnedCellSize_nm / FocalLength,
+                    "[arcsec/px] image scale"
+                    )
         #### SITELAT, SITELONG ####
         Lat = self.parent.knownVectors["GEOGRAPHIC_COORD"]["LAT"].value
         Long = self.parent.knownVectors["GEOGRAPHIC_COORD"]["LONG"].value
@@ -524,17 +533,18 @@ class CameraControl:
         # we expect uncompressed format here
         if format.count("_") > 0:
             raise NotImplementedError(f'got unsupported raw image format {format}')
-        if format[0] not in ["S", "R"]:
-            raise NotImplementedError(f'got unsupported raw image format {format}')
-        # Bayer of mono format
+        # Bayer or mono format
         if format[0] == "S":
             # Bayer pattern format
             BayerPattern = format[1:5]
             BayerPattern = self.parent.config.get("driver", "force_BayerOrder", fallback=BayerPattern)
             bit_depth = int(format[5:])
-        else:
+        elif format[0] == "R":
+            # mono camera
             BayerPattern = None
             bit_depth = int(format[1:])
+        else:
+            raise NotImplementedError(f'got unsupported raw image format {format}')
         # left adjust if needed
         if bit_depth > 8:
             bit_pix = 16
@@ -561,17 +571,36 @@ class CameraControl:
                 **self.parent.knownVectors["FITS_HEADER"].FitsHeader,
                 "EXPTIME": (metadata["ExposureTime"]/1e6, "[s] Total Exposure Time"),
                 "CCD-TEMP": (metadata.get('SensorTemperature', 0), "[degC] CCD Temperature"),
-                "PIXSIZE1": (self.getProp("UnitCellSize")[0] / 1e3, "[um] Pixel Size 1"),
-                "PIXSIZE2": (self.getProp("UnitCellSize")[1] / 1e3, "[um] Pixel Size 2"),
-                "XBINNING": (self.present_CameraSettings.Binning[0], "Binning factor in width"),
-                "YBINNING": (self.present_CameraSettings.Binning[1], "Binning factor in height"),
-                "XPIXSZ": (self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0], "[um] X binned pixel size"),
-                "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1], "[um] Y binned pixel size"),
                 "FRAME": (FrameType, "Frame Type"),
                 "IMAGETYP": (FrameType+" Frame", "Frame Type"),
-                **self.snooped_FitsHeader(),
+                **self.snooped_FitsHeader(binnedCellSize_nm = self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0]),
                 "GAIN": (metadata.get("AnalogueGain", 0.0), "Gain"),
             }
+            if self.config.getboolean("driver", "extended_Metadata", fallback=False):
+                # This is very detailed information about the camera binning. But some plate solver ignore this and get
+                # trouble with a wrong field of view.
+                FitsHeader.update({
+                    "PIXSIZE1": (self.getProp("UnitCellSize")[0] / 1e3, "[um] Pixel Size 1"),
+                    "PIXSIZE2": (self.getProp("UnitCellSize")[1] / 1e3, "[um] Pixel Size 2"),
+                    "XBINNING": (self.present_CameraSettings.Binning[0], "Binning factor in width"),
+                    "YBINNING": (self.present_CameraSettings.Binning[1], "Binning factor in height"),
+                    "XPIXSZ": (self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0],
+                               "[um] X binned pixel size"),
+                    "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1],
+                               "[um] Y binned pixel size"),
+                })
+            else:
+                # Pretend to be a camera without binning to avoid trouble with plate solver.
+                FitsHeader.update({
+                    "PIXSIZE1": (self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0], "[um] Pixel Size 1"),
+                    "PIXSIZE2": (self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1], "[um] Pixel Size 2"),
+                    "XBINNING": (1, "Binning factor in width"),
+                    "YBINNING": (1, "Binning factor in height"),
+                    "XPIXSZ": (self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0],
+                               "[um] X binned pixel size"),
+                    "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1],
+                               "[um] Y binned pixel size"),
+                })
         if BayerPattern is not None:
             FitsHeader.update({
                 "XBAYROFF": (0, "[px] X offset of Bayer array"),
@@ -606,7 +635,7 @@ class CameraControl:
         return hdul
 
     def createRgbFits(self, array, metadata):
-        """creates RGB FITS image from RGB frame
+        """creates RGB and monochrome FITS image from RGB frame
 
         Args:
             array: data array
@@ -631,8 +660,18 @@ class CameraControl:
         else:
             raise NotImplementedError(f'got unsupported RGB image format {format}')
         #self.log_FrameInformation(array=array, metadata=metadata, is_raw=False)
+        if self.present_CameraSettings.DoMono:
+            # monochrome frames are a special case of RGB: exposed with saturation=0, transmitted is R channel only
+            array = array[0, :, :]
         # convert to FITS
         hdu = fits.PrimaryHDU(array)
+        # The image scaling in the ISP works like a software-binning.
+        # When aspect ratio of the scaled image differs from the pixel array the ISP ignores rows (columns) on
+        # both sides of the pixel array to select the field of view.
+        ArraySize = self.getProp("PixelArraySize")
+        FrameSize = self.picam2.camera_configuration()["main"]["size"]
+        SoftwareBinning = ArraySize[1] / FrameSize[1] if (ArraySize[0] / ArraySize[1]) > (FrameSize[0] / FrameSize[1]) \
+            else ArraySize[0] / FrameSize[0]
         # avoid access conflicts to knownVectors
         with self.parent.knownVectorsLock:
             # determine frame type
@@ -650,18 +689,34 @@ class CameraControl:
                 **self.parent.knownVectors["FITS_HEADER"].FitsHeader,
                 "EXPTIME": (metadata["ExposureTime"]/1e6, "[s] Total Exposure Time"),
                 "CCD-TEMP": (metadata.get('SensorTemperature', 0), "[degC] CCD Temperature"),
-                "PIXSIZE1": (self.getProp("UnitCellSize")[0] / 1e3, "[um] Pixel Size 1"),
-                "PIXSIZE2": (self.getProp("UnitCellSize")[1] / 1e3, "[um] Pixel Size 2"),
-                "XBINNING": (self.present_CameraSettings.Binning[0], "Binning factor in width"),
-                "YBINNING": (self.present_CameraSettings.Binning[1], "Binning factor in height"),
-                "XPIXSZ": (self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0], "[um] X binned pixel size"),
-                "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1], "[um] Y binned pixel size"),
                 "FRAME": (FrameType, "Frame Type"),
                 "IMAGETYP": (FrameType+" Frame", "Frame Type"),
-                **self.snooped_FitsHeader(),
+                **self.snooped_FitsHeader(binnedCellSize_nm = self.getProp("UnitCellSize")[0] * SoftwareBinning),
                 # more info from camera
                 "GAIN": (metadata.get("AnalogueGain", 0.0), "Analog gain setting"),
             }
+            if self.config.getboolean("driver", "extended_Metadata", fallback=False):
+                # This is very detailed information about the camera binning. But some plate solver ignore this and get
+                # trouble with a wrong field of view.
+                FitsHeader.update({
+                    "PIXSIZE1": (self.getProp("UnitCellSize")[0] / 1e3, "[um] Pixel Size 1"),
+                    "PIXSIZE2": (self.getProp("UnitCellSize")[1] / 1e3, "[um] Pixel Size 2"),
+                    "XBINNING": (SoftwareBinning, "Binning factor in width"),
+                    "YBINNING": (SoftwareBinning, "Binning factor in height"),
+                    "XPIXSZ": (self.getProp("UnitCellSize")[0] / 1e3 * SoftwareBinning, "[um] X binned pixel size"),
+                    "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * SoftwareBinning, "[um] Y binned pixel size"),
+                })
+            else:
+                # Pretend to be a camera without binning to avoid trouble with plate solver.
+                FitsHeader.update({
+                    "PIXSIZE1": (self.getProp("UnitCellSize")[0] / 1e3 * SoftwareBinning, "[um] Pixel Size 1"),
+                    "PIXSIZE2": (self.getProp("UnitCellSize")[1] / 1e3 * SoftwareBinning, "[um] Pixel Size 2"),
+                    "XBINNING": (1, "Binning factor in width"),
+                    "YBINNING": (1, "Binning factor in height"),
+                    "XPIXSZ": (self.getProp("UnitCellSize")[0] / 1e3 * SoftwareBinning, "[um] X binned pixel size"),
+                    "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * SoftwareBinning, "[um] Y binned pixel size"),
+
+                })
         for kw, value_comment in FitsHeader.items():
             hdu.header[kw] = value_comment
         hdu.header.set("DATE-OBS", (datetime.datetime.fromisoformat(hdu.header["DATE-END"])-datetime.timedelta(seconds=hdu.header["EXPTIME"])).isoformat(timespec="milliseconds"),
@@ -677,7 +732,7 @@ class CameraControl:
             metadata: frame metadata
             format: format string
         """
-        if self.parent.config.getboolean("driver", "log_FrameInformation", fallback=False):
+        if self.config.getboolean("driver", "log_FrameInformation", fallback=False):
             if array.ndim == 2:
                 arr = array.view(np.uint16)
                 BitUsages = list()
@@ -740,7 +795,6 @@ class CameraControl:
                 self.Sig_ActionExpose.clear()
             if self.Sig_ActionExit.is_set():
                 # exit exposure loop
-                #logger.error(f'DBG vor stop (line 744): {self.picam2.started=}')  # FIXME
                 self.picam2.stop_()
                 self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                 return
@@ -767,7 +821,6 @@ class CameraControl:
             if self.present_CameraSettings.is_ReconfigurationNeeded(NewCameraSettings) or self.needs_Restarts:
                 logger.info(f'reconfiguring camera')
                 # need a new camera configuration
-                #logger.error(f'DBG vor create_still_configuration: {self.picam2.started=}')  # FIXME
                 config = self.picam2.create_still_configuration(
                     queue=NewCameraSettings.DoFastExposure,
                     buffer_count=2  # 2 if NewCameraSettings.DoFastExposure else 1  # need at least 2 buffer for queueing
@@ -788,19 +841,15 @@ class CameraControl:
                     #self.parent.setVector("CCD_FRAME", "HEIGHT", value=NewCameraSettings.ProcSize[1])
                 # optimize (align) configuration: small changes to some main stream configurations
                 # (for instance: size) will fit better to hardware
-                #logger.error(f'DBG vor align_configuration: {self.picam2.started=}')  # FIXME
                 self.picam2.align_configuration(config)
                 # set still configuration
-                #logger.error(f'DBG vor configure: {self.picam2.started=}')  # FIXME
                 self.picam2.configure(config)
             # changing exposure time or analogue gain needs a restart
             if IsRestartNeeded:
                 # change camera controls
-                #logger.error(f'DBG vor set_controls: {self.picam2.started=}')  # FIXME
                 self.picam2.set_controls(NewCameraSettings.get_controls())
             # start camera if not already running in Fast Exposure mode
             if not self.picam2.started:
-                #logger.error(f'DBG vor start (line 802): {self.picam2.started=}')  # FIXME
                 self.picam2.start()
                 logger.debug(f'camera started')
             # camera runs now with new parameter
@@ -808,7 +857,6 @@ class CameraControl:
             # last chance to exit or abort before doing exposure
             if self.Sig_ActionExit.is_set():
                 # exit exposure loop
-                #logger.error(f'DBG vor stop (line 811): {self.picam2.started=}')  # FIXME
                 self.picam2.stop_()
                 self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                 return
@@ -818,7 +866,6 @@ class CameraControl:
                 # get (non-blocking!) frame and meta data
                 self.Sig_CaptureDone.clear()
                 ExpectedEndOfExposure = time.time() + self.present_CameraSettings.ExposureTime
-                #logger.error(f'DBG vor capture_arrays: {self.picam2.started=}')  # FIXME
                 job = self.picam2.capture_arrays(
                     ["raw" if self.present_CameraSettings.DoRaw else "main"],
                     wait=False, signal_function=self.on_CaptureFinished,
@@ -835,14 +882,12 @@ class CameraControl:
                     # allow to close camera
                     if self.Sig_ActionExit.is_set():
                         # exit exposure loop
-                        #logger.error(f'DBG vor stop (line 838): {self.picam2.started=}')  # FIXME
                         self.picam2.stop_()
                         self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                         return
                     # allow to abort exposure
                     Abort = self.Sig_ActionAbort.is_set()
                     if Abort:
-                        #logger.error(f'DBG vor stop (line 846): {self.picam2.started=}')  # FIXME
                         self.picam2.stop_()  # stop exposure immediately
                         self.Sig_ActionAbort.clear()
                         break
@@ -852,7 +897,6 @@ class CameraControl:
                     time.sleep(PollingPeriod_s)
                 # get frame and its metadata
                 if not Abort:
-                    #logger.error(f'DBG vor wait: {self.picam2.started=}')  # FIXME
                     (array, ), metadata = self.picam2.wait(job)
                     logger.info('got exposed frame')
                     # at least HQ camera reports CCD temperature in meta data
@@ -863,7 +907,6 @@ class CameraControl:
                 # last chance to exit or abort before sending blob
                 if self.Sig_ActionExit.is_set():
                     # exit exposure loop
-                    #logger.error(f'DBG vor stop (line 864): {self.picam2.started=}')  # FIXME
                     self.picam2.stop_()
                     self.parent.setVector("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", value=0, state=IVectorState.OK)
                     return
@@ -875,7 +918,6 @@ class CameraControl:
                     FastCount_Frames = self.parent.knownVectors["CCD_FAST_COUNT"]["FRAMES"].value
                 if not DoFastExposure:
                     # in normal exposure mode the camera needs to be started with exposure command
-                    #logger.error(f'DBG vor stop (line 876): {self.picam2.started=}')  # FIXME
                     self.picam2.stop()
                 if not Abort:
                     if DoFastExposure:
@@ -885,9 +927,14 @@ class CameraControl:
                     if self.present_CameraSettings.DoRaw:
                         hdul = self.createRawFits(array=array, metadata=metadata)
                     else:
+                        # RGB and Mono
                         hdul = self.createRgbFits(array=array, metadata=metadata)
                     bstream = io.BytesIO()
                     hdul.writeto(bstream)
+                    # free up some memory
+                    del hdul
+                    del array
+                    # save and/or transmit frame
                     size = bstream.tell()
                     # what to do with image
                     with self.parent.knownVectorsLock:

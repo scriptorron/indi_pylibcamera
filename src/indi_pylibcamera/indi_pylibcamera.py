@@ -102,7 +102,7 @@ class ConnectionVector(ISwitchVector):
                 ISwitch(name="DISCONNECT", label="Disconnect", value=ISwitchState.ON),
             ],
             label="Connection", group="Main Control",
-            rule=ISwitchRule.ONEOFMANY, is_savable=False,
+            rule=ISwitchRule.ONEOFMANY, is_storable=False,
         )
 
     def set_byClient(self, values: dict):
@@ -146,7 +146,7 @@ class ExposureVector(INumberVector):
                 INumber(name="CCD_EXPOSURE_VALUE", label="Duration (s)", min=min_exp / 1e6, max=max_exp / 1e6,
                         step=0.001, value=1.0, format="%.3f"),
             ],
-            label="Expose", group="Main Control", is_savable=False,
+            label="Expose", group="Main Control", is_storable=False,
         )
 
     def set_byClient(self, values: dict):
@@ -233,10 +233,12 @@ class RawProcessedVector(ISwitchVector):
             elements = [
                 ISwitch(name="INDI_RAW", label="RAW", value=ISwitchState.ON),
                 ISwitch(name="INDI_RGB", label="RGB", value=ISwitchState.OFF),
+                ISwitch(name="INDI_MONO", label="Mono", value=ISwitchState.OFF),
             ]
         else:
             elements = [
                 ISwitch(name="INDI_RGB", label="RGB", value=ISwitchState.ON),
+                ISwitch(name="INDI_MONO", label="Mono", value=ISwitchState.OFF),
             ]
         super().__init__(
             device=self.parent.device, timestamp=self.parent.timestamp, name="CCD_CAPTURE_FORMAT",
@@ -286,7 +288,7 @@ class BinningVector(INumberVector):
                 INumber(name="HOR_BIN", label="X", min=1, max=max_HOR_BIN, step=1, value=1, format="%2.0f"),
                 INumber(name="VER_BIN", label="Y", min=1, max=max_VER_BIN, step=1, value=1, format="%2.0f"),
             ],
-            label="Binning", group="Image Settings",
+            label="Raw binning", group="Image Settings",
             state=IVectorState.IDLE, perm=IPermission.RW,
         )
 
@@ -374,7 +376,7 @@ class FitsHeaderVector(ITextVector):
                 IText(name="KEYWORD_VALUE", label="Value", value=""),
                 IText(name="KEYWORD_COMMENT", label="Comment", value=""),
             ],
-            label="FITS Header", group="General Info", perm=IPermission.WO, is_savable=False,
+            label="FITS Header", group="General Info", perm=IPermission.WO, is_storable=False,
         )
 
     def set_byClient(self, values: dict):
@@ -418,7 +420,7 @@ class AbortVector(ISwitchVector):
                 ISwitch(name="ABORT", label="Abort", value=ISwitchState.OFF),
             ],
             label="Abort", group="Main Control",
-            rule=ISwitchRule.ATMOST1, is_savable=False,
+            rule=ISwitchRule.ATMOST1, is_storable=False,
         )
 
     def set_byClient(self, values: dict):
@@ -441,7 +443,7 @@ class PrintSnoopedValuesVector(ISwitchVector):
                 ISwitch(name="PRINT_SNOOPED", label="Print", value=ISwitchState.OFF),
             ],
             label="Print snooped values", group="Snooping",
-            rule=ISwitchRule.ATMOST1, is_savable=False,
+            rule=ISwitchRule.ATMOST1, is_storable=False,
         )
 
     def set_byClient(self, values: dict):
@@ -471,7 +473,7 @@ class ConfigProcessVector(ISwitchVector):
                 ISwitch(name="CONFIG_PURGE", label="Purge", value=ISwitchState.OFF),
             ],
             label="Configuration", group="Options",
-            rule=ISwitchRule.ATMOST1, is_savable=False,
+            rule=ISwitchRule.ATMOST1, is_storable=False,
         )
 
     def set_byClient(self, values: dict):
@@ -594,7 +596,7 @@ class indi_pylibcamera(indidevice):
                     ) for i in range(len(self.Cameras))
                 ],
                 label="Camera", group="Main Control",
-                rule=ISwitchRule.ONEOFMANY, is_savable=False,
+                rule=ISwitchRule.ONEOFMANY, is_storable=False,
             )
         )
         self.checkin(
@@ -610,7 +612,7 @@ class indi_pylibcamera(indidevice):
                     IText(name="DRIVER_INTERFACE", label="Interface", value="2"),  # This is a CCD!
                 ],
                 label="Driver Info", group="General Info",
-                perm=IPermission.RO, is_savable=False,
+                perm=IPermission.RO, is_storable=False,
             )
         )
         self.checkin(
@@ -637,7 +639,7 @@ class indi_pylibcamera(indidevice):
                     INumber(name="ELEV", label="Elevation (m)", min=-200, max=10000, step=0, value=0, format="%g"),
                 ],
                 label="Scope Location", group="Snooping",
-                perm=IPermission.RW, is_savable=False,
+                perm=IPermission.RW, is_storable=False,
             ),
         )
         self.checkin(
@@ -648,7 +650,7 @@ class indi_pylibcamera(indidevice):
                     INumber(name="DEC", label="DEC (dd:mm:ss)", min=-90, max=90, step=0, value=0, format="%010.6m"),
                 ],
                 label="Eq. Coordinates", group="Snooping",
-                perm=IPermission.RW, is_savable=False,
+                perm=IPermission.RW, is_storable=False,
             ),
         )
         # TODO: "EQUATORIAL_COORD" (J2000 coordinates from mount) are not used!
@@ -661,7 +663,7 @@ class indi_pylibcamera(indidevice):
                         INumber(name="DEC", label="DEC (dd:mm:ss)", min=-90, max=90, step=0, value=0, format="%010.6m"),
                     ],
                     label="Eq. J2000 Coordinates", group="Snooping",
-                    perm=IPermission.RW, is_savable=False,
+                    perm=IPermission.RW, is_storable=False,
                 ),
             )
         self.checkin(
@@ -672,7 +674,7 @@ class indi_pylibcamera(indidevice):
                     ISwitch(name="PIER_EAST", value=ISwitchState.OFF, label="East (pointing west)"),
                 ],
                 label="Pier Side", group="Snooping",
-                rule=ISwitchRule.ONEOFMANY, is_savable=False,
+                rule=ISwitchRule.ONEOFMANY, is_storable=False,
             )
         )
         self.checkin(
@@ -749,7 +751,7 @@ class indi_pylibcamera(indidevice):
                     IText(name="CAMERA_UNITCELLSIZE", label="Pixel size", value=str(self.CameraThread.getProp("UnitCellSize"))),
                 ],
                 label="Camera Info", group="General Info",
-                state=IVectorState.OK, perm=IPermission.RO, is_savable=False,
+                state=IVectorState.OK, perm=IPermission.RO, is_storable=False,
             ),
             send_defVector=True,
         )
@@ -780,7 +782,7 @@ class indi_pylibcamera(indidevice):
                     INumber(name="HEIGHT", label="Height", min=1, max=self.CameraThread.getProp("PixelArraySize")[1],
                             step=0, value=self.CameraThread.getProp("PixelArraySize")[1], format="%4.0f"),
                 ],
-                label="RGB format", group="Image Settings",
+                label="RGB, Mono", group="Image Settings",
                 perm=IPermission.RW,
             ),
             send_defVector=True,
@@ -814,7 +816,7 @@ class indi_pylibcamera(indidevice):
                             step=0, value=self.CameraThread.getProp("PixelArraySize")[1], format="%4.0f"),
                 ],
                 label="Frame", group="Image Info",
-                perm=IPermission.RO, is_savable=False,  # TODO: make it savable after implementing frame cropping
+                perm=IPermission.RO, is_storable=False,  # TODO: make it available after implementing frame cropping
             ),
             send_defVector=True,
         )
@@ -827,7 +829,7 @@ class indi_pylibcamera(indidevice):
                     ISwitch(name="RESET", label="Reset", value=ISwitchState.OFF),
                 ],
                 label="Frame Values", group="Image Settings",
-                rule=ISwitchRule.ONEOFMANY, perm=IPermission.WO, is_savable=False,
+                rule=ISwitchRule.ONEOFMANY, perm=IPermission.WO, is_storable=False,
             ),
             send_defVector=True,
         )
@@ -856,7 +858,7 @@ class indi_pylibcamera(indidevice):
                     INumber(name="CCD_TEMPERATURE_VALUE", label="Temperature (C)", min=-50, max=50, step=0, value=0, format="%5.2f"),
                 ],
                 label="Temperature", group="Main Control",
-                state=IVectorState.IDLE, perm=IPermission.RO, is_savable=False,
+                state=IVectorState.IDLE, perm=IPermission.RO, is_storable=False,
             ),
             send_defVector=True,
         )
@@ -881,7 +883,7 @@ class indi_pylibcamera(indidevice):
                             value=8 if len(self.CameraThread.RawModes) < 1 else self.CameraThread.RawModes[0]["bit_depth"], format="%.f"),
                 ],
                 label="CCD Information", group="Image Info",
-                state=IVectorState.IDLE, perm=IPermission.RO, is_savable=False,
+                state=IVectorState.IDLE, perm=IPermission.RO, is_storable=False,
             ),
             send_defVector=True,
         )
@@ -913,7 +915,7 @@ class indi_pylibcamera(indidevice):
                     IBlob(name="CCD1", label="Image"),
                 ],
                 label="Image Data", group="Image Info",
-                state=IVectorState.OK, perm=IPermission.RO, is_savable=False,
+                state=IVectorState.OK, perm=IPermission.RO, is_storable=False,
             ),
             send_defVector=True,
         )
@@ -983,7 +985,7 @@ class indi_pylibcamera(indidevice):
                 elements=[
                     INumber(name="FRAMES", label="Frames", min=0, max=100000, step=1, value=1, format="%.f"),
                 ],
-                label="Fast Count", group="Main Control", is_savable=False,
+                label="Fast Count", group="Main Control", is_storable=False,
             ),
             send_defVector=True,
         )
