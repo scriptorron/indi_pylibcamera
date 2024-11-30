@@ -1,7 +1,9 @@
+2.7.0
 - implemented Mono frame
 - scaled RGB and Mono frames have now binning-factor in FITS header
 - minor code cleanup and optimization
 - minimized FITS metadata to avoid trouble with plate solver
+- moved folders CamerInfos and testpattern out of Python library
 
 2.6.5
 - running old driver gets killed when started with `python3` and `python`
