@@ -1,3 +1,8 @@
+- providing more binary names: indi_pylibcamera, indi_pylibcamera2, indi_pylibcamera3, ... indi_pylibcamera5
+  this allows to run up to 5 driver instances for different cameras:
+  * separate INI and CONFIG files for the driver instances
+  * default camera device can be set in INI
+
 2.7.0
 - implemented Mono frame
 - scaled RGB and Mono frames have now binning-factor in FITS header
