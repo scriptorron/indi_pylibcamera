@@ -5,14 +5,16 @@ Raspberry Pi cameras allow the amateur astronomer to make astonishing pictures w
 Raspberry Pi HQ camera can compete with expensive astro cameras.
 
 The driver is based on the new camera framework "libcamera" (https://github.com/raspberrypi/libcamera) which is
-already part of many Raspberry Pi operating systems. It is made and optimized to run on a Raspberry Pi Zero with
-HQ camera connected. Of course, it will also run on a more capable Raspberry Pi.
+already part of many Raspberry Pi operating systems. The driver can run on a Raspberry Pi Zero with
+HQ camera connected. But a more capable Raspberry Pi is recommended. 
 
-The "indi_pylibcamera" may support all cameras supported by "libcamera". But not all cameras will provide image data
+The `indi_pylibcamera` may support all cameras supported by "libcamera". But not all cameras will provide image data
 in the required formats (raw Bayer or at least RGB). So it is not guaranteed that the driver will work with all
 cameras you can connect to a Raspberry Pi.
 
-The 'indi_pylibcamera' is one layer in a stack of software:
+Since version 2.8 the driver supports more than one camera connected to the Pi.
+
+The `indi_pylibcamera` is one layer in a stack of software:
 ```
     INDI client (for instance KStars, PHD2, CCDciel, ...)
         --> INDI server
@@ -52,7 +54,7 @@ for your camera with:
 by yourself. Instructions can be found here: https://github.com/indilib/indi. 
 The scripts on https://gitea.nouspiro.space/nou/astro-soft-build automate compilation and installation.
   A Raspberry Pi Zero does not have enough RAM to compile with 4 threads in parallel: you need to do `make -j1` instead of `make -j4`. 
-Finally, after installation, you need to have a working INDI server: `indiserver -v indi_simulator_telescope`
+Finally, after installation, you should to have a working INDI server: `indiserver -v indi_simulator_telescope`
 - Some Python packages require matching versions of system libraries. They must be installed with `apt`:
 ```commandline
 sudo apt install python3-pip libcamera-apps python3-picamera2 python3-lxml python3-astropy python3-numpy python3-venv
@@ -99,29 +101,44 @@ rm -rf ~/venv_indi_pylibcamera
 
 ## Running
 At the moment there is no support to start the driver from the EKOS profile editor. 
-The driver and the indi server must be started in shell with activated virtual environment:
+The driver and the INDI server must be started in shell with activated virtual environment:
 ```commandline
 source ~/venv_indi_pylibcamera/bin/activate
 ```
 
-In the same shell you can start the INDI server with `indiserver -v indi_pylibcamera`. When the server is running
+In the same shell you can start the INDI server with `indiserver -v indi_pylibcamera`. You can start up to 5 instances of the driver to operate up to 5 cameras:
+```commandline
+indiserver -v indi_pylibcamera indi_pylibcamera2 indi_pylibcamera3 indi_pylibcamera4 indi_pylibcamera5
+```
+
+When the server is running
 you can connect to the server from another computer with an INDI client (for instance KStars/EKOS). The camera name
-is the one you configure in `indi_pylibcamera.ini`.
+is the one you configure in the global configuration (see below). 
 
 I recommend you to make a wrapper script to activate the environment and start the driver.
 
 ## Global Configuration
-The driver uses a hierarchy of configuration files to set global parameter. These configuration files are loaded in the
-following order:
-- `indi_pylibcamera.ini` in the program installation directory (typically in `/usr/lib/python*/site_packages`)
-- `$INDI_PYLIBCAMERA_CONFIG_PATH/indi_pylibcamera.ini`
-- `$HOME/.indi_pylibcamera/indi_pylibcamera.ini`
-- `./.indi_pylibcamera/indi_pylibcamera.ini`
+The driver uses a hierarchy of configuration files to set global parameter. These configuration files are called
+- `indi_pylibcamera.ini` (for driver instance `indi_pylibcamera`)
+- `indi_pylibcamera2.ini` (for driver instance `indi_pylibcamera2`)
+- `indi_pylibcamera3.ini` (for driver instance `indi_pylibcamera3`)
+- `indi_pylibcamera4.ini` (for driver instance `indi_pylibcamera4`)
+- `indi_pylibcamera5.ini` (for driver instance `indi_pylibcamera5`)
+
+These INI files are searched in the following order:
+1. in the program installation directory (`~/venv_indi_pylibcamera/site_packages`)
+2. pathname stored in environment variable `$INDI_PYLIBCAMERA_CONFIG_PATH`
+3. `$HOME/.indi_pylibcamera`
+4. in the directory where you started the INDI server
 
 The configuration file must have the section `[driver]`. The most important keys are:
 - `DeviceName` (string): INDI name of the device. This allows to distinguish indi_pylibcamera devices in your setup.
 For instance you can have one Raspberry Pi with HQ camera as main camera for taking photos and a second Raspberry Pi with
-a V1 camera for auto guiding.
+a V1 camera for auto guiding. The INI files in the installation directors set the `DeviceName` to "pylibcamera Main", "pylibcamera2 Guide", "pylibcamera3", "pylibcamera4" and "pylibcamera5" for driver the 5 driver instances.
+- `SelectCameraDevice` (number): The driver can connect to different camera devices. Your client software will show 
+  you a list of available devices (for instance: "imx477, Num0, Loc2" or "imx477, Num1, Loc2") and it may have the
+  option to automatically connect the camera before you get the chance to select one. The `SelectCameraDevice`
+  setting determines, which camera device in the list is initially selected. Counting starts with 0.
 - `SendTimeStamps` (`yes`, `no`, `on`, `off`, `true`, `false`, `1`, `0`): Add a timestamp to the messages send from
 the device to the client. Such timestamps are needed in very seldom cases only, and usually it is okay to set this 
 to `no`. If you really need timestamps make sure that the system clock is correct. 
@@ -154,7 +171,7 @@ An example for a configuration file can be found in this repository.
 
 ## Saving a Configuration
 The driver allows you to save up to 6 different configurations. The "Options" tab has 3 controls for that:
-- You to select which of the 6 configurations you want to save, load or delete with control "Configs".
+- One to select which of the 6 configurations you want to save, load or delete with control "Configs".
 - "Config Name" allows you to give the configuration a name. This is optional. It only helps you to remember
 what this configuration is made for.
 - The buttons in "Configuration" trigger the actions:
@@ -178,24 +195,14 @@ To save and load configurations you must be connected to a camera. The configura
 for this particular camera. It is not recommended to load a configuration which was saved for a different type
 of camera.
 
-Configurations get stored in `~/.indi_pylibcamera/CONFIG*.json`.
-
-## Error when restarting indiserver
-When killing the indiserver sometimes the driver process continues to run. You can see this with:
-
-`ps ax | grep indi`
-
-
-If you get a line containing `python3` and `indi_pylibcamera` in the output the driver process is still running. In that case you must
-kill the driver process manually before you restart the indiserver. Otherwise, you will get a libcamera error 
-when connecting to the camera.
+Configurations get stored in `~/.indi_pylibcamera/CONFIG*.json`. Each driver instance has its own configuration files.
 
 ## Frametypes
-The driver can (when supported by the camera hardware) provide these image frame types:
+The driver provides these image frame types (when supported by the camera hardware):
 - `Raw` is the raw signal coming from the pixel converted to digital. Most cameras have an analog amplifier
 (configurable with `Gain`) between the pixel and the A/D converter. There is no software processing of the data.
 Typically, these pixel data have higher resolution but suffer from offset and gain errors. Furthermore, the pixel of
-color cameras have own color filter (called Bayer pattern) and do not RGB data directly. Such raw images need
+color cameras have own color filter (called Bayer pattern) and do not output RGB data directly. Such raw images need
 post-processing. Astro-photographs like raw images because they allow much better image optimizations. The frame size
 of raw images is determined by the modes implemented in the camera hardware.
 - `RGB` are images post-processed by the Image Signal Processor (ISP). The ISP corrects for offset and gain,
