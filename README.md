@@ -131,6 +131,8 @@ These INI files are searched in the following order:
 3. `$HOME/.indi_pylibcamera`
 4. in the directory where you started the INDI server
 
+I recommend to copy the INI files from the installation directory to `$HOME/.indi_pylibcamera` and to adjust the contents to your needs.
+
 The configuration file must have the section `[driver]`. The most important keys are:
 - `DeviceName` (string): INDI name of the device. This allows to distinguish indi_pylibcamera devices in your setup.
 For instance you can have one Raspberry Pi with HQ camera as main camera for taking photos and a second Raspberry Pi with
