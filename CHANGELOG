@@ -5,6 +5,7 @@
   * default camera device can be set in INI
   * changed code to kill existing driver instances
 - fixed bug in finding the INI files in installation path
+- updated README.md with description of the new features
 
 2.7.0
 - implemented Mono frame
