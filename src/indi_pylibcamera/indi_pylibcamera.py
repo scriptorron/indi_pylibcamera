@@ -22,13 +22,14 @@ IniPath = Path(Path.home(), ".indi_pylibcamera")
 IniPath.mkdir(parents=True, exist_ok=True)
 
 
-def read_config():
+def read_config(driver_instance):
     # iterative list of INI files to load
-    configfiles = [Path(__file__, "indi_pylibcamera.ini")]
+    ini_filename = "indi_pylibcamera"+driver_instance+".ini"
+    configfiles = [Path(__file__).parent / ini_filename]
     if "INDI_PYLIBCAMERA_CONFIG_PATH" in os.environ:
-        configfiles += [Path(os.environ["INDI_PYLIBCAMERA_CONFIG_PATH"], "indi_pylibcamera.ini")]
-    configfiles += [IniPath / Path("indi_pylibcamera.ini")]
-    configfiles += [Path(Path.cwd(), "indi_pylibcamera.ini")]
+        configfiles += [Path(os.environ["INDI_PYLIBCAMERA_CONFIG_PATH"], ini_filename)]
+    configfiles += [IniPath / Path(ini_filename)]
+    configfiles += [Path(Path.cwd(), ini_filename)]
     # create config parser instance
     config = ConfigParser()
     config.read(configfiles)
@@ -484,7 +485,10 @@ class ConfigProcessVector(ISwitchVector):
             values: dict(propertyName: value) of values to set
         """
         super().set_byClient(values=values)
-        config_filename = IniPath / f'{self.parent.knownVectors["APPLY_CONFIG"].get_OnSwitches()[0]}.json'
+        if self.parent.driver_instance == "":
+            config_filename = IniPath / f'{self.parent.knownVectors["APPLY_CONFIG"].get_OnSwitches()[0]}.json'
+        else:
+            config_filename = IniPath / f'{self.parent.knownVectors["APPLY_CONFIG"].get_OnSwitches()[0]}-{self.parent.driver_instance}.json'
         actions = self.get_OnSwitches()
         if len(actions) > 0:
             action = actions[0]
@@ -521,25 +525,30 @@ class ConfigProcessVector(ISwitchVector):
 
 
 
-def kill_oldDriver():
+def kill_oldDriver(driver_instance):
     """test if another instance of driver is already running and kill it
 
     This relies on the output of "ps ax" system command.
     Alternative would be 3rd party library psutil which may need to be installed.
     """
     my_PID = os.getpid()
-    logger.info(f'my PID: {my_PID}')
-    my_fileName = os.path.basename(__file__)[:-3]
-    logger.info(f'my file name: {my_fileName}')
+    print(f'my PID: {my_PID}', file=sys.stderr)
+    my_fileNames = [
+        "indi_pylibcamera" + driver_instance + ".sh",
+        "indi_pylibcamera" + driver_instance + ".py",
+    ]
     ps_ax = subprocess.check_output(["ps", "ax"]).decode(sys.stdout.encoding)
     ps_ax = ps_ax.split("\n")
     pids_oldDriver = []
     for processInfo in ps_ax:
-        if ("python" in processInfo) and (my_fileName in processInfo):
-            PID = int(processInfo.strip().split(" ", maxsplit=1)[0])
-            if PID != my_PID:
-                logger.info(f'found old driver with PID {PID} ({processInfo})')
-                pids_oldDriver.append(PID)
+        if "python" in processInfo:
+            for my_fileName in my_fileNames:
+                if my_fileName in processInfo:
+                    PID = int(processInfo.strip().split(" ", maxsplit=1)[0])
+                    if PID != my_PID:
+                        print(f'found old driver with PID {PID} ({processInfo})', file=sys.stderr)
+                        pids_oldDriver.append(PID)
+                    break
     for pid_oldDriver in pids_oldDriver:
         try:
             os.kill(pid_oldDriver, signal.SIGKILL)
@@ -548,7 +557,7 @@ def kill_oldDriver():
             pass
         except PermissionError:
             # not allowed to kill
-            logger.error(f'Do not have permission to kill old driver with PID {pid_oldDriver}.')
+            print(f'ERROR: Do not have permission to kill old driver with PID {pid_oldDriver}.', file=sys.stderr)
 
 
 # the device driver
@@ -557,18 +566,21 @@ class indi_pylibcamera(indidevice):
     """camera driver using libcamera
     """
 
-    def __init__(self, config=None):
+    def __init__(self, config=None, driver_instance=""):
         """constructor
 
         Args:
             config: driver configuration
         """
-        kill_oldDriver()
-        super().__init__(device=config.get("driver", "DeviceName", fallback="indi_pylibcamera"))
+        kill_oldDriver(driver_instance=driver_instance)
+        super().__init__(device=config.get("driver", "DeviceName", fallback="indi_pylibcamera" + driver_instance))
+        self.driver_instance = driver_instance
         self.config = config
         self.timestamp = self.config.getboolean("driver", "SendTimeStamps", fallback=False)
         # send logging messages to client
         enable_Logging(device=self.device, timestamp=self.timestamp)
+        # driver name
+        logger.info(f"using driver name: {self.device}")
         # camera
         self.CameraThread = CameraControl(
             parent=self,
@@ -581,7 +593,9 @@ class indi_pylibcamera(indidevice):
         cameras = Picamera2.global_camera_info()
         logger.info(f'found cameras: {cameras}')
         # use Id as unique camera identifier
-        self.Cameras = [c["Id"] for c in cameras]
+        self.Cameras = [f'{c["Model"]}, Num{c["Num"]}, Loc{c["Location"]}' for c in cameras]
+        CameraToConnect = min(self.config.getint("driver", "SelectCameraDevice", fallback=0), len(self.Cameras) - 1)
+        logger.info(f'camera to connect by default: {self.Cameras[CameraToConnect]}')
         # INDI vector names only available with connected camera
         self.CameraVectorNames = []
         # INDI general vectors
@@ -591,7 +605,7 @@ class indi_pylibcamera(indidevice):
                 elements=[
                     ISwitch(
                         name=f'CAM{i}',
-                        value=ISwitchState.ON if i == 0 else ISwitchState.OFF,
+                        value=ISwitchState.ON if i == CameraToConnect else ISwitchState.OFF,
                         label=self.Cameras[i]
                     ) for i in range(len(self.Cameras))
                 ],
@@ -1369,11 +1383,11 @@ class indi_pylibcamera(indidevice):
 
 
 # main entry point
-def main():
-    device = indi_pylibcamera(config=read_config())
+def main(driver_instance=""):
+    device = indi_pylibcamera(config=read_config(driver_instance=driver_instance), driver_instance=driver_instance)
     device.run()
     return 0
 
 
 if __name__ == "__main__":
-    main()
+    main(driver_instance="")

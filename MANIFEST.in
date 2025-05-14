@@ -1,2 +1,10 @@
 include src/indi_pylibcamera/indi_pylibcamera.ini
 include src/indi_pylibcamera/indi_pylibcamera.xml
+include src/indi_pylibcamera/indi_pylibcamera2.ini
+include src/indi_pylibcamera/indi_pylibcamera2.xml
+include src/indi_pylibcamera/indi_pylibcamera3.ini
+include src/indi_pylibcamera/indi_pylibcamera3.xml
+include src/indi_pylibcamera/indi_pylibcamera4.ini
+include src/indi_pylibcamera/indi_pylibcamera4.xml
+include src/indi_pylibcamera/indi_pylibcamera5.ini
+include src/indi_pylibcamera/indi_pylibcamera5.xml

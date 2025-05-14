@@ -1,7 +1,7 @@
 <driversList>
   <devGroup group="CCDs">
-    <device label="INDI pylibcamera">
-      <driver name="INDI pylibcamera">indi_pylibcamera</driver>
+    <device label="INDI pylibcamera3">
+      <driver name="INDI pylibcamera3">indi_pylibcamera3</driver>
       <version>2.8.0</version>
     </device>
   </devGroup>
