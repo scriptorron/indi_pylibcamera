@@ -594,7 +594,7 @@ class indi_pylibcamera(indidevice):
         logger.info(f'found cameras: {cameras}')
         # use Id as unique camera identifier
         self.Cameras = [f'{c["Model"]}, Num{c["Num"]}, Loc{c["Location"]}' for c in cameras]
-        CameraToConnect = min(self.config.getint("driver", "SelectCameraDevice", fallback=1), len(self.Cameras))
+        CameraToConnect = min(self.config.getint("driver", "SelectCameraDevice", fallback=0), len(self.Cameras) - 1)
         logger.info(f'camera to connect by default: {self.Cameras[CameraToConnect]}')
         # INDI vector names only available with connected camera
         self.CameraVectorNames = []
