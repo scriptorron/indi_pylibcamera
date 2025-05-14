@@ -64,7 +64,7 @@ The Raspberry Pi OS "Bullseye" still allowed to install system wide with `sudo p
 Since "Bookworm" a virtual environment is required to install non-system Python packages. Trying to install
 `indi_pylibcamera` without a virtual environment will fail with `error: externally-managed-environment`. 
 
-Run the following on a command line to install `indi_pylibcamera`in a virtual environment called `venv_indi_pylibcamera`
+Run the following on a command lines to install `indi_pylibcamera`in a virtual environment called `venv_indi_pylibcamera`
 (you can name the virtual environment as you want):
 ```commandline
 python3 -m venv --system-site-packages ~/venv_indi_pylibcamera
@@ -72,6 +72,16 @@ source ~/venv_indi_pylibcamera/bin/activate
 pip install --upgrade pip
 pip install indi_pylibcamera
 ```
+
+It is highly recommended to make your own copy of the INI files: 
+```commandline
+mkdir ~/.indi_pylibcamera
+cp ~/venv_indi_pylibcamera/lib/python3.11/site-packages/indi_pylibcamera/*.ini ~/.indi_pylibcamera
+```
+Maybe you will need to adjust the Python version number in the source path.
+
+Please see section [Global Configuration](#Global-Configuration) for custimizing the INI settings.
+
 
 ## Some hints when you get trouble
 The Python packages `picamera2`, `numpy`, and ` astropy` MUST be installed with `sudo apt install`.
