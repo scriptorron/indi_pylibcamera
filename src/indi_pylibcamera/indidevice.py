@@ -680,6 +680,7 @@ class IVectorList:
         for element in self.elements:
             if element.name == name:
                 return True
+        return False
 
     def pop(self, name: str) -> IVector:
         """return and remove named vector
