@@ -524,6 +524,46 @@ class ConfigProcessVector(ISwitchVector):
         super().set_byClient(values={element.name: ISwitchState.OFF for element in self.elements})
 
 
+class UploadModeVector(ISwitchVector):
+    """INDI Switch vector to change image upload mode
+    """
+
+    def __init__(self, parent):
+        self.parent=parent
+        super().__init__(
+            device=self.parent.device, timestamp=self.parent.timestamp, name="UPLOAD_MODE",
+            elements=[
+                ISwitch(name="UPLOAD_CLIENT", label="Client", value=ISwitchState.ON),
+                ISwitch(name="UPLOAD_LOCAL", label="Local", value=ISwitchState.OFF),
+                ISwitch(name="UPLOAD_BOTH", label="Both", value=ISwitchState.OFF),
+            ],
+            label="Upload", group="Options",
+            rule=ISwitchRule.ONEOFMANY,
+        )
+
+    def set_byClient(self, values: dict):
+        """called when vector gets set by client
+        special version for changing image upload mode and creating/deleting CD_FILE_PATH vector for handshake
+
+        Args:
+            values: dict(propertyName: value) of values to set
+        """
+        super().set_byClient(values=values)
+        if self.get_OnSwitches()[0] in ["UPLOAD_LOCAL", "UPLOAD_BOTH"]:
+            if "CCD_FILE_PATH" not in self.parent.CameraVectorNames:
+                self.parent.checkin(
+                    ITextVector(
+                        device=self.parent.device, timestamp=self.parent.timestamp, name="CCD_FILE_PATH",
+                        elements=[IText(name="FILE_PATH", label="Path", value=""), ],
+                        label="Filename", group="Image Info", perm=IPermission.RO,
+                    ),
+                    send_defVector=True,
+                )
+                self.parent.CameraVectorNames.append("CCD_FILE_PATH")
+        else:
+            if "CCD_FILE_PATH" in self.parent.CameraVectorNames:
+                self.parent.checkout("CCD_FILE_PATH")
+
 
 def kill_oldDriver(driver_instance):
     """test if another instance of driver is already running and kill it
@@ -952,16 +992,7 @@ class indi_pylibcamera(indidevice):
         self.CameraVectorNames.append("CCD_FRAME_TYPE")
         #
         self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, name="UPLOAD_MODE",
-                elements=[
-                    ISwitch(name="UPLOAD_CLIENT", label="Client", value=ISwitchState.ON),
-                    ISwitch(name="UPLOAD_LOCAL", label="Local", value=ISwitchState.OFF),
-                    ISwitch(name="UPLOAD_BOTH", label="Both", value=ISwitchState.OFF),
-                ],
-                label="Upload", group="Options",
-                rule=ISwitchRule.ONEOFMANY,
-            ),
+            UploadModeVector(parent=self,),
             send_defVector=True,
         )
         self.CameraVectorNames.append("UPLOAD_MODE")
