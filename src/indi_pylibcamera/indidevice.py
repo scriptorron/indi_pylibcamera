@@ -90,6 +90,7 @@ def to_server(msg: str):
     with ToServerLock:
         with UnblockTTY():
             sys.stdout.write(msg)
+            sys.stdout.write("\n")
             sys.stdout.flush()
 
 
