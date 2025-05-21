@@ -1,3 +1,6 @@
+2.8.1
+- fixed handshake when storing exposures remotely or on both sides
+
 2.8.0
 - providing more binary names: indi_pylibcamera, indi_pylibcamera2, indi_pylibcamera3, ... indi_pylibcamera5
   this allows to run up to 5 driver instances for different cameras:
