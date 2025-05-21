@@ -90,6 +90,7 @@ def to_server(msg: str):
     with ToServerLock:
         with UnblockTTY():
             sys.stdout.write(msg)
+            sys.stdout.write("\n")
             sys.stdout.flush()
 
 
@@ -679,6 +680,7 @@ class IVectorList:
         for element in self.elements:
             if element.name == name:
                 return True
+        return False
 
     def pop(self, name: str) -> IVector:
         """return and remove named vector

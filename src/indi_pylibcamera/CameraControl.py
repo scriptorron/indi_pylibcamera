@@ -949,6 +949,7 @@ class CameraControl:
                         logger.info(f"saving image to file {local_filename}")
                         with open(local_filename, 'wb') as fh:
                             fh.write(bstream.getbuffer())
+                        self.parent.setVector("CCD_FILE_PATH", "FILE_PATH", value=local_filename, state=IVectorState.OK)
                     if upload_mode[0] in ["UPLOAD_CLIENT", "UPLOAD_BOTH"]:
                         # send blob to client
                         bstream.seek(0)
