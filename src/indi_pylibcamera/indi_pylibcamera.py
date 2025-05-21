@@ -563,6 +563,7 @@ class UploadModeVector(ISwitchVector):
         else:
             if "CCD_FILE_PATH" in self.parent.CameraVectorNames:
                 self.parent.checkout("CCD_FILE_PATH")
+                self.parent.CameraVectorNames.remove("CCD_FILE_PATH")
 
 
 def kill_oldDriver(driver_instance):
