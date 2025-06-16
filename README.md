@@ -140,13 +140,14 @@ These INI files are searched in the following order:
 2. pathname stored in environment variable `$INDI_PYLIBCAMERA_CONFIG_PATH`
 3. `$HOME/.indi_pylibcamera`
 4. in the directory where you started the INDI server
+The last INI file it finds will be used. This gives an INI file in the starting directory (item 4) the highest and in the installation directory the lowest precedence. 
 
 I recommend to copy the INI files from the installation directory to `$HOME/.indi_pylibcamera` and to adjust the contents to your needs.
 
 The configuration file must have the section `[driver]`. The most important keys are:
 - `DeviceName` (string): INDI name of the device. This allows to distinguish indi_pylibcamera devices in your setup.
 For instance you can have one Raspberry Pi with HQ camera as main camera for taking photos and a second Raspberry Pi with
-a V1 camera for auto guiding. The INI files in the installation directors set the `DeviceName` to "pylibcamera Main", "pylibcamera2 Guide", "pylibcamera3", "pylibcamera4" and "pylibcamera5" for driver the 5 driver instances.
+a V1 camera for auto guiding. The INI files in the installation directors set the `DeviceName` to "pylibcamera Main", "pylibcamera2 Guide", "pylibcamera3", "pylibcamera4" and "pylibcamera5" for the 5 driver instances.
 - `SelectCameraDevice` (number): The driver can connect to different camera devices. Your client software will show 
   you a list of available devices (for instance: "imx477, Num0, Loc2" or "imx477, Num1, Loc2") and it may have the
   option to automatically connect the camera before you get the chance to select one. The `SelectCameraDevice`
