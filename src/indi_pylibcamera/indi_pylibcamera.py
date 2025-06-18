@@ -201,7 +201,7 @@ class RawFormatVector(ISwitchVector):
 
     def update_Binning(self):
         if self.do_CameraAdjustments:
-            if self.parent.knownVectors["CCD_CAPTURE_FORMAT"]["INDI_RAW"].value == ISwitchState.ON:
+            if self.parent.knownVectors["CCD_CAPTURE_FORMAT"].get_OnSwitches()[0] in ["INDI_RAW", "RAW_MONO"]:
                 # set binning according to raw format
                 selectedRawMode = self.CameraThread.RawModes[self.get_OnSwitchesIdxs()[0]]
                 binning = selectedRawMode["binning"]
@@ -233,6 +233,7 @@ class RawProcessedVector(ISwitchVector):
         if len(CameraThread.RawModes) > 0:
             elements = [
                 ISwitch(name="INDI_RAW", label="RAW", value=ISwitchState.ON),
+                ISwitch(name="RAW_MONO", label="RAW Mono", value=ISwitchState.OFF),  # FIXME: add this only when camera is color!
                 ISwitch(name="INDI_RGB", label="RGB", value=ISwitchState.OFF),
                 ISwitch(name="INDI_MONO", label="Mono", value=ISwitchState.OFF),
             ]
@@ -303,7 +304,7 @@ class BinningVector(INumberVector):
         if self.do_CameraAdjustments:
             # allowed binning depends on CCD_CAPTURE_FORMAT (raw or processed) and raw mode
             bestRawIdx = 1
-            if self.parent.knownVectors["CCD_CAPTURE_FORMAT"]["INDI_RAW"].value == ISwitchState.ON:
+            if self.parent.knownVectors["CCD_CAPTURE_FORMAT"].get_OnSwitches()[0] in ["INDI_RAW", "RAW_MONO"]:
                 # select best matching frame type
                 bestError = 1000000
                 for binning, RawIdx in self.RawBinningModes.items():
