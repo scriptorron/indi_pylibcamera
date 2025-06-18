@@ -1,3 +1,8 @@
+2.9.0
+- implemented "RAW Mono" image format: a mono image is calculated from a Bayer pattern RAW image by summing up
+  2x2 pixel without reducing image size --> result is a mono image with RAW image size and 2 bits more than the
+  RAW image has (original Mono format is based on ISP processed images and has 8 bits per pixel only)
+
 2.8.1
 - fixed handshake when storing exposures remotely or on both sides
 

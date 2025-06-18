@@ -218,6 +218,10 @@ Typically, these pixel data have higher resolution but suffer from offset and ga
 color cameras have own color filter (called Bayer pattern) and do not output RGB data directly. Such raw images need
 post-processing. Astro-photographs like raw images because they allow much better image optimizations. The frame size
 of raw images is determined by the modes implemented in the camera hardware.
+- `RAW Mono` is a mono image calculated from the Bayer pattern RAW image by summing up
+  2x2 pixel without reducing image size. The result is a monochrome image with RAW image size and 2 bits more depth
+  than the RAW image has. For comparison: the `Mono` format below is based on ISP processed images and has 
+  8 bits per pixel only!
 - `RGB` are images post-processed by the Image Signal Processor (ISP). The ISP corrects for offset and gain,
 calculates the colors and can adjust exposure time and wide balance automatically. Drawback is the lower dynamic
 (lower bit width) and additional systematic "noise" due to rounding errors. Frame size can be chosen freely because
