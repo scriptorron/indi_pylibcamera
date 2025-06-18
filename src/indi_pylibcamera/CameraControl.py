@@ -29,7 +29,7 @@ class CameraSettings:
         self.ExposureTime = None
         self.DoFastExposure = None
         self.DoRaw = None
-        self.DoMono = None
+        self.DoRgbMono = None
         self.ProcSize = None
         self.RawMode = None
         self.Binning = None
@@ -38,8 +38,8 @@ class CameraSettings:
     def update(self, ExposureTime, knownVectors, advertised_camera_controls, has_RawModes):
         self.ExposureTime = ExposureTime
         self.DoFastExposure = knownVectors["CCD_FAST_TOGGLE"]["INDI_ENABLED"].value == ISwitchState.ON
-        self.DoRaw = knownVectors["CCD_CAPTURE_FORMAT"]["INDI_RAW"].value == ISwitchState.ON if has_RawModes else False
-        self.DoMono = knownVectors["CCD_CAPTURE_FORMAT"]["INDI_MONO"].value == ISwitchState.ON if has_RawModes else False
+        self.DoRaw = knownVectors["CCD_CAPTURE_FORMAT"].get_OnSwitches()[0] in ["INDI_RAW", "RAW_MONO"]
+        self.DoRgbMono = knownVectors["CCD_CAPTURE_FORMAT"]["INDI_MONO"].value == ISwitchState.ON if has_RawModes else False
         self.ProcSize = (
             int(knownVectors["CCD_PROCFRAME"]["WIDTH"].value),
             int(knownVectors["CCD_PROCFRAME"]["HEIGHT"].value)
@@ -138,7 +138,7 @@ class CameraSettings:
                 "HIGHQUALITY": controls.draft.NoiseReductionModeEnum.HighQuality,
             }[knownVectors["CAMCTRL_NOISEREDUCTIONMODE"].get_OnSwitches()[0]]
         if "Saturation" in advertised_camera_controls:
-            if self.DoMono:
+            if self.DoRgbMono:
                 # mono exposures are a special case of RGB with saturation=0
                 self.camera_controls["Saturation"] = 0.0
             else:
@@ -555,6 +555,13 @@ class CameraControl:
         # remove 0- or garbage-filled columns
         true_size = self.present_CameraSettings.RawMode["true_size"]
         array = array[0:true_size[1], 0:true_size[0]]
+        # calculate RAW Mono if needed
+        with self.parent.knownVectorsLock:
+            is_RawMono = self.parent.knownVectors["CCD_CAPTURE_FORMAT"].get_OnSwitches()[0] == "RAW_MONO"
+            if is_RawMono:
+                array = array[0::2] + array[1::2]
+                array = array[:, 0::2] + array[:, 1::2]
+                BayerPattern = None
         # convert to FITS
         hdu = fits.PrimaryHDU(array)
         # avoid access conflicts to knownVectors
@@ -582,8 +589,8 @@ class CameraControl:
                 FitsHeader.update({
                     "PIXSIZE1": (self.getProp("UnitCellSize")[0] / 1e3, "[um] Pixel Size 1"),
                     "PIXSIZE2": (self.getProp("UnitCellSize")[1] / 1e3, "[um] Pixel Size 2"),
-                    "XBINNING": (self.present_CameraSettings.Binning[0], "Binning factor in width"),
-                    "YBINNING": (self.present_CameraSettings.Binning[1], "Binning factor in height"),
+                    "XBINNING": (self.present_CameraSettings.Binning[0] * (2 if is_RawMono else 1), "Binning factor in width"),
+                    "YBINNING": (self.present_CameraSettings.Binning[1] * (2 if is_RawMono else 1), "Binning factor in height"),
                     "XPIXSZ": (self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0],
                                "[um] X binned pixel size"),
                     "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1],
@@ -592,13 +599,15 @@ class CameraControl:
             else:
                 # Pretend to be a camera without binning to avoid trouble with plate solver.
                 FitsHeader.update({
-                    "PIXSIZE1": (self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0], "[um] Pixel Size 1"),
-                    "PIXSIZE2": (self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1], "[um] Pixel Size 2"),
+                    "PIXSIZE1": (self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0] * (2 if is_RawMono else 1),
+                                 "[um] Pixel Size 1"),
+                    "PIXSIZE2": (self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1] * (2 if is_RawMono else 1),
+                                 "[um] Pixel Size 2"),
                     "XBINNING": (1, "Binning factor in width"),
                     "YBINNING": (1, "Binning factor in height"),
-                    "XPIXSZ": (self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0],
+                    "XPIXSZ": (self.getProp("UnitCellSize")[0] / 1e3 * self.present_CameraSettings.Binning[0] * (2 if is_RawMono else 1),
                                "[um] X binned pixel size"),
-                    "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1],
+                    "YPIXSZ": (self.getProp("UnitCellSize")[1] / 1e3 * self.present_CameraSettings.Binning[1] * (2 if is_RawMono else 1),
                                "[um] Y binned pixel size"),
                 })
         if BayerPattern is not None:
@@ -609,7 +618,7 @@ class CameraControl:
             })
         if "SensorBlackLevels" in metadata:
             SensorBlackLevels = metadata["SensorBlackLevels"]
-            if len(SensorBlackLevels) == 4:
+            if (len(SensorBlackLevels) == 4) and not is_RawMono:
                 # according to picamera2 documentation:
                 #   "The black levels of the raw sensor image. This
                 #    control appears only in captured image
@@ -660,7 +669,7 @@ class CameraControl:
         else:
             raise NotImplementedError(f'got unsupported RGB image format {format}')
         #self.log_FrameInformation(array=array, metadata=metadata, is_raw=False)
-        if self.present_CameraSettings.DoMono:
+        if self.present_CameraSettings.DoRgbMono:
             # monochrome frames are a special case of RGB: exposed with saturation=0, transmitted is R channel only
             array = array[0, :, :]
         # convert to FITS
