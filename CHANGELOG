@@ -1,3 +1,5 @@
+- fix crash when no cameras are connected
+
 2.9.0
 - implemented "RAW Mono" image format: a mono image is calculated from a Bayer pattern RAW image by summing up
   2x2 pixel without reducing image size --> result is a mono image with RAW image size and 2 bits more than the
