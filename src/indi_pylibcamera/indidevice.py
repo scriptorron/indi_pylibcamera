@@ -876,7 +876,7 @@ class indidevice:
         """
         self.knownVectors.checkout(name)
 
-    def setVector(self, name: str, element: str, value=None, state: IVectorState = None, send: bool = True):
+    def setVector(self, name: str, element: str, value=None, state: str = None, send: bool = True):
         """update vector value and/or state
 
         Args:
