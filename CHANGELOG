@@ -1,4 +1,5 @@
 - fix crash when no cameras are connected
+- implemented image cropping
 
 2.9.0
 - implemented "RAW Mono" image format: a mono image is calculated from a Bayer pattern RAW image by summing up

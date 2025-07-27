@@ -563,6 +563,14 @@ class CameraControl:
                     array = np.pad(array, pad_width=1, mode="constant", constant_values=0) >> 2
                 array = array[1:-1, 1:-1] + array[2:, 1:-1] + array[1:-1, 2:] + array[2:, 2:]
                 BayerPattern = None
+        # remove 0- or garbage-filled columns
+        true_size = self.present_CameraSettings.RawMode["true_size"]
+        array = array[0:true_size[1], 0:true_size[0]]
+        # crop
+        with self.parent.knownVectorsLock:
+            array = self.parent.knownVectors["CCD_FRAME"].crop(
+                array=array, arrayType="mono" if BayerPattern is None else "bayer"
+            )
         # left adjust if needed
         if bit_depth > 8:
             bit_pix = 16
@@ -570,9 +578,6 @@ class CameraControl:
         else:
             bit_pix = 8
             array *= 2 ** (bit_pix - bit_depth)
-        # remove 0- or garbage-filled columns
-        true_size = self.present_CameraSettings.RawMode["true_size"]
-        array = array[0:true_size[1], 0:true_size[0]]
         # convert to FITS
         hdu = fits.PrimaryHDU(array)
         # avoid access conflicts to knownVectors
@@ -683,6 +688,11 @@ class CameraControl:
         if self.present_CameraSettings.DoRgbMono:
             # monochrome frames are a special case of RGB: exposed with saturation=0, transmitted is R channel only
             array = array[0, :, :]
+        # crop
+        with self.parent.knownVectorsLock:
+            array = self.parent.knownVectors["CCD_FRAME"].crop(
+                array=array, arrayType="mono" if self.present_CameraSettings.DoRgbMono else "rgb"
+            )
         # convert to FITS
         hdu = fits.PrimaryHDU(array)
         # The image scaling in the ISP works like a software-binning.
@@ -837,6 +847,10 @@ class CameraControl:
             if self.picam2.started and IsRestartNeeded:
                 logger.info(f'stopping camera for deeper reconfiguration')
                 self.picam2.stop_()
+            # RawMode, Raw/Processed or processed frame size has changed: need to reset grop settings
+            if self.present_CameraSettings.is_ReconfigurationNeeded(NewCameraSettings):
+                with self.parent.knownVectorsLock:
+                    self.parent.knownVectors["CCD_FRAME"].reset()
             # change of DoFastExposure needs a configuration change
             if self.present_CameraSettings.is_ReconfigurationNeeded(NewCameraSettings) or self.needs_Restarts:
                 logger.info(f'reconfiguring camera')
