@@ -592,8 +592,12 @@ class FrameResetVector(ISwitchVector):
         # reset crop area
         self.parent.knownVectors["CCD_FRAME"].reset()
         # reset binning
-        self.parent.setVector("CCD_BINNING", "HOR_BIN", value=1, state=IVectorState.OK, send=False)
-        self.parent.setVector("CCD_BINNING", "VER_BIN", value=1, state=IVectorState.OK, send=True)
+        self.parent.knownVectors["CCD_BINNING"].set_byClient(
+            values = {
+                "HOR_BIN": 1,
+                "VER_BIN": 1
+            }
+        )
         # finished
         super().set_byClient(values=values)
 
@@ -624,7 +628,7 @@ class CropVector(INumberVector):
                 INumber(name="WIDTH", label="Width", min=1, max=self.defaultWidth, step=0, value=self.defaultWidth, format="%4.0f"),
                 INumber(name="HEIGHT", label="Height", min=1, max=self.defaultHeight, step=0, value=self.defaultHeight, format="%4.0f"),
             ],
-            label="Frame", group="Image Info",
+            label="Frame", group="Image Settings",
             perm=IPermission.RW, is_storable=True,
         )
 
@@ -639,10 +643,11 @@ class CropVector(INumberVector):
             width: array width
             height: array height
         """
-        self["X"] = x
-        self["Y"] = y
-        self["WIDTH"] = width
-        self["HEIGHT"] = height
+        #logger.error(f'DBG set: {x=}, {y=}, {width=}, {height=}')  # FIXME
+        self.__setitem__("X", x)
+        self.__setitem__("Y", y)
+        self.__setitem__("WIDTH", width)
+        self.__setitem__("HEIGHT", height)
         self.state = IVectorState.OK
         self.send_setVector()
 
@@ -652,50 +657,60 @@ class CropVector(INumberVector):
         self.set(x=0, y=0, width=self.defaultWidth, height=self.defaultHeight)
 
     def adjust_OriginAndSize(self, x, y, width, height, array_x, array_y):
-        width = min(width, array_x)
-        height = min(height, array_y)
-        x = min(x, array_x - width)
-        y = min(y, array_y - height)
-        return x, y, width, height
+        width_adj = min(width, array_x)
+        height_adj = min(height, array_y)
+        x_adj = min(x, array_x - width_adj)
+        y_adj = min(y, array_y - height_adj)
+        return x_adj, y_adj, width_adj, height_adj
 
     def crop(self, array, arrayType):
         """crop image array
-        This does not concider binning!
+        This does not consider binning!
+        ATTENTION: array shape is (height, width) or (color, height, width)!
 
         Args:
             array: image data
             arrayType: type of image data: "mono", "bayer" or "rgb"
         """
-        x = self["X"].value
-        y = self["Y"].value
-        width = self["WIDTH"].value
-        height = self["HEIGHT"].value
+        x = int(self.__getitem__("X").value)
+        y = int(self.__getitem__("Y").value)
+        width = int(self.__getitem__("WIDTH").value)
+        height = int(self.__getitem__("HEIGHT").value)
         if arrayType == "bayer":
             x_adj, y_adj, width_adj, height_adj = self.adjust_OriginAndSize(
                 (x // 2) * 2, (y // 2) * 2, # round down to full bayer pattern
                 ((width + 1) // 2) * 2, ((height + 1) // 2) * 2,  # round up to full bayer pattern
-                array.shape[0], array.shape[1]
+                array.shape[1], array.shape[0]
             )
-            array = array[x_adj:x_adj + width_adj, y_adj:y_adj + height_adj]
+            #logger.error(f'DBG crop: {x=}, {y=}, {width=}, {height=}, {array.shape=}, {arrayType=}')  # FIXME
+            #logger.error(f'DBG crop: {x_adj=}, {y_adj=}, {width_adj=}, {height_adj=}')
+            #logger.error(f'DBG crop: {type(x_adj)=}, {type(y_adj)=}, {type(width_adj)=}, {type(height_adj)=}')
+            array = array[y_adj:y_adj + height_adj, x_adj:x_adj + width_adj]
         elif arrayType == "mono":
             x_adj, y_adj, width_adj, height_adj = self.adjust_OriginAndSize(
                 x, y,
                 width, height,
-                array.shape[0], array.shape[1]
+                array.shape[1], array.shape[0]
             )
-            array = array[x_adj:x_adj + width_adj, y_adj:y_adj + height_adj]
+            #logger.error(f'DBG crop: {x=}, {y=}, {width=}, {height=}, {array.shape=}, {arrayType=}')  # FIXME
+            #logger.error(f'DBG crop: {x_adj=}, {y_adj=}, {width_adj=}, {height_adj=}')
+            #logger.error(f'DBG crop: {type(x_adj)=}, {type(y_adj)=}, {type(width_adj)=}, {type(height_adj)=}')
+            array = array[y_adj:y_adj + height_adj, x_adj:x_adj + width_adj]
         elif arrayType == "rgb":
             x_adj, y_adj, width_adj, height_adj = self.adjust_OriginAndSize(
                 x, y,
                 width, height,
-                array.shape[1], array.shape[2]
+                array.shape[2], array.shape[1]
             )
-            array = array[:, x_adj:x_adj + width_adj, y_adj:y_adj + height_adj]
+            #logger.error(f'DBG crop: {x=}, {y=}, {width=}, {height=}, {array.shape=}, {arrayType=}')  # FIXME
+            #logger.error(f'DBG crop: {x_adj=}, {y_adj=}, {width_adj=}, {height_adj=}')
+            #logger.error(f'DBG crop: {type(x_adj)=}, {type(y_adj)=}, {type(width_adj)=}, {type(height_adj)=}')
+            array = array[:, y_adj:y_adj + height_adj, x_adj:x_adj + width_adj]
         else:
             raise NotImplementedError
         if (x_adj != x) or (y_adj != y) or (width_adj != width) or (height_adj != height):
             # tell client about the adjusted settings
-            self.set(x_adj, y_adj, width_adj, height_adj)
+            self.set(x=x_adj, y=y_adj, width=width_adj, height=height_adj)
         return array
 
 
