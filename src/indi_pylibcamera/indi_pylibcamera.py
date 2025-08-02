@@ -567,6 +567,153 @@ class UploadModeVector(ISwitchVector):
                 self.parent.CameraVectorNames.remove("CCD_FILE_PATH")
 
 
+class FrameResetVector(ISwitchVector):
+    """INDI Switch vector to reset frame crop area and binning
+    """
+
+    def __init__(self, parent):
+        self.parent=parent
+        super().__init__(
+            device=self.parent.device, timestamp=self.parent.timestamp, name="CCD_FRAME_RESET",
+            elements=[
+                ISwitch(name="RESET", label="Reset", value=ISwitchState.OFF),
+            ],
+            label="Frame Values", group="Image Settings",
+            rule=ISwitchRule.ONEOFMANY, perm=IPermission.WO, is_storable=False,
+        )
+
+    def set_byClient(self, values: dict):
+        """called when vector gets set by client
+        special version for reseting crop area and binning
+
+        Args:
+            values: dict(propertyName: value) of values to set
+        """
+        # reset crop area
+        self.parent.knownVectors["CCD_FRAME"].reset()
+        # reset binning
+        self.parent.knownVectors["CCD_BINNING"].set_byClient(
+            values = {
+                "HOR_BIN": 1,
+                "VER_BIN": 1
+            }
+        )
+        # finished
+        super().set_byClient(values=values)
+
+
+class CropVector(INumberVector):
+    """INDI Number vector for cropping setting
+
+    Behavior of `indi_simulator_ccd`:
+    * Crop settings (origin and size) are based on the physical (unbinned) sensor size:
+      width=600 and x-binning=2 leads to an image with x-dimension=300 (This makes implementation in driver and client difficult!)
+    * step sizes for origin and size are 20%
+    * size has higher priority than origin (if origin and size are set to a region out of the sensor area than origin gets adjusted)
+    * adjusted settings are not reported back to the client
+    * size setting allows fractional bayer pattern
+    * origin setting allows fractional bayer pattern but does not adjust BAYERPAT and XBAYROFF/YBAYROFF (Is that a bug?)
+    * `CCD_FRAME_RESET` switch vector resets binning and grop settings
+    """
+    def __init__(self, parent, maxWidth, maxHeight):
+        self.parent = parent
+        self.defaultWidth = maxWidth
+        self.defaultHeight = maxHeight
+        super().__init__(
+            device=self.parent.device, timestamp=self.parent.timestamp, name="CCD_FRAME",
+            elements=[
+                # ATTENTION: max must be >0
+                INumber(name="X", label="Left", min=0, max=self.defaultWidth, step=0, value=0, format="%4.0f"),
+                INumber(name="Y", label="Top", min=0, max=self.defaultHeight, step=0, value=0, format="%4.0f"),
+                INumber(name="WIDTH", label="Width", min=1, max=self.defaultWidth, step=0, value=self.defaultWidth, format="%4.0f"),
+                INumber(name="HEIGHT", label="Height", min=1, max=self.defaultHeight, step=0, value=self.defaultHeight, format="%4.0f"),
+            ],
+            label="Frame", group="Image Settings",
+            perm=IPermission.RW, is_storable=True,
+        )
+
+    def set(self, x, y, width, height):
+        """set crop area
+        Arguments must fit to physical sensor array size and bayer pattern granularity.
+        Arguments are NOT checked!
+
+        Args:
+            x: origin X position
+            y: origin Y position
+            width: array width
+            height: array height
+        """
+        #logger.error(f'DBG set: {x=}, {y=}, {width=}, {height=}')  # FIXME
+        self.__setitem__("X", x)
+        self.__setitem__("Y", y)
+        self.__setitem__("WIDTH", width)
+        self.__setitem__("HEIGHT", height)
+        self.state = IVectorState.OK
+        self.send_setVector()
+
+    def reset(self):
+        """reset crop area
+        """
+        self.set(x=0, y=0, width=self.defaultWidth, height=self.defaultHeight)
+
+    def adjust_OriginAndSize(self, x, y, width, height, array_x, array_y):
+        width_adj = min(width, array_x)
+        height_adj = min(height, array_y)
+        x_adj = min(x, array_x - width_adj)
+        y_adj = min(y, array_y - height_adj)
+        return x_adj, y_adj, width_adj, height_adj
+
+    def crop(self, array, arrayType):
+        """crop image array
+        This does not consider binning!
+        ATTENTION: array shape is (height, width) or (color, height, width)!
+
+        Args:
+            array: image data
+            arrayType: type of image data: "mono", "bayer" or "rgb"
+        """
+        x = int(self.__getitem__("X").value)
+        y = int(self.__getitem__("Y").value)
+        width = int(self.__getitem__("WIDTH").value)
+        height = int(self.__getitem__("HEIGHT").value)
+        if arrayType == "bayer":
+            x_adj, y_adj, width_adj, height_adj = self.adjust_OriginAndSize(
+                (x // 2) * 2, (y // 2) * 2, # round down to full bayer pattern
+                ((width + 1) // 2) * 2, ((height + 1) // 2) * 2,  # round up to full bayer pattern
+                array.shape[1], array.shape[0]
+            )
+            #logger.error(f'DBG crop: {x=}, {y=}, {width=}, {height=}, {array.shape=}, {arrayType=}')  # FIXME
+            #logger.error(f'DBG crop: {x_adj=}, {y_adj=}, {width_adj=}, {height_adj=}')
+            #logger.error(f'DBG crop: {type(x_adj)=}, {type(y_adj)=}, {type(width_adj)=}, {type(height_adj)=}')
+            array = array[y_adj:y_adj + height_adj, x_adj:x_adj + width_adj]
+        elif arrayType == "mono":
+            x_adj, y_adj, width_adj, height_adj = self.adjust_OriginAndSize(
+                x, y,
+                width, height,
+                array.shape[1], array.shape[0]
+            )
+            #logger.error(f'DBG crop: {x=}, {y=}, {width=}, {height=}, {array.shape=}, {arrayType=}')  # FIXME
+            #logger.error(f'DBG crop: {x_adj=}, {y_adj=}, {width_adj=}, {height_adj=}')
+            #logger.error(f'DBG crop: {type(x_adj)=}, {type(y_adj)=}, {type(width_adj)=}, {type(height_adj)=}')
+            array = array[y_adj:y_adj + height_adj, x_adj:x_adj + width_adj]
+        elif arrayType == "rgb":
+            x_adj, y_adj, width_adj, height_adj = self.adjust_OriginAndSize(
+                x, y,
+                width, height,
+                array.shape[2], array.shape[1]
+            )
+            #logger.error(f'DBG crop: {x=}, {y=}, {width=}, {height=}, {array.shape=}, {arrayType=}')  # FIXME
+            #logger.error(f'DBG crop: {x_adj=}, {y_adj=}, {width_adj=}, {height_adj=}')
+            #logger.error(f'DBG crop: {type(x_adj)=}, {type(y_adj)=}, {type(width_adj)=}, {type(height_adj)=}')
+            array = array[:, y_adj:y_adj + height_adj, x_adj:x_adj + width_adj]
+        else:
+            raise NotImplementedError
+        if (x_adj != x) or (y_adj != y) or (width_adj != width) or (height_adj != height):
+            # tell client about the adjusted settings
+            self.set(x=x_adj, y=y_adj, width=width_adj, height=height_adj)
+        return array
+
+
 def kill_oldDriver(driver_instance):
     """test if another instance of driver is already running and kill it
 
@@ -864,36 +1011,14 @@ class indi_pylibcamera(indidevice):
         self.CameraVectorNames.append("CCD_ABORT_EXPOSURE")
         # CCD_FRAME defines a cropping area in the frame.
         self.checkin(
-            INumberVector(
-                device=self.device, timestamp=self.timestamp, name="CCD_FRAME",
-                elements=[
-                    # ATTENTION: max must be >0
-                    INumber(name="X", label="Left", min=0, max=self.CameraThread.getProp("PixelArraySize")[0], step=0, value=0, format="%4.0f"),
-                    INumber(name="Y", label="Top", min=0, max=self.CameraThread.getProp("PixelArraySize")[1], step=0, value=0, format="%4.0f"),
-                    INumber(name="WIDTH", label="Width", min=1, max=self.CameraThread.getProp("PixelArraySize")[0],
-                            step=0, value=self.CameraThread.getProp("PixelArraySize")[0], format="%4.0f"),
-                    INumber(name="HEIGHT", label="Height", min=1, max=self.CameraThread.getProp("PixelArraySize")[1],
-                            step=0, value=self.CameraThread.getProp("PixelArraySize")[1], format="%4.0f"),
-                ],
-                label="Frame", group="Image Info",
-                perm=IPermission.RO, is_storable=False,  # TODO: make it available after implementing frame cropping
+            CropVector(
+                parent=self,
+                maxWidth=self.CameraThread.getProp("PixelArraySize")[0],
+                maxHeight=self.CameraThread.getProp("PixelArraySize")[1]
             ),
             send_defVector=True,
         )
         self.CameraVectorNames.append("CCD_FRAME")
-        # TODO: implement functionality
-        self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, name="CCD_FRAME_RESET",
-                elements=[
-                    ISwitch(name="RESET", label="Reset", value=ISwitchState.OFF),
-                ],
-                label="Frame Values", group="Image Settings",
-                rule=ISwitchRule.ONEOFMANY, perm=IPermission.WO, is_storable=False,
-            ),
-            send_defVector=True,
-        )
-        self.CameraVectorNames.append("CCD_FRAME_RESET")
         #
         self.checkin(
             BinningVector(
@@ -904,6 +1029,12 @@ class indi_pylibcamera(indidevice):
             send_defVector=True,
         )
         self.CameraVectorNames.append("CCD_BINNING")
+        # button to reset grop area and binning
+        self.checkin(
+            FrameResetVector(parent=self),
+            send_defVector=True,
+        )
+        self.CameraVectorNames.append("CCD_FRAME_RESET")
         #
         self.checkin(
             FitsHeaderVector(parent=self,),
@@ -1402,7 +1533,6 @@ class indi_pylibcamera(indidevice):
                 ),
             )
             self.CameraVectorNames.append("CAMCTRL_SHARPNESS")
-
 
     def startExposure(self, exposuretime):
         """start single or fast exposure
