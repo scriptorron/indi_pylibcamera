@@ -594,6 +594,7 @@ class CameraControl:
                 "IMAGETYP": (FrameType+" Frame", "Frame Type"),
                 **self.snooped_FitsHeader(binnedCellSize_nm = self.getProp("UnitCellSize")[0] * self.present_CameraSettings.Binning[0]),
                 "GAIN": (metadata.get("AnalogueGain", 0.0), "Gain"),
+                "DGAIN": (metadata.get("DigitalGain", 0.0), "Digital Gain"),
             }
             if self.config.getboolean("driver", "extended_Metadata", fallback=False):
                 # This is very detailed information about the camera binning. But some plate solver ignore this and get
@@ -720,6 +721,7 @@ class CameraControl:
                 **self.snooped_FitsHeader(binnedCellSize_nm = self.getProp("UnitCellSize")[0] * SoftwareBinning),
                 # more info from camera
                 "GAIN": (metadata.get("AnalogueGain", 0.0), "Analog gain setting"),
+                "DGAIN": (metadata.get("DigitalGain", 0.0), "Digital Gain"),
             }
             if self.config.getboolean("driver", "extended_Metadata", fallback=False):
                 # This is very detailed information about the camera binning. But some plate solver ignore this and get

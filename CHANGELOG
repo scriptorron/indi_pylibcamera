@@ -2,6 +2,7 @@
 - implemented image cropping (experimental, may not work for binning > 1)
 - replaced vector "TELESCOPE_INFO" by "SCOPE_INFO" and removed "CAMERA_LENS" to become compatible with new INDI protocol
   (fixes snooping of telescope aperture and focal length)
+- additional entry in FITS header: digital gain DGAIN
 
 2.9.0
 - implemented "RAW Mono" image format: a mono image is calculated from a Bayer pattern RAW image by summing up
