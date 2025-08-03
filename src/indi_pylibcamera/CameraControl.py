@@ -444,19 +444,15 @@ class CameraControl:
         """
         FitsHeader = {}
         #### FOCALLEN, APTDIA ####
-        if self.parent.knownVectors["CAMERA_LENS"]["PRIMARY_LENS"].value == ISwitchState.ON:
-            Aperture = self.parent.knownVectors["TELESCOPE_INFO"]["TELESCOPE_APERTURE"].value
-            FocalLength = self.parent.knownVectors["TELESCOPE_INFO"]["TELESCOPE_FOCAL_LENGTH"].value
-        else:
-            Aperture = self.parent.knownVectors["TELESCOPE_INFO"]["GUIDER_APERTURE"].value
-            FocalLength = self.parent.knownVectors["TELESCOPE_INFO"]["GUIDER_FOCAL_LENGTH"].value
+        Aperture = self.parent.knownVectors["SCOPE_INFO"]["APERTURE"].value
+        FocalLength = self.parent.knownVectors["SCOPE_INFO"]["FOCAL_LENGTH"].value
         FitsHeader.update({
             "FOCALLEN": (FocalLength, "[mm] Focal Length"),
             "APTDIA": (Aperture, "[mm] Telescope aperture/diameter")
         })
         #### SCALE ####
         if self.config.getboolean("driver", "extended_Metadata", fallback=False):
-            # some telescope driver do not provide TELESCOPE_FOCAL_LENGTH and some capture software overwrite
+            # some telescope driver do not provide FOCAL_LENGTH and some capture software overwrite
             # FOCALLEN without recalculating SCALE --> trouble with plate solver
             if FocalLength > 0:
                 FitsHeader["SCALE"] = (

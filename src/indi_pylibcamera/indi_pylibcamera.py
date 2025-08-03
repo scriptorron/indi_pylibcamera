@@ -358,7 +358,7 @@ class SnoopingVector(ITextVector):
                                 "EQUATORIAL_EOD_COORD",
                                 "EQUATORIAL_COORD",
                                 "TELESCOPE_PIER_SIDE",
-                                "TELESCOPE_INFO",
+                                "SCOPE_INFO",
                             ]
                         )
 
@@ -886,27 +886,14 @@ class indi_pylibcamera(indidevice):
         )
         self.checkin(
             INumberVector(
-                device=self.device, timestamp=self.timestamp, name="TELESCOPE_INFO",
+                device=self.device, timestamp=self.timestamp, name="SCOPE_INFO",
                 elements=[
-                    INumber(name="TELESCOPE_APERTURE", label="Aperture (mm)", min=10, max=5000, step=0, value=0, format="%g"),
-                    INumber(name="TELESCOPE_FOCAL_LENGTH", label="Focal Length (mm)", min=10, max=10000, step=0, value=0, format="%g"),
-                    INumber(name="GUIDER_APERTURE", label="Guider Aperture (mm)", min=10, max=5000, step=0, value=0, format="%g"),
-                    INumber(name="GUIDER_FOCAL_LENGTH", label="Guider Focal Length (mm)", min=10, max=10000, step=0, value=0, format="%g"),
+                    INumber(name="FOCAL_LENGTH", label="Focal Length (mm)", min=0, max=10000, step=1, value=0, format="%g"),
+                    INumber(name="APERTURE", label="Aperture (mm)", min=0, max=3000, step=1, value=0, format="%g"),
                 ],
-                label="Scope Properties", group="Snooping",
+                label="Scope", group="Snooping",
                 perm=IPermission.RW,
             ),
-        )
-        self.checkin(
-            ISwitchVector(
-                device=self.device, timestamp=self.timestamp, name="CAMERA_LENS",
-                elements=[
-                    ISwitch(name="PRIMARY_LENS", value=ISwitchState.ON, label="Primary"),
-                    ISwitch(name="GUIDER_LENS", value=ISwitchState.OFF, label="Guide"),
-                ],
-                label="Camera lens", group="Snooping",
-                rule=ISwitchRule.ONEOFMANY,
-            )
         )
         self.checkin(
             DoSnoopingVector(parent=self, ),
