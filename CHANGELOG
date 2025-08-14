@@ -1,3 +1,5 @@
+- fixed README: changed 'libcamera' to 'rpicam'
+
 3.0.0
 - implemented image cropping (experimental, may not work for binning > 1)
 - replaced vector "TELESCOPE_INFO" by "SCOPE_INFO" and removed "CAMERA_LENS" to become compatible with new INDI protocol

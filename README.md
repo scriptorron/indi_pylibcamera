@@ -24,17 +24,17 @@ The `indi_pylibcamera` is one layer in a stack of software:
                         --> kernel driver
 ```
 It can not work when the versions of `libcamera` and `picamera2` are too old (both are in a dynamic development).
-And it can not work when the libcamera-tools (like `libcamera-hello` and `libcamera-still`) have issues with your
+And it can not work when the rpicam-tools (like `rpicam-hello` and `rpicam-still`) have issues with your
 camera.
 
 ## Requirements and installation
 Some packages need to be installed with `apt`:
-- `libcamera` and `libcamera-apps` (if not already installed). You can test libcamera and the support
+- `libcamera` and `rpicam-apps` (if not already installed). You can test libcamera and the support
 for your camera with: 
   ```commandline
-  libcamera-hello --list-cameras
+  rpicam-hello --list-cameras
   ```
-  You must be able to make RAW pictures in all modes. For instance `libcamera-hello` shows for the HQ camera:
+  You must be able to make RAW pictures in all modes. For instance `rpicam-hello` shows for the HQ camera:
   ```
   0 : imx477 [4056x3040] (/base/soc/i2c0mux/i2c@1/imx477@1a)
     Modes: 'SRGGB10_CSI2P' : 1332x990 [120.05 fps - (696, 528)/2664x1980 crop]
@@ -44,10 +44,10 @@ for your camera with:
   ```
   and you must be able to run these commands without errors:
   ```commandline
-  libcamera-still -r --mode 1332:990 --shutter 100000 --gain 1 --awbgains 1,1 --immediate -o test.jpg
-  libcamera-still -r --mode 2028:1080 --shutter 100000 --gain 1 --awbgains 1,1 --immediate -o test.jpg
-  libcamera-still -r --mode 2028:1520 --shutter 100000 --gain 1 --awbgains 1,1 --immediate -o test.jpg
-  libcamera-still -r --mode 4056:3040 --shutter 100000 --gain 1 --awbgains 1,1 --immediate -o test.jpg
+  rpicam-still -r --mode 1332:990 --shutter 100000 --gain 1 --awbgains 1,1 --immediate -o test.jpg
+  rpicam-still -r --mode 2028:1080 --shutter 100000 --gain 1 --awbgains 1,1 --immediate -o test.jpg
+  rpicam-still -r --mode 2028:1520 --shutter 100000 --gain 1 --awbgains 1,1 --immediate -o test.jpg
+  rpicam-still -r --mode 4056:3040 --shutter 100000 --gain 1 --awbgains 1,1 --immediate -o test.jpg
   ```
   Something with your libcamera or kernel driver installation will be wrong if this does not work.
 - Install INDI core library. If there is no pre-compiled package for your hardware you will need to compile it
@@ -57,7 +57,7 @@ The scripts on https://gitea.nouspiro.space/nou/astro-soft-build automate compil
 Finally, after installation, you should to have a working INDI server: `indiserver -v indi_simulator_telescope`
 - Some Python packages require matching versions of system libraries. They must be installed with `apt`:
 ```commandline
-sudo apt install python3-pip libcamera-apps python3-picamera2 python3-lxml python3-astropy python3-numpy python3-venv
+sudo apt install python3-pip rpicam-apps python3-picamera2 python3-lxml python3-astropy python3-numpy python3-venv
 ```
 
 The Raspberry Pi OS "Bullseye" still allowed to install system wide with `sudo pip install indi_pylibcamera`. 
@@ -273,7 +273,7 @@ There are many cameras you can connect to a Raspberry Pi. We can not test the dr
 to support. For that we will need more information about your camera. Please run:
 
 ```commandline
-libcamera-hello --list-cameras
+rpicam-hello --list-cameras
 
 indi_pylibcamera_print_camera_information > MyCam.txt
 ```
@@ -300,16 +300,16 @@ apt list --installed | grep libcamera
 
 apt list --installed | grep picamera
 
-libcamera-hello --list-cameras
+rpicam-hello --list-cameras
 
 indi_pylibcamera_print_camera_information
 ```
 
 and send the outputs in your issue report.
 
-Please also try to get raw images with `libcamera-still`:
+Please also try to get raw images with `rpicam-still`:
 ```commandline
-libcamera-still -r -o test.jpg --shutter 1000000 --gain 1 --awbgains 1,1 --immediate
+rpicam-still -r -o test.jpg --shutter 1000000 --gain 1 --awbgains 1,1 --immediate
 ```
 
 ## Snooping
