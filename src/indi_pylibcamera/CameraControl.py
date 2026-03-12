@@ -840,7 +840,9 @@ class CameraControl:
                     advertised_camera_controls=self.camera_controls,
                     has_RawModes=has_RawModes,
                 )
-            logger.info(f'exposure settings: {NewCameraSettings}')
+            # ATTENTION: The following message may be too long or contain bad characters.
+            #            It can make the server or client crash! This happens at least with Indigo.
+            #logger.info(f'exposure settings: {NewCameraSettings}')
             # need a camera stop/start when something has changed on exposure controls
             IsRestartNeeded = self.present_CameraSettings.is_RestartNeeded(NewCameraSettings) or self.needs_Restarts
             if self.picam2.started and IsRestartNeeded:
