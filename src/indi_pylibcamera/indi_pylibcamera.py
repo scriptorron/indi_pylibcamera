@@ -1094,7 +1094,7 @@ class indi_pylibcamera(indidevice):
                     IBlob(name="CCD1", label="Image"),
                 ],
                 label="Image Data", group="Image Info",
-                state=IVectorState.OK, perm=IPermission.RO, is_storable=False,
+                state=IVectorState.IDLE, perm=IPermission.RO, is_storable=False,
             ),
             send_defVector=True,
         )
