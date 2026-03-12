@@ -832,7 +832,7 @@ class indidevice:
             device = xml.attrib.get('device', None)
             if xml.tag == "getProperties":
                 self.on_getProperties(device)
-            elif (device is None) or (device == self.device):
+            elif (device is None) or (device == "") or (device == self.device):
                 if xml.tag in ["newNumberVector", "newTextVector", "newSwitchVector"]:
                     vectorName = xml.attrib["name"]
                     values = {ele.attrib["name"]: (ele.text.strip() if type(ele.text) is str else "") for ele in xml}
