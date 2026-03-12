@@ -723,6 +723,7 @@ def kill_oldDriver(driver_instance):
     my_PID = os.getpid()
     print(f'my PID: {my_PID}', file=sys.stderr)
     my_fileNames = [
+        "indi_pylibcamera" + driver_instance,
         "indi_pylibcamera" + driver_instance + ".sh",
         "indi_pylibcamera" + driver_instance + ".py",
     ]
@@ -732,7 +733,7 @@ def kill_oldDriver(driver_instance):
     for processInfo in ps_ax:
         if "python" in processInfo:
             for my_fileName in my_fileNames:
-                if my_fileName in processInfo:
+                if processInfo.endswith(my_fileName):
                     PID = int(processInfo.strip().split(" ", maxsplit=1)[0])
                     if PID != my_PID:
                         print(f'found old driver with PID {PID} ({processInfo})', file=sys.stderr)
