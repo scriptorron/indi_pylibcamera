@@ -198,8 +198,8 @@ def getLocalFileName(dir: str = ".", prefix: str = "Image_XXX", suffix: str = ".
     prefix_now = prefix.replace("_ISO8601", f"_{now}")
     # find largest existing image index
     maxidx = 0
-    patternstring = prefix_now.replace("_XXX", "_(?P<Idx>\d{3})", 1) + suffix
-    patternstring = patternstring.replace(".", "\.")
+    patternstring = prefix_now.replace("_XXX", r"_(?P<Idx>\d{3})", 1) + suffix
+    patternstring = patternstring.replace(".", r"\.")
     pattern = re.compile(patternstring)
     for fn in os.listdir(dir):
         match = pattern.fullmatch(fn)
