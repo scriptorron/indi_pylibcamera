@@ -305,6 +305,15 @@ class BinningVector(INumberVector):
             # allowed binning depends on CCD_CAPTURE_FORMAT (raw or processed) and raw mode
             bestRawIdx = 1
             if self.parent.knownVectors["CCD_CAPTURE_FORMAT"].get_OnSwitches()[0] in ["INDI_RAW", "RAW_MONO"]:
+                # HOR_BIN and VER_BIN must be equal. But some clients (for instance Indigo Ain Imager) set HOR_BIN and
+                # VER_BIN to new values one after the other. This leads to an intermetiate setting which is not allowed.
+                # Here we try to find out what the client intents to do.
+                if ((float(values["HOR_BIN"]) == self["HOR_BIN"].value) and (float(values["VER_BIN"]) != self["VER_BIN"].value)):
+                    # client changed VER_BIN to new value and will change HOR_BIN next
+                    values["HOR_BIN"] = values["VER_BIN"]
+                elif ((float(values["VER_BIN"]) == self["VER_BIN"].value) and (float(values["HOR_BIN"]) != self["HOR_BIN"].value)):
+                    # client changed HOR_BIN to new value and will change VER_BIN next
+                    values["VER_BIN"] = values["HOR_BIN"]
                 # select best matching frame type
                 bestError = 1000000
                 for binning, RawIdx in self.RawBinningModes.items():
