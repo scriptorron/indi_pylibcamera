@@ -1057,8 +1057,8 @@ class indi_pylibcamera(indidevice):
                     INumber(name="CCD_PIXEL_SIZE_Y", label="Pixel size Y", min=0, max=1000, step=0,
                             value=self.CameraThread.getProp("UnitCellSize")[1] / 1e3, format="%.2f"),
                     INumber(name="CCD_BITSPERPIXEL", label="Bits per pixel", min=0, max=1000, step=0,
-                            # using value of first raw mode or 8 if no raw mode available, TODO: is that right?
-                            value=8 if len(self.CameraThread.RawModes) < 1 else self.CameraThread.RawModes[0]["bit_depth"], format="%.f"),
+                            # 16 or 8 if no raw mode available, TODO: is that right?
+                            value=8 if len(self.CameraThread.RawModes) < 1 else 16, format="%.f"),
                 ],
                 label="CCD Information", group="Image Info",
                 state=IVectorState.IDLE, perm=IPermission.RO, is_storable=False,
