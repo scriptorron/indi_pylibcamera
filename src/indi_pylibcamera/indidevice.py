@@ -609,6 +609,11 @@ class IBlob(IProperty):
         xml = f'<defBLOB name="{self.name}" label="{self.label}"/>'
         return xml
 
+    def enableBLOB(self, en: str):
+        """enable BLOB transmission
+        """
+        self.enabled = en
+
     def get_oneProperty(self) -> str:
         """return XML for oneBLOB message
         """
@@ -643,6 +648,12 @@ class IBlobVector(IVector):
         """
         # logger.debug(f'send_setVector: {self.get_setVector()[:100]}')  # this takes too long!
         to_server(self.get_setVector())
+
+    def enableBLOB(self, en: str):
+        """enable BLOB transmission
+        """
+        for element in self.elements:
+            element.enableBLOB(en)
 
 
 class IVectorList:
@@ -832,7 +843,7 @@ class indidevice:
             device = xml.attrib.get('device', None)
             if xml.tag == "getProperties":
                 self.on_getProperties(device)
-            elif (device is None) or (device == self.device):
+            elif (device is None) or (device == "") or (device == self.device):
                 if xml.tag in ["newNumberVector", "newTextVector", "newSwitchVector"]:
                     vectorName = xml.attrib["name"]
                     values = {ele.attrib["name"]: (ele.text.strip() if type(ele.text) is str else "") for ele in xml}
@@ -844,6 +855,19 @@ class indidevice:
                         logger.debug(f"calling {vector} set_byClient")
                         with self.knownVectorsLock:
                             vector.set_byClient(values)
+                elif xml.tag in ["enableBLOB"]:
+                    vectorName = xml.attrib["name"]
+                    try:
+                        vector = self.knownVectors[vectorName]
+                    except ValueError as e:
+                        logger.error(f'unknown vector name {vectorName}')
+                    else:
+                        if isinstance(vector, IBlobVector):
+                            logger.debug(f'enableBLOB {xml.text.strip()} for vector {vectorName}')
+                            with self.knownVectorsLock:
+                                vector.enableBLOB(xml.text.strip())
+                        else:
+                            logger.error(f'requested enableBLOB for vector name {vectorName} which is not a BLOB vector')
                 else:
                     logger.error(
                         f'could not interpret client request: {etree.tostring(xml, pretty_print=True).decode()}')

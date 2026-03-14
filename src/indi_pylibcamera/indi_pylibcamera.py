@@ -305,6 +305,15 @@ class BinningVector(INumberVector):
             # allowed binning depends on CCD_CAPTURE_FORMAT (raw or processed) and raw mode
             bestRawIdx = 1
             if self.parent.knownVectors["CCD_CAPTURE_FORMAT"].get_OnSwitches()[0] in ["INDI_RAW", "RAW_MONO"]:
+                # HOR_BIN and VER_BIN must be equal. But some clients (for instance Indigo Ain Imager) set HOR_BIN and
+                # VER_BIN to new values one after the other. This leads to an intermetiate setting which is not allowed.
+                # Here we try to find out what the client intents to do.
+                if ((float(values["HOR_BIN"]) == self["HOR_BIN"].value) and (float(values["VER_BIN"]) != self["VER_BIN"].value)):
+                    # client changed VER_BIN to new value and will change HOR_BIN next
+                    values["HOR_BIN"] = values["VER_BIN"]
+                elif ((float(values["VER_BIN"]) == self["VER_BIN"].value) and (float(values["HOR_BIN"]) != self["HOR_BIN"].value)):
+                    # client changed HOR_BIN to new value and will change VER_BIN next
+                    values["VER_BIN"] = values["HOR_BIN"]
                 # select best matching frame type
                 bestError = 1000000
                 for binning, RawIdx in self.RawBinningModes.items():
@@ -723,6 +732,7 @@ def kill_oldDriver(driver_instance):
     my_PID = os.getpid()
     print(f'my PID: {my_PID}', file=sys.stderr)
     my_fileNames = [
+        "indi_pylibcamera" + driver_instance,
         "indi_pylibcamera" + driver_instance + ".sh",
         "indi_pylibcamera" + driver_instance + ".py",
     ]
@@ -732,7 +742,7 @@ def kill_oldDriver(driver_instance):
     for processInfo in ps_ax:
         if "python" in processInfo:
             for my_fileName in my_fileNames:
-                if my_fileName in processInfo:
+                if processInfo.endswith(my_fileName):
                     PID = int(processInfo.strip().split(" ", maxsplit=1)[0])
                     if PID != my_PID:
                         print(f'found old driver with PID {PID} ({processInfo})', file=sys.stderr)
@@ -1093,7 +1103,7 @@ class indi_pylibcamera(indidevice):
                     IBlob(name="CCD1", label="Image"),
                 ],
                 label="Image Data", group="Image Info",
-                state=IVectorState.OK, perm=IPermission.RO, is_storable=False,
+                state=IVectorState.IDLE, perm=IPermission.RO, is_storable=False,
             ),
             send_defVector=True,
         )
