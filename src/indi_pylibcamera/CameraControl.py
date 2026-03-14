@@ -322,6 +322,8 @@ class CameraControl:
                     elif size == (2028, 1520):
                         true_size = (2024, 1520)
                         binning = (2, 2)
+                    elif size == (4056, 2160):
+                        true_size = (4056, 2160)
                     elif size == (4056, 3040):
                         true_size = (4056, 3040)
                     else:
