@@ -1,3 +1,16 @@
+3.2.0
+- supporting new camera raw modes in Raspberry PI OS Trixie
+- fixed driver registration in KStars/EKOS
+- allowing empty device name for general requests
+- improved searching of old driver instance
+- CCD1 BLOB vector starts now with state IDLE (same as indi_simulator_ccd is doing)
+- fixed regular expression for local file name
+- disabled critical message which crashes Indigo
+- implemented enableBLOB
+- new strategy for setting binning (for clients which set HOR_BIN and VER_BIN not at the same time)
+- for raw images reporting CCD_BITSPERPIXEL=16 for correct saturation detection in some clients
+- compatibility with Indigo
+
 3.1.0
 - fixed README: changed 'libcamera' to 'rpicam'
 - using now new "FrameWallClock" key in the frame metadata dictionary to set "DATE-END"

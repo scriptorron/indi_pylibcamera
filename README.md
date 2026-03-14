@@ -1,18 +1,19 @@
 # indi_pylibcamera
-This project implements a Raspberry Pi camera driver for INDI (https://indilib.org/). 
+This project implements a Raspberry PI camera driver for INDI (https://indilib.org/) and 
+Indigo (https://www.indigo-astronomy.org/). 
 
-Raspberry Pi cameras allow the amateur astronomer to make astonishing pictures with small budget. Especially the
-Raspberry Pi HQ camera can compete with expensive astro cameras.
+Raspberry PI cameras allow the amateur astronomer to make astonishing pictures with small budget. Especially the
+Raspberry PI HQ camera can compete with expensive astro cameras.
 
 The driver is based on the new camera framework "libcamera" (https://github.com/raspberrypi/libcamera) which is
-already part of many Raspberry Pi operating systems. The driver can run on a Raspberry Pi Zero with
-HQ camera connected. But a more capable Raspberry Pi is recommended. 
+already part of many Raspberry PI operating systems. The driver can run on a Raspberry PI Zero with
+HQ camera connected. But a more capable Raspberry PI is recommended. 
 
 The `indi_pylibcamera` may support all cameras supported by "libcamera". But not all cameras will provide image data
 in the required formats (raw Bayer or at least RGB). So it is not guaranteed that the driver will work with all
-cameras you can connect to a Raspberry Pi.
+cameras you can connect to a Raspberry PI.
 
-Since version 2.8 the driver supports more than one camera connected to the Pi.
+Since version 2.8 the driver supports more than one camera connected to the PI.
 
 The `indi_pylibcamera` is one layer in a stack of software:
 ```
@@ -22,10 +23,18 @@ The `indi_pylibcamera` is one layer in a stack of software:
                 --> picamera2
                     --> libcamera library
                         --> kernel driver
+                        
+    Indigo server
+        --> other Indigo agents
+        --> indi_pylibcamera
+            --> picamera2
+                --> libcamera library
+                    --> kernel driver
 ```
 It can not work when the versions of `libcamera` and `picamera2` are too old (both are in a dynamic development).
 And it can not work when the rpicam-tools (like `rpicam-hello` and `rpicam-still`) have issues with your
 camera.
+
 
 ## Requirements and installation
 Some packages need to be installed with `apt`:
@@ -50,17 +59,28 @@ for your camera with:
   rpicam-still -r --mode 4056:3040 --shutter 100000 --gain 1 --awbgains 1,1 --immediate -o test.jpg
   ```
   Something with your libcamera or kernel driver installation will be wrong if this does not work.
-- Install INDI core library. If there is no pre-compiled package for your hardware you will need to compile it
+- When you intend to use INDI:
+  Install INDI core library. If there is no pre-compiled package for your hardware you will need to compile it
 by yourself. Instructions can be found here: https://github.com/indilib/indi. 
 The scripts on https://gitea.nouspiro.space/nou/astro-soft-build automate compilation and installation.
-  A Raspberry Pi Zero does not have enough RAM to compile with 4 threads in parallel: you need to do `make -j1` instead of `make -j4`. 
+  You can reduce the number of parallel running threads when the compilation runs out of memory:
+you need to do `make -j1` instead of `make -j4`. When it still runs out of memory you can increase the SWAP size.
 Finally, after installation, you should to have a working INDI server: `indiserver -v indi_simulator_telescope`
+- When you intend to use Indigo:
+  Install Indigo with:
+  ```commandline
+  echo "deb [trusted=yes] https://indigo-astronomy.github.io/indigo_ppa/ppa indigo main" | sudo tee /etc/apt/sources.list.d/indigo.list
+  sudo apt-get update
+  sudo apt-get install indigo
+  sudo apt-get install ain-imager
+  sudo apt-get install indigo-control-panel
+  ```
 - Some Python packages require matching versions of system libraries. They must be installed with `apt`:
 ```commandline
 sudo apt install python3-pip rpicam-apps python3-picamera2 python3-lxml python3-astropy python3-numpy python3-venv
 ```
 
-The Raspberry Pi OS "Bullseye" still allowed to install system wide with `sudo pip install indi_pylibcamera`. 
+The Raspberry PI OS "Bullseye" still allowed to install system wide with `sudo pip install indi_pylibcamera`. 
 Since "Bookworm" a virtual environment is required to install non-system Python packages. Trying to install
 `indi_pylibcamera` without a virtual environment will fail with `error: externally-managed-environment`. 
 
@@ -72,6 +92,15 @@ source ~/venv_indi_pylibcamera/bin/activate
 pip install --upgrade pip
 pip install indi_pylibcamera
 ```
+
+If you want to use the driver with KStars/EKOS, you need to register the driver:
+```commandline
+source ~/venv_indi_pylibcamera/bin/activate
+sudo venv_indi_pylibcamera/bin/indi_pylibcamera_postinstall
+```
+This makes 5 driver instances "INDI pylibcamera", "INDI pylibcamera2" ... "INDI pylibcamera5" available in the 
+EKOS profile editor under "CCDs" > "Raspberry PI". See section **Global Configuration** below on how to configure
+multiple driver instances.
 
 It is highly recommended to make your own copy of the INI files: 
 ```commandline
@@ -110,22 +139,32 @@ rm -rf ~/venv_indi_pylibcamera
 ```
 
 ## Running
+### INDI, KStars/EKOS
 At the moment there is no support to start the driver from the EKOS profile editor. 
 The driver and the INDI server must be started in shell with activated virtual environment:
 ```commandline
 source ~/venv_indi_pylibcamera/bin/activate
+indiserver -v indi_pylibcamera indi_pylibcamera2 indi_pylibcamera3 indi_pylibcamera4 indi_pylibcamera5 indi_YourMount
 ```
 
-In the same shell you can start the INDI server with `indiserver -v indi_pylibcamera`. You can start up to 5 instances of the driver to operate up to 5 cameras:
-```commandline
-indiserver -v indi_pylibcamera indi_pylibcamera2 indi_pylibcamera3 indi_pylibcamera4 indi_pylibcamera5
-```
-
-When the server is running
-you can connect to the server from another computer with an INDI client (for instance KStars/EKOS). The camera name
+You can start up to 5 instances of the driver to operate up to 5 cameras. The camera name
 is the one you configure in the global configuration (see below). 
 
+The other drivers (mount, ...) must also be started here.
+
+When the server is running you can connect to the server from another computer with an INDI client
+(for instance KStars/EKOS). If you run KStars/EKOS on the same Raspberry PI, you need to set "Mode" to "Remote" and 
+"Host" to "localhost" in the EKOS profile editor.
+
 I recommend you to make a wrapper script to activate the environment and start the driver.
+
+### Indigo
+Similar to INDI you need to start the server and the driver in the activated environment:
+```commandline
+source ~/venv_indi_pylibcamera/bin/activate
+indigo_server -i indi_pylibcamera indi_pylibcamera2 indi_pylibcamera3 indi_pylibcamera4 indi_pylibcamera5
+```
+
 
 ## Global Configuration
 The driver uses a hierarchy of configuration files to set global parameter. These configuration files are called
@@ -146,7 +185,7 @@ I recommend to copy the INI files from the installation directory to `$HOME/.ind
 
 The configuration file must have the section `[driver]`. The most important keys are:
 - `DeviceName` (string): INDI name of the device. This allows to distinguish indi_pylibcamera devices in your setup.
-For instance you can have one Raspberry Pi with HQ camera as main camera for taking photos and a second Raspberry Pi with
+For instance you can have one Raspberry PI with HQ camera as main camera for taking photos and a second Raspberry PI with
 a V1 camera for auto guiding. The INI files in the installation directors set the `DeviceName` to "pylibcamera Main", "pylibcamera2 Guide", "pylibcamera3", "pylibcamera4" and "pylibcamera5" for the 5 driver instances.
 - `SelectCameraDevice` (number): The driver can connect to different camera devices. Your client software will show 
   you a list of available devices (for instance: "imx477, Num0, Loc2" or "imx477, Num1, Loc2") and it may have the
@@ -242,7 +281,7 @@ to allow client software to calculate the image viewing angle.
 To work around this the driver makes a special handling for the cameras listed below. Due to the removing of 
 zero-filled columns/rows the image frame size will be smaller than stated on the raw mode name.
 
-### IMX477 (Raspberry Pi HQ camera)
+### IMX477 (Raspberry PI HQ camera)
 Libcamera provides 4 raw modes for this camera, some made by binning (or subsampling) and all with 0-filled columns:
 * **4056x3040 BGGR 12bit:** provided frame size 4064x3040, no binning, has 8 zero-filled columns on its right, 
 final image size is 4056x3040
@@ -255,21 +294,21 @@ final image size is 1332x990
 
 Maximum exposure time is > 5 minutes.
 
-### OV5647 (Raspberry Pi V1 camera)
+### OV5647 (Raspberry PI V1 camera)
 This camera does not add zero-filled columns. But libcamera uses 3 binning modes. Maximum exposure time is 1 sec.
 * **2592x1944 GBRG 10bit:** provided frame size 2592x1944, no binning, no garbage columns, final image size is 2592x1944
 * **1920x1080 GBRG 10bit:** provided frame size 1920x1080, no binning, no garbage columns, final image size is 1920x1080
 * **1296x972 GBRG 10bit:** provided frame size 1296x972, 2x2 binning, no garbage columns, final image size is 1296x972
 * **640x480 GBRG 10bit:** provided frame size 640x480, 4x4 binning, no garbage columns, final image size is 640x480
 
-### IMX708 (Raspberry Pi Module 3 camera)
+### IMX708 (Raspberry PI Module 3 camera)
 This camera has auto-focus capabilities which are not supported by this driver. Maximum exposure time is 1.7 sec.
 * **4608x2592 BGGR 10bit:** provided frame size 4608x2592, no binning, no garbage columns, final image size is 4608x2592
 * **2304x1296 BGGR 10bit:** provided frame size 2304x1296, 2x2 binning, no garbage columns, final image size is 2304x1296
 * **1536x864 BGGR 10bit:** provided frame size 1536x864, 2x2 binning, no garbage columns, final image size is 1536x864
 
 ## When you need support for a different camera
-There are many cameras you can connect to a Raspberry Pi. We can not test the driver with all of them. But we can try 
+There are many cameras you can connect to a Raspberry PI. We can not test the driver with all of them. But we can try 
 to support. For that we will need more information about your camera. Please run:
 
 ```commandline
@@ -338,10 +377,10 @@ enabled the telescope location, sky coordinates and pier side should update auto
 "Do snooping" you can stop the updates. If you get trouble you can disable snooping in the INI file right from the
 driver start.
 
-A correct system time on you Raspberry Pi is absolutely needed for the calculation of the metadata. The Raspberry Pi
+A correct system time on you Raspberry PI is absolutely needed for the calculation of the metadata. The Raspberry PI
 does not have a battery powered realtime clock. It adjusts its system time from a time-server in the internet. If your
-Pi does not have internet access you will need to take care for setting the date and time. For instance, you can 
-install a realtime clock or a GPS hardware. You can also copy date and time from one Linux computer (or Raspberry Pi)
+PI does not have internet access you will need to take care for setting the date and time. For instance, you can 
+install a realtime clock or a GPS hardware. You can also copy date and time from one Linux computer (or Raspberry PI)
 to another with:
 ```commandline
 ssh -t YourUserName@YourPiName sudo date --set=`date -Iseconds`
