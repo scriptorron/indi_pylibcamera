@@ -9,12 +9,12 @@ Run it with root privileges.
 import sys
 import os
 import os.path
-
+import shutil
 
 default_indi_path = "/usr/share/indi"
 
 
-def create_Link(indi_path, overwrite=True):
+def copy_XML(indi_path, overwrite=True):
     xml_name = "indi_pylibcamera.xml"
     src = os.path.join(os.path.dirname(__file__), xml_name)
     dest = os.path.join(indi_path, xml_name)
@@ -28,7 +28,7 @@ def create_Link(indi_path, overwrite=True):
             print(f'ERROR: You need to run this with root permissions (sudo).')
             return -3
     try:
-        os.symlink(src, dest)
+        shutil.copy(src, dest)
     except FileExistsError:
         print(f'ERROR: File {dest} exists. Please remove it before running this script.')
         return -1
@@ -41,7 +41,7 @@ def create_Link(indi_path, overwrite=True):
     return 0
 
 
-def create_LinkInteractive(interactive, indi_path):
+def copy_Interactive(interactive, indi_path):
     if interactive:
         print("""
 This script tells INDI about the installation of the indi_pylibcamera driver. It is only needed to run this
@@ -62,7 +62,7 @@ Please run this script with root privileges (sudo).
         if len(inp_indi_path) > 0:
             indi_path = inp_indi_path
         print(f'Creating symbolic link in {indi_path}...')
-    ret = create_Link(indi_path=indi_path, overwrite=True)
+    ret = copy_XML(indi_path=indi_path, overwrite=True)
     if interactive:
         if ret == 0:
             print("Done.")
@@ -83,7 +83,7 @@ def main():
                         help=f'path to INDI driver XMLs, default: {default_indi_path}')
     args = parser.parse_args()
     #
-    create_LinkInteractive(interactive=not args.silent, indi_path=args.path)
+    copy_Interactive(interactive=not args.silent, indi_path=args.path)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,25 @@
+<?xml version='1.0' encoding='UTF-8'?>
 <driversList>
   <devGroup group="CCDs">
-    <device label="INDI pylibcamera">
+    <device label="INDI pylibcamera" manufacturer="Raspberry PI">
       <driver name="INDI pylibcamera">indi_pylibcamera</driver>
-      <version>3.1.0</version>
+      <version>3.2.0</version>
+    </device>
+    <device label="INDI pylibcamera2" manufacturer="Raspberry PI">
+      <driver name="INDI pylibcamera2">indi_pylibcamera2</driver>
+      <version>3.2.0</version>
+    </device>
+    <device label="INDI pylibcamera3" manufacturer="Raspberry PI">
+      <driver name="INDI pylibcamera3">indi_pylibcamera3</driver>
+      <version>3.2.0</version>
+    </device>
+    <device label="INDI pylibcamera4" manufacturer="Raspberry PI">
+      <driver name="INDI pylibcamera4">indi_pylibcamera4</driver>
+      <version>3.2.0</version>
+    </device>
+    <device label="INDI pylibcamera5" manufacturer="Raspberry PI">
+      <driver name="INDI pylibcamera5">indi_pylibcamera5</driver>
+      <version>3.2.0</version>
     </device>
   </devGroup>
 </driversList>
