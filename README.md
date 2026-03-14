@@ -91,6 +91,7 @@ python3 -m venv --system-site-packages ~/venv_indi_pylibcamera
 source ~/venv_indi_pylibcamera/bin/activate
 pip install --upgrade pip
 pip install indi_pylibcamera
+sudo venv_indi_pylibcamera/bin/indi_pylibcamera_postinstall
 ```
 
 If you want to use the driver with KStars/EKOS, you need to register the driver:
